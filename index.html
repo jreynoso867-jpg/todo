@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-lWRMCPSW0CL3oDo5CKexgalWyRlTZMNO4dtGOyM95Iw=' 'sha256-cKG9mK+Er3BXXrmxoOcxh9/S7OrSGtbDI2R277hhmNc=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DSkJ9cLfEwbYqBwa20rMJLcctD6tEwjpCqqWagADHDQ=' 'sha256-9uIydzvKKSslqV+usFfaFo6aF7FnNg2Cgs/GfIrh/ng=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -487,8 +487,15 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
       return true;
     },
   };
+  // Where it's running: on iPhone, the Home Screen app and Safari keep separate copies, so the app says which one this is.
+  const where = (() => {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let home = navigator.standalone === true;
+    try { home = home || matchMedia('(display-mode: standalone)').matches; } catch (e) { /* an older browser */ }
+    return ios ? (home ? 'ios-home' : 'ios-safari') : (home ? 'home' : 'browser');
+  })();
   const caps = { assets, downloads, user };
-  window.claude = { phone: true, photo, lock, use: async name => (name === 'db' ? (await unlock(), await loaded, db) : caps[name] || null) };
+  window.claude = { phone: true, where, photo, lock, use: async name => (name === 'db' ? (await unlock(), await loaded, db) : caps[name] || null) };
 })();
 </script>
 <style>
@@ -1761,7 +1768,7 @@ button.wk-head { cursor: pointer; }
 
   <section class="welcome" id="welcome" aria-labelledby="welcomeTitle" hidden>
     <h2 id="welcomeTitle">Bring your list over</h2>
-    <p>In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.</p>
+    <p id="welcomeText">In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.</p>
     <div class="move-row"><button type="button" class="btn-small" id="welcomeLoad">Load a saved file</button><button type="button" class="btn-small quiet" id="welcomeSkip">Start fresh</button></div>
   </section>
   <section class="hero c0 is-empty" id="hero" aria-labelledby="heroKicker">
@@ -7610,7 +7617,8 @@ button.wk-head { cursor: pointer; }
       if (Object.keys(sign).length) local.set('todo.sign', JSON.stringify(sign));
       local.set('todo.welcomed', '1');
       const parts = [plural(nt, 'task', 'tasks'), nl ? plural(nl, 'list', 'lists') : '', nc ? plural(nc, 'client', 'clients') : '', np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
-      renderMove('done', nt || nl || nc ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.');
+      const inSafari = phoneWhere() === 'ios-safari' ? ' This copy is in Safari. The Home Screen icon keeps its own, so load the file there too.' : '';
+      renderMove('done', (nt || nl || nc ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
       if (nt || nl || nc) toast(`Loaded ${parts.join(', ')}`);
       render();
     } catch (e) {
@@ -7641,10 +7649,23 @@ button.wk-head { cursor: pointer; }
     try { ok = await lk[kind](); } catch (e) { ok = false; }
     renderLock(ok ? LOCK_DONE[kind] : '');
   }
+  // Where the phone app runs. On iPhone the Home Screen icon keeps its own copy of the list, apart from Safari.
+  const phoneWhere = () => (IS_PHONE && window.claude && typeof window.claude.where === 'string' ? window.claude.where : '');
+  const WELCOME = {
+    '': ['Bring your list over', 'In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.'],
+    'ios-safari': ['Add it to your Home Screen first', 'Tap Share, then Add to Home Screen. Open To‑Do from the new icon and load your file there. The icon keeps its own copy of your list, separate from Safari.'],
+    'ios-home': ['Bring your list over', 'In the Claude version, open Settings and tap Save everything, then load that file here. Loaded it in Safari before? Load it again here: the Home Screen app keeps its own copy.'],
+  };
   function renderWelcome() {
     const show = IS_PHONE && writable() && S.tasksLoaded && S.listsLoaded && !S.tasks.size && !S.lists.size && local.get('todo.welcomed') !== '1';
     $('#welcome').hidden = !show;
     $('#hero').classList.toggle('behind-welcome', show);
+    if (!show) return;
+    const where = phoneWhere();
+    const [title, text] = WELCOME[where] || WELCOME[''];
+    $('#welcomeTitle').textContent = title;
+    $('#welcomeText').textContent = text;
+    $('#welcomeLoad').classList.toggle('quiet', where === 'ios-safari');
   }
 
   /* ---------- text size, sorting, the all-done confetti, and the backup ---------- */
