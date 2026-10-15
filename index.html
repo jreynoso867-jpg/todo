@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DSkJ9cLfEwbYqBwa20rMJLcctD6tEwjpCqqWagADHDQ=' 'sha256-9uIydzvKKSslqV+usFfaFo6aF7FnNg2Cgs/GfIrh/ng=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DSkJ9cLfEwbYqBwa20rMJLcctD6tEwjpCqqWagADHDQ=' 'sha256-GOYvOna5XQBIQmvB6/grROYgHWA2F2U5s20QOc/H+A4=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -529,6 +529,10 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
   --solid-4: #6B3FE8; --tone-4: #6B3FE8;
   --solid-5: #BF4C00; --tone-5: #BF4C00;
   --solid-6: #C72C78; --tone-6: #C72C78;
+  --solid-7: #C62828; --tone-7: #C62828;
+  --solid-8: #9A6A00; --tone-8: #9A6A00;
+  --solid-9: #7A4E2D; --tone-9: #7A4E2D;
+  --solid-10: #4A5568; --tone-10: #4A5568;
   --font: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -555,6 +559,10 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
     --solid-4: #7650F0; --tone-4: #A98DFF;
     --solid-5: #C24E00; --tone-5: #FF9C58;
     --solid-6: #D23585; --tone-6: #FF7DB9;
+    --solid-7: #C62828; --tone-7: #FF7A70;
+    --solid-8: #9A6A00; --tone-8: #F2C14E;
+    --solid-9: #7A4E2D; --tone-9: #D9A07A;
+    --solid-10: #4A5568; --tone-10: #A9B4C6;
     color-scheme: dark;
   }
 }
@@ -581,6 +589,10 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
   --solid-4: #7650F0; --tone-4: #A98DFF;
   --solid-5: #C24E00; --tone-5: #FF9C58;
   --solid-6: #D23585; --tone-6: #FF7DB9;
+  --solid-7: #C62828; --tone-7: #FF7A70;
+  --solid-8: #9A6A00; --tone-8: #F2C14E;
+  --solid-9: #7A4E2D; --tone-9: #D9A07A;
+  --solid-10: #4A5568; --tone-10: #A9B4C6;
   color-scheme: dark;
 }
 /* Color looks picked in the app (the Colors button). Each one is a fixed light look,
@@ -617,7 +629,9 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
   --btn-bg: #FFFFFF; --btn-fg: #F55F00; --fab-bg: #FFFFFF; --fab-fg: #F55F00; --empty-bg: #FFE3EC; --empty-fg: #B83D00;
   --on-solid: #F55F00;
   --solid-0: #FFFFFF; --solid-1: #FFFFFF; --solid-2: #FFFFFF; --solid-3: #FFFFFF; --solid-4: #FFFFFF; --solid-5: #FFFFFF; --solid-6: #FFFFFF;
+  --solid-7: #FFFFFF; --solid-8: #FFFFFF; --solid-9: #FFFFFF; --solid-10: #FFFFFF;
   --tone-0: #FFFFFF; --tone-1: #FFFFFF; --tone-2: #FFFFFF; --tone-3: #FFFFFF; --tone-4: #FFFFFF; --tone-5: #FFFFFF; --tone-6: #FFFFFF;
+  --tone-7: #FFFFFF; --tone-8: #FFFFFF; --tone-9: #FFFFFF; --tone-10: #FFFFFF;
 }
 .c0 { --solid: var(--solid-0); --tone: var(--tone-0); }
 .c1 { --solid: var(--solid-1); --tone: var(--tone-1); }
@@ -626,6 +640,10 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
 .c4 { --solid: var(--solid-4); --tone: var(--tone-4); }
 .c5 { --solid: var(--solid-5); --tone: var(--tone-5); }
 .c6 { --solid: var(--solid-6); --tone: var(--tone-6); }
+.c7 { --solid: var(--solid-7); --tone: var(--tone-7); }
+.c8 { --solid: var(--solid-8); --tone: var(--tone-8); }
+.c9 { --solid: var(--solid-9); --tone: var(--tone-9); }
+.c10 { --solid: var(--solid-10); --tone: var(--tone-10); }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
@@ -777,6 +795,29 @@ button:disabled { cursor: default; }
 .chip.has-color[aria-pressed="true"] { background: var(--solid); border-color: var(--solid); color: var(--on-solid); }
 .chip.has-color[aria-pressed="true"] .dot { background: var(--on-solid); }
 .chip-quiet { border-style: dashed; color: var(--soft); background: transparent; }
+.chip-run { display: contents; }
+.chip-new .ico { width: 16px; height: 16px; }
+/* categories in the filter row: squarer, like a tag, after a thin divider from the lists */
+.chip-sep { flex: none; width: 1.5px; height: 24px; margin: 0 4px; background: var(--line); }
+#catChips .chip { border-radius: 12px; }
+/* the colors to pick from: two rows of five */
+.swatch-picks { display: grid; grid-template-columns: repeat(5, 44px); gap: 6px 12px; margin-top: 12px; }
+.swatch-pick { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; }
+.swatch-pick::before { content: ""; width: 30px; height: 30px; border-radius: 50%; background: var(--solid); }
+.swatch-pick[aria-pressed="true"]::before { box-shadow: 0 0 0 3px var(--page), 0 0 0 5.5px var(--solid); }
+.swatch-pick:focus-visible { outline-offset: -2px; }
+.row-picks { flex-basis: 100%; margin: 4px 0 6px 52px; }
+/* New list / New category in the task sheet: the Add button wears the color you picked */
+.maker { margin-top: 12px; padding: 14px; border-radius: 18px; background: var(--wash); }
+.maker input {
+  width: 100%; height: 46px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 14px;
+  background: var(--page); color: var(--ink); font-size: calc(16px * var(--ts)); font-weight: 600;
+}
+.maker input:focus { outline: none; border-color: var(--ink); }
+.maker-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.maker .btn-small:not(.quiet) { background: var(--solid); color: var(--on-solid); }
+.maker .btn-small.quiet { background: var(--page); }
+#catHint { margin-top: 10px; }
 .chip-date { cursor: pointer; }
 .chip-count { font-weight: 500; opacity: .72; font-variant-numeric: tabular-nums; }
 .time-chips { margin-top: 8px; }
@@ -882,6 +923,13 @@ button:disabled { cursor: default; }
 .task-meta .late { color: var(--red); font-weight: 600; }
 .task-meta .when { color: var(--ink); font-weight: 600; }
 .task-meta .list-name { color: var(--tone); font-weight: 600; }
+/* a category on a task: a small tag with its color */
+.task-meta .cat-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 0 8px 0 7px; border-radius: 999px; line-height: 1.55;
+  background: var(--wash); background: color-mix(in srgb, var(--tone) 15%, var(--page)); color: var(--ink); font-weight: 600;
+}
+.task-meta .cat-tag::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tone); }
+.task.is-done .cat-tag { opacity: .7; }
 .rest-note { margin: 26px 0 0; font-size: calc(15.5px * var(--ts)); color: var(--soft); }
 .foot { margin: 40px 0 0; font-size: calc(13.5px * var(--ts)); color: var(--soft); }
 
@@ -1030,7 +1078,7 @@ button:disabled { cursor: default; }
 }
 .sheet-note { margin: 4px 0 16px; font-size: calc(15px * var(--ts)); color: var(--soft); }
 .list-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.list-row { display: flex; align-items: center; gap: 8px; }
+.list-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .swatch {
   flex: none; width: 44px; height: 44px; display: grid; place-items: center;
   padding: 0; border: 0; border-radius: 50%; background: none;
@@ -1146,6 +1194,7 @@ button:disabled { cursor: default; }
 .stats .c0 { --series: #9A9AA2; }
 .stats .c1 { --series: #2253F4; } .stats .c2 { --series: #348C40; } .stats .c3 { --series: #0394B0; }
 .stats .c4 { --series: #7D2FC3; } .stats .c5 { --series: #DB5202; } .stats .c6 { --series: #C42979; }
+.stats .c7 { --series: #B3261E; } .stats .c8 { --series: #A87500; } .stats .c9 { --series: #8D5A35; } .stats .c10 { --series: #56657D; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-skin]) .stats .c0 { --series: #74747C; }
   :root:not([data-theme="light"]):not([data-skin]) .stats .c1 { --series: #2F80FC; }
@@ -1154,6 +1203,10 @@ button:disabled { cursor: default; }
   :root:not([data-theme="light"]):not([data-skin]) .stats .c4 { --series: #9E5DD7; }
   :root:not([data-theme="light"]):not([data-skin]) .stats .c5 { --series: #E66003; }
   :root:not([data-theme="light"]):not([data-skin]) .stats .c6 { --series: #EC4496; }
+  :root:not([data-theme="light"]):not([data-skin]) .stats .c7 { --series: #F0605A; }
+  :root:not([data-theme="light"]):not([data-skin]) .stats .c8 { --series: #D9A21F; }
+  :root:not([data-theme="light"]):not([data-skin]) .stats .c9 { --series: #B98157; }
+  :root:not([data-theme="light"]):not([data-skin]) .stats .c10 { --series: #8796AE; }
 }
 :root[data-theme="dark"]:not([data-skin]) .stats .c0 { --series: #74747C; }
 :root[data-theme="dark"]:not([data-skin]) .stats .c1 { --series: #2F80FC; }
@@ -1162,8 +1215,12 @@ button:disabled { cursor: default; }
 :root[data-theme="dark"]:not([data-skin]) .stats .c4 { --series: #9E5DD7; }
 :root[data-theme="dark"]:not([data-skin]) .stats .c5 { --series: #E66003; }
 :root[data-theme="dark"]:not([data-skin]) .stats .c6 { --series: #EC4496; }
+:root[data-theme="dark"]:not([data-skin]) .stats .c7 { --series: #F0605A; }
+:root[data-theme="dark"]:not([data-skin]) .stats .c8 { --series: #D9A21F; }
+:root[data-theme="dark"]:not([data-skin]) .stats .c9 { --series: #B98157; }
+:root[data-theme="dark"]:not([data-skin]) .stats .c10 { --series: #8796AE; }
 /* the orange-background look keeps its one-color style */
-:root[data-skin="orange-bg"] .stats :is(.c0, .c1, .c2, .c3, .c4, .c5, .c6) { --series: var(--tone); }
+:root[data-skin="orange-bg"] .stats :is(.c0, .c1, .c2, .c3, .c4, .c5, .c6, .c7, .c8, .c9, .c10) { --series: var(--tone); }
 .bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 14px; }
 .bar {
   display: grid; grid-template-rows: 112px auto; min-width: 0; padding: 0; border: 0; border-radius: 10px;
@@ -1801,6 +1858,8 @@ button.wk-head { cursor: pointer; }
   <nav class="filters" id="filters" aria-label="Show tasks from" hidden>
     <div class="chips scroll">
       <div class="chip-group" id="filterChips"></div>
+      <span class="chip-sep" id="catSep" aria-hidden="true" hidden></span>
+      <div class="chip-group" id="catChips" role="group" aria-label="Categories" hidden></div>
       <button type="button" class="chip chip-quiet" id="editListsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span id="editListsLabel">Edit lists</span></button>
       <button type="button" class="chip chip-quiet" id="selectBtn" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>Select</button>
       <label class="chip chip-quiet chip-sort" id="sortChip" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3.5 16.5L7 20l3.5-3.5"/><path d="M14 6h7M14 11h5M14 16h3"/></svg><select id="sortSel" aria-label="Sort tasks"><option value="mine">My order</option><option value="time">Time</option><option value="priority">Priority</option><option value="newest">Newest</option></select><svg class="ico chev-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
@@ -2050,7 +2109,24 @@ button.wk-head { cursor: pointer; }
       </div>
       <div class="field">
         <div class="field-label" id="listLabel">List</div>
-        <div class="chips wrap" role="group" aria-labelledby="listLabel" id="sheetLists"></div>
+        <div class="chips wrap" role="group" aria-labelledby="listLabel"><div class="chip-run" id="sheetLists"></div><button type="button" class="chip chip-quiet chip-new" id="newListChip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New list</button></div>
+        <div class="maker" id="listMaker" hidden>
+          <label class="sr-only" for="listMakerName">New list name</label>
+          <input id="listMakerName" type="text" maxlength="40" placeholder="New list name" autocomplete="off" enterkeyhint="done">
+          <div class="swatch-picks" id="listMakerColors" role="group" aria-label="Color for the new list"></div>
+          <div class="maker-row"><button type="button" class="btn-small" id="listMakerAdd">Add list</button><button type="button" class="btn-small quiet" id="listMakerCancel">Cancel</button></div>
+        </div>
+      </div>
+      <div class="field" id="catField">
+        <div class="field-label" id="catLabel">Categories</div>
+        <div class="chips wrap" role="group" aria-labelledby="catLabel"><div class="chip-run" id="sheetCats"></div><button type="button" class="chip chip-quiet chip-new" id="newCatChip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New category</button></div>
+        <p class="field-note" id="catHint">Tag tasks across your lists, like Kitchen, Calls or Supplies. A task can have up to five.</p>
+        <div class="maker" id="catMaker" hidden>
+          <label class="sr-only" for="catMakerName">New category name</label>
+          <input id="catMakerName" type="text" maxlength="30" placeholder="Like Kitchen, Calls or Supplies" autocomplete="off" enterkeyhint="done">
+          <div class="swatch-picks" id="catMakerColors" role="group" aria-label="Color for the new category"></div>
+          <div class="maker-row"><button type="button" class="btn-small" id="catMakerAdd">Add category</button><button type="button" class="btn-small quiet" id="catMakerCancel">Cancel</button></div>
+        </div>
       </div>
       <div class="field" id="clientField" hidden>
         <div class="field-label" id="clientLabel">Client</div>
@@ -2119,16 +2195,25 @@ button.wk-head { cursor: pointer; }
   <div class="sheet-inner">
     <div class="sheet-head">
       <span></span>
-      <h2 id="listsTitle">Lists</h2>
+      <h2 id="listsTitle">Lists and categories</h2>
       <button type="button" class="link-btn end" id="listsDone">Done</button>
     </div>
-    <p class="sheet-note">Tap a color to change it. Edit a name to rename the list.</p>
+    <h3 class="sheet-sub" id="listsSub">Lists</h3>
+    <p class="sheet-note">Each task goes in one list. Tap a color to change it, or edit a name to rename it.</p>
     <ul class="list-rows" id="listRows"></ul>
     <p class="sheet-note" id="listsEmpty" hidden>No lists yet. Lists keep your jobs and errands apart.</p>
     <form class="new-list" id="newListForm" autocomplete="off">
       <label class="sr-only" for="newListName">New list name</label>
       <input id="newListName" type="text" maxlength="40" placeholder="New list name" enterkeyhint="done">
       <button type="submit" class="btn-small">Add list</button>
+    </form>
+    <h3 class="sheet-sub" id="catsTitle">Categories</h3>
+    <p class="sheet-note">Tag tasks across your lists, like Kitchen, Calls or Supplies. A task can have up to five.</p>
+    <ul class="list-rows" id="catRows" aria-labelledby="catsTitle"></ul>
+    <form class="new-list" id="newCatForm" autocomplete="off">
+      <label class="sr-only" for="newCatName">New category name</label>
+      <input id="newCatName" type="text" maxlength="30" placeholder="New category name" enterkeyhint="done">
+      <button type="submit" class="btn-small">Add category</button>
     </form>
     <h3 class="sheet-sub" id="tplTitle">Job templates</h3>
     <ul class="list-rows" id="tplRows" aria-labelledby="tplTitle"></ul>
@@ -2359,6 +2444,9 @@ button.wk-head { cursor: pointer; }
     cheerArmed: 0,              // set by a check-off; the next renders look for an all-done day
     clients: new Map(),         // JARS clients: name, address, contact, usual checklist
     clientsLoaded: false,
+    cats: new Map(),            // categories: name, color, order
+    catsLoaded: false,
+    catFilter: local.get('todo.cat') || null, // the category the board is showing, or null for all
     streak: { days: {} },       // finish streak: YYYY-MM-DD -> 'done' | 'missed'
     streakLoaded: false,
     gcalOn: false,              // Google Calendar sync, saved with the view settings
@@ -3416,13 +3504,41 @@ button.wk-head { cursor: pointer; }
   }
 
   /* ---------- data views ---------- */
-  const clampColor = c => { const n = Math.round(Number(c)); return n >= 1 && n <= 6 ? n : 1; };
+  // Ten colors for lists and categories (0 is the gray of "no list").
+  const COLOR_COUNT = 10;
+  const COLOR_NAMES = ['Gray', 'Blue', 'Green', 'Teal', 'Purple', 'Orange', 'Pink', 'Red', 'Gold', 'Brown', 'Slate'];
+  const clampColor = c => { const n = Math.round(Number(c)); return n >= 1 && n <= COLOR_COUNT ? n : 1; };
+  const freeColor = used => { for (let c = 1; c <= COLOR_COUNT; c++) if (!used.has(c)) return c; return (used.size % COLOR_COUNT) + 1; };
+  // A row of swatches to pick from; the picked one is pressed.
+  function fillSwatches(box, picked, label) {
+    if (box.children.length !== COLOR_COUNT) {
+      box.replaceChildren(...Array.from({ length: COLOR_COUNT }, (_, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'swatch-pick c' + (i + 1);
+        b.dataset.color = String(i + 1);
+        b.setAttribute('aria-label', COLOR_NAMES[i + 1]);
+        return b;
+      }));
+    }
+    for (const b of box.children) b.setAttribute('aria-pressed', String(Number(b.dataset.color) === picked));
+    if (label) box.setAttribute('aria-label', label);
+  }
   const listView = (id, l = {}) => ({
     id,
     name: clean(l.name, 40) || 'Untitled list',
     color: clampColor(l.color),
     order: Number.isFinite(Number(l.order)) ? Number(l.order) : 0,
   });
+  const catView = (id, c = {}) => ({
+    id,
+    name: clean((c || {}).name, 30) || 'Untitled',
+    color: clampColor((c || {}).color),
+    order: Number.isFinite(Number((c || {}).order)) ? Number(c.order) : 0,
+  });
+  const sortedCats = () => [...S.cats].map(([id, c]) => catView(id, c)).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  const cleanCats = v => (Array.isArray(v) ? [...new Set(v.filter(id => typeof id === 'string' && S.cats.has(id)))].slice(0, 5) : []);
+  const catNames = ids => ids.map(id => catView(id, S.cats.get(id)).name);
   const sortedLists = () => [...S.lists].map(([id, l]) => listView(id, l))
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   const taskView = (id, t) => ({
@@ -3446,6 +3562,7 @@ button.wk-head { cursor: pointer; }
     sample: t.sample === true,
     pinned: t.pinned === true,
     po: cleanPo(t.po),
+    cats: cleanCats(t.cats),
     client: typeof t.client === 'string' && S.clients.has(t.client) ? t.client : null,
     gcal: t.gcal && typeof t.gcal === 'object' && typeof t.gcal.id === 'string' ? { id: t.gcal.id, sig: String(t.gcal.sig || '') } : null,
   });
@@ -3472,7 +3589,7 @@ button.wk-head { cursor: pointer; }
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.createdAt - b.createdAt);
   const colorOf = listId => (listId && S.lists.has(listId) ? listView(listId, S.lists.get(listId)).color : 0);
   const nameOf = listId => (listId && S.lists.has(listId) ? listView(listId, S.lists.get(listId)).name : '');
-  const inFilter = t => S.filter === ALL || t.list === S.filter;
+  const inFilter = t => (S.filter === ALL || t.list === S.filter) && (!S.catFilter || (Array.isArray(t.cats) && t.cats.includes(S.catFilter)));
   function sectionOf(t) {
     if (t.done && !S.linger.has(t.id)) return 'done';
     if (t.waiting && !(t.due && t.due <= S.today)) return 'waiting'; // back on the list on its follow-up day
@@ -3484,7 +3601,7 @@ button.wk-head { cursor: pointer; }
   }
   const OPEN_SECTIONS = ['overdue', 'today', 'anytime', 'tomorrow', 'later'];
   const SECTIONS = ['day', ...OPEN_SECTIONS, 'waiting', 'done']; // Up next never comes from Waiting on
-  const setColor = (el, n) => { for (let i = 0; i <= 6; i++) el.classList.toggle('c' + i, i === n); };
+  const setColor = (el, n) => { for (let i = 0; i <= COLOR_COUNT; i++) el.classList.toggle('c' + i, i === n); };
 
   /* ---------- writes: one at a time per document ---------- */
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -3689,6 +3806,7 @@ button.wk-head { cursor: pointer; }
       S.trash = overlay('trash', trashSaved);
       S.templates = overlay('templates', templatesSaved);
       S.clients = overlay('clients', clientsSaved);
+      S.cats = overlay('categories', catsSaved);
       S.history = overlay('history', historySaved);
       render();
     });
@@ -3785,6 +3903,7 @@ button.wk-head { cursor: pointer; }
       checklist: t.checklist.map(i => ({ id: i.id, text: i.text, done: false })) };
     if (t.end) copy.end = t.end;
     if (t.photos.length) copy.photos = t.photos; // the next one keeps the photos (a label to match, a how-to)
+    if (t.cats && t.cats.length) copy.cats = t.cats.slice();
     return copy;
   }
   // Check off several at once (repeating ones make their next copy). Returns how to take it all back.
@@ -3875,6 +3994,7 @@ button.wk-head { cursor: pointer; }
   let trashSaved = new Map();
   let templatesSaved = new Map();
   let clientsSaved = new Map();
+  let catsSaved = new Map();
   let historySaved = new Map();
   function layTasks() {
     const m = new Map(overlay('tasks', tasksSaved));
@@ -4007,16 +4127,19 @@ button.wk-head { cursor: pointer; }
     local.set('todo.filter', f);
     render();
   }
-  function addList(raw) {
+  function addList(raw, pick, reuse = false) {
     const name = clean(raw, 40);
-    if (!name || !writable()) return false;
+    if (!name || !writable()) return null;
     const lists = sortedLists();
-    const used = new Set(lists.map(l => l.color));
-    const color = [1, 2, 3, 4, 5, 6].find(c => !used.has(c)) || (lists.length % 6) + 1;
+    if (reuse) {
+      const same = lists.find(l => l.name.toLowerCase() === name.toLowerCase());
+      if (same) return same.id;
+    }
+    const color = Number(pick) >= 1 && Number(pick) <= COLOR_COUNT ? Number(pick) : freeColor(new Set(lists.map(l => l.color)));
     const order = lists.reduce((m, l) => Math.max(m, l.order), 0) + 1;
     const ref = db.collection('lists').doc();
     write('lists/' + ref.id, () => ref.set({ name, color, order }), { create: true });
-    return true;
+    return ref.id;
   }
   function renameList(id, input) {
     const l = S.lists.get(id);
@@ -4026,10 +4149,52 @@ button.wk-head { cursor: pointer; }
     if (name === l.name) return;
     write('lists/' + id, () => listRef(id).update({ name }));
   }
-  function cycleColor(id) {
+  function setListColor(id, color) {
     const l = S.lists.get(id);
-    if (!l || !writable()) return;
-    write('lists/' + id, () => listRef(id).update({ color: (clampColor(l.color) % 6) + 1 }));
+    if (!l || !writable() || clampColor(l.color) === color) return;
+    write('lists/' + id, () => listRef(id).update({ color }));
+  }
+
+  /* ---------- categories: tags across lists (Kitchen, Calls, Supplies), up to five on a task ---------- */
+  const MAX_CATS = 5;
+  const catRef = id => db.doc('categories/' + id);
+  function addCat(raw, pick) {
+    const name = clean(raw, 30);
+    if (!name || !writable()) return null;
+    const cats = sortedCats();
+    const same = cats.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (same) return same.id;
+    const color = Number(pick) >= 1 && Number(pick) <= COLOR_COUNT ? Number(pick) : freeColor(new Set(cats.map(c => c.color)));
+    const order = cats.reduce((m, c) => Math.max(m, c.order), 0) + 1;
+    const ref = db.collection('categories').doc();
+    write('categories/' + ref.id, () => ref.set({ name, color, order, createdAt: Date.now() }), { create: true });
+    return ref.id;
+  }
+  function renameCat(id, input) {
+    const c = S.cats.get(id);
+    if (!c || !writable()) return;
+    const name = clean(input.value, 30);
+    if (!name) { input.value = catView(id, c).name; return; }
+    if (name === c.name) return;
+    write('categories/' + id, () => catRef(id).update({ name }));
+  }
+  function setCatColor(id, color) {
+    const c = S.cats.get(id);
+    if (!c || !writable() || clampColor(c.color) === color) return;
+    write('categories/' + id, () => catRef(id).update({ color }));
+  }
+  async function deleteCat(id) {
+    if (!S.cats.has(id) || !writable()) return;
+    const affected = [...S.tasks].filter(([, t]) => Array.isArray(t.cats) && t.cats.includes(id));
+    if (S.catFilter === id) setCatFilter(null);
+    const ok = await write('categories/' + id, () => catRef(id).delete());
+    if (!ok) return;
+    await runPool(affected.map(([tid, t]) => () => write('tasks/' + tid, () => taskRef(tid).update({ cats: t.cats.filter(x => x !== id) }))));
+  }
+  function setCatFilter(id) {
+    S.catFilter = id && S.cats.has(id) ? id : null;
+    local.set('todo.cat', S.catFilter || '');
+    render();
   }
   async function deleteList(id) {
     if (!S.lists.has(id) || !writable()) return;
@@ -4045,7 +4210,7 @@ button.wk-head { cursor: pointer; }
   const searchQuery = () => (S.searchOpen ? S.query.trim().toLowerCase() : '');
   function matchesQuery(t, q) {
     const hay = [t.title, t.note, nameOf(t.list), t.waiting ? t.waiting.on : '', ...t.checklist.map(i => i.text),
-      t.po ? `PO ${t.po.number} ${t.po.vendor}` : '', t.client ? clientView(t.client, S.clients.get(t.client)).name : ''].join('\n').toLowerCase();
+      t.po ? `PO ${t.po.number} ${t.po.vendor}` : '', t.client ? clientView(t.client, S.clients.get(t.client)).name : '', ...catNames(t.cats || [])].join('\n').toLowerCase();
     return q.split(/\s+/).every(w => hay.includes(w));
   }
   function openSearch() {
@@ -4128,13 +4293,14 @@ button.wk-head { cursor: pointer; }
       const t = taskView(id, raw);
       S.sheet = { mode, id, due: t.due, list: t.list, priority: t.priority, time: t.time, end: t.end, repeat: t.repeat,
         checklist: t.checklist.map(i => ({ ...i })), photos: t.photos.map(p => ({ ...p })), wasWaiting: !!t.waiting,
-        pinned: t.pinned, po: t.po ? { ...t.po } : null, client: t.client };
+        pinned: t.pinned, po: t.po ? { ...t.po } : null, client: t.client, cats: t.cats.slice() };
       ta.value = t.title;
       na.value = t.note;
       $('#taskWaiting').value = t.waiting ? t.waiting.on : '';
     } else {
       S.sheet = { mode: 'new', id: null, due: S.day || S.today, list: S.filter !== ALL && S.lists.has(S.filter) ? S.filter : null, priority: 0, time: null, end: null, repeat: null,
-        checklist: [], photos: [], wasWaiting: false, pinned: false, po: null, client: null };
+        checklist: [], photos: [], wasWaiting: false, pinned: false, po: null, client: null,
+        cats: S.catFilter && S.cats.has(S.catFilter) ? [S.catFilter] : [] };
       ta.value = '';
       na.value = '';
       $('#taskWaiting').value = '';
@@ -4144,6 +4310,10 @@ button.wk-head { cursor: pointer; }
     sh.uploaded = new Set();
     sh.removed = new Set();
     sh.uploading = 0;
+    sh.newCats = new Set(); // categories and lists made in this sheet, kept even before the database says they exist
+    sh.newLists = new Set();
+    maker.list.open = false;
+    maker.cat.open = false;
     renderSheetPhotos();
     // Smart add: chips the user picks by hand win over the words in the title.
     sh.manual = new Set();
@@ -4207,6 +4377,7 @@ button.wk-head { cursor: pointer; }
       pinned: !!(S.sheet && S.sheet.pinned),
       poKey: JSON.stringify(poFromSheet()),
       client: S.sheet && S.sheet.client ? S.sheet.client : null,
+      catsKey: S.sheet ? JSON.stringify(S.sheet.cats || []) : '[]',
     };
   }
   function checklistKey(items, pending) {
@@ -4221,7 +4392,7 @@ button.wk-head { cursor: pointer; }
     const now = sheetValues();
     if (sh.uploading) return true;
     if (sh.mode === 'new') return !!(now.title || now.note || now.waiting || now.checklistKey !== '[]' || now.photosKey !== '[]' || now.poKey !== 'null');
-    return ['title', 'note', 'due', 'list', 'priority', 'time', 'end', 'repeat', 'checklistKey', 'photosKey', 'waiting', 'pinned', 'poKey', 'client'].some(k => now[k] !== sh.start[k]);
+    return ['title', 'note', 'due', 'list', 'priority', 'time', 'end', 'repeat', 'checklistKey', 'photosKey', 'waiting', 'pinned', 'poKey', 'client', 'catsKey'].some(k => now[k] !== sh.start[k]);
   }
   let cancelArmed = false;
   let cancelTimer = 0;
@@ -4404,7 +4575,7 @@ button.wk-head { cursor: pointer; }
     const time = due && isHHMM(sh.time) ? sh.time : null;
     const end = cleanEnd(time, sh.end);
     const repeat = due ? cleanRepeat(sh.repeat) : null;
-    const list = sh.list && S.lists.has(sh.list) ? sh.list : null;
+    const list = sh.list && (S.lists.has(sh.list) || sh.newLists.has(sh.list)) ? sh.list : null;
     const who = clean($('#taskWaiting').value, 60);
     const wasWaiting = sh.mode === 'edit' ? cleanWaiting((S.tasks.get(sh.id) || {}).waiting) : null;
     const waiting = who ? { ...(wasWaiting || {}), on: who, since: wasWaiting && wasWaiting.since ? wasWaiting.since : S.today } : null; // a new name keeps the wait's start
@@ -4412,6 +4583,7 @@ button.wk-head { cursor: pointer; }
     const pinned = !!sh.pinned;
     const client = sh.client && S.clients.has(sh.client) && isJarsList(list) ? sh.client : null;
     const received = !!(po && po.status === 'received');
+    const cats = [...new Set(sh.cats || [])].filter(id => S.cats.has(id) || sh.newCats.has(id)).slice(0, MAX_CATS);
     if (sh.mode === 'new') {
       const ref = db.collection('tasks').doc();
       const data = { title, note, priority, done: false, due, time, repeat, list, checklist, createdAt: Date.now(), doneAt: null };
@@ -4421,6 +4593,7 @@ button.wk-head { cursor: pointer; }
       if (pinned) data.pinned = true;
       if (po) data.po = { ...po, late: null };
       if (client) data.client = client;
+      if (cats.length) data.cats = cats;
       if (received) { data.done = true; data.doneAt = Date.now(); delete data.waiting; }
       closeTaskSheet(true);
       if (pinned) unpinOthers(ref.id);
@@ -4452,6 +4625,7 @@ button.wk-head { cursor: pointer; }
         changes.po = po ? { ...po, late: was && was.eta === po.eta ? was.late : null } : null; // a new expected date can be late again
       }
       if ((typeof cur.client === 'string' ? cur.client : null) !== client) changes.client = client;
+      if (JSON.stringify(cats) !== JSON.stringify(cleanCats(cur.cats))) changes.cats = cats.length ? cats : null;
       const nowReceived = received && cur.done !== true && !(was && was.status === 'received');
       if (nowReceived) { changes.done = true; changes.doneAt = Date.now(); changes.waiting = null; changes.spawnedId = null; }
       if (!Object.keys(changes).length) return;
@@ -4526,8 +4700,76 @@ button.wk-head { cursor: pointer; }
       [...sortedLists().map(l => ({ key: l.id, label: l.name, color: l.color, pressed: sh.list === l.id })),
        { key: '', label: 'No list', pressed: !sh.list }],
       'data-sheet-list');
+    syncChips($('#sheetCats'),
+      sortedCats().map(c => ({ key: c.id, label: c.name, color: c.color, pressed: (sh.cats || []).includes(c.id) })),
+      'data-sheet-cat');
+    $('#catHint').hidden = S.cats.size > 0;
+    renderMakers();
     renderSmart();
     renderStepsBtn();
+  }
+
+  // New list / New category, right in the task sheet: a name, a color, and it's picked for this task.
+  const maker = { list: { open: false, color: 1 }, cat: { open: false, color: 1 } };
+  function openMaker(kind) {
+    if (!S.sheet || !writable()) return;
+    const m = maker[kind];
+    m.open = true;
+    m.color = freeColor(new Set((kind === 'list' ? sortedLists() : sortedCats()).map(x => x.color)));
+    $(`#${kind}MakerName`).value = '';
+    renderMakers();
+    $(`#${kind}MakerName`).focus();
+  }
+  function closeMaker(kind, focusBack = true) {
+    if (!maker[kind].open) return;
+    maker[kind].open = false;
+    renderMakers();
+    if (focusBack) $(kind === 'list' ? '#newListChip' : '#newCatChip').focus({ preventScroll: true });
+  }
+  function renderMakers() {
+    for (const kind of ['list', 'cat']) {
+      const m = maker[kind];
+      const box = $(`#${kind}Maker`);
+      box.hidden = !m.open || !S.sheet;
+      $(kind === 'list' ? '#newListChip' : '#newCatChip').hidden = !!m.open || !writable();
+      if (box.hidden) continue;
+      setColor(box, m.color);
+      fillSwatches($(`#${kind}MakerColors`), m.color, kind === 'list' ? 'Color for the new list' : 'Color for the new category');
+    }
+  }
+  function makeFromSheet(kind) {
+    const sh = S.sheet;
+    if (!sh) return;
+    const input = $(`#${kind}MakerName`);
+    if (!clean(input.value, 40)) { input.focus(); return; }
+    if (kind === 'list') {
+      const id = addList(input.value, maker.list.color, true);
+      if (!id) return;
+      sh.newLists.add(id);
+      sh.list = id;
+      closeMaker('list');
+      pickedByHand('list');
+      return;
+    }
+    const id = addCat(input.value, maker.cat.color);
+    if (!id) return;
+    sh.newCats.add(id);
+    if (!sh.cats.includes(id)) {
+      if (sh.cats.length >= MAX_CATS) toast(`A task can have up to ${MAX_CATS} categories.`);
+      else sh.cats = [...sh.cats, id];
+    }
+    closeMaker('cat');
+    disarmCancel();
+    renderTaskSheet();
+  }
+  function toggleSheetCat(id) {
+    const sh = S.sheet;
+    if (!sh) return;
+    if (sh.cats.includes(id)) sh.cats = sh.cats.filter(x => x !== id);
+    else if (sh.cats.length >= MAX_CATS) { toast(`A task can have up to ${MAX_CATS} categories.`); return; }
+    else sh.cats = [...sh.cats, id];
+    disarmCancel();
+    renderTaskSheet();
   }
 
   // Waiting on: the Due chips become the follow-up date, and a line says what happens next.
@@ -4833,6 +5075,7 @@ button.wk-head { cursor: pointer; }
   function closeListsSheet() {
     if (!S.listsOpen) return;
     S.listsOpen = false;
+    rowPicks = null;
     closeSheet($('#listsSheet'));
   }
 
@@ -4907,12 +5150,57 @@ button.wk-head { cursor: pointer; }
     li.dataset.id = id;
     li.innerHTML = '<button type="button" class="swatch" data-act="color"></button>' +
       '<input type="text" maxlength="40" autocomplete="off" enterkeyhint="done">' +
-      '<button type="button" class="list-del" data-act="del-list">' + TRASH_SVG + '</button>';
+      '<button type="button" class="list-del" data-act="del-list">' + TRASH_SVG + '</button>' +
+      '<div class="swatch-picks row-picks" role="group" hidden></div>';
     li.querySelector('input').id = 'list-name-' + id;
     return li;
   }
+  // Which row's colors are open in the Lists sheet: { kind: 'list' | 'cat', id }.
+  let rowPicks = null;
+  function paintRowPicks(li, kind, v) {
+    const box = li.querySelector('.row-picks');
+    const open = !!(rowPicks && rowPicks.kind === kind && rowPicks.id === v.id);
+    box.hidden = !open;
+    li.querySelector('.swatch').setAttribute('aria-expanded', String(open));
+    if (open) fillSwatches(box, v.color, `Color for ${v.name}`);
+  }
+  function buildCatRow(id) {
+    const li = document.createElement('li');
+    li.className = 'list-row cat-row';
+    li.dataset.id = id;
+    li.innerHTML = '<button type="button" class="swatch" data-act="color"></button>' +
+      '<input type="text" maxlength="30" autocomplete="off" enterkeyhint="done">' +
+      '<button type="button" class="list-del" data-act="del-cat">' + TRASH_SVG + '</button>' +
+      '<div class="swatch-picks row-picks" role="group" hidden></div>';
+    li.querySelector('input').id = 'cat-name-' + id;
+    return li;
+  }
+  function renderCatRows() {
+    const ul = $('#catRows');
+    const cats = sortedCats();
+    const have = new Map([...ul.children].map(li => [li.dataset.id, li]));
+    let prev = null;
+    for (const c of cats) {
+      const li = have.get(c.id) || buildCatRow(c.id);
+      have.delete(c.id);
+      const input = li.querySelector('input');
+      if (document.activeElement !== input && input.value !== c.name) input.value = c.name;
+      input.setAttribute('aria-label', `Name of the ${c.name} category`);
+      const sw = li.querySelector('.swatch');
+      setColor(sw, c.color);
+      sw.setAttribute('aria-label', `Color of ${c.name}: ${COLOR_NAMES[c.color]}. Tap to change it.`);
+      paintRowPicks(li, 'cat', c);
+      const del = li.querySelector('.list-del');
+      del.setAttribute('aria-label', del.classList.contains('armed') ? `Tap again to delete ${c.name}` : `Delete the ${c.name} category`);
+      const want = prev ? prev.nextSibling : ul.firstChild;
+      if (li !== want) ul.insertBefore(li, want);
+      prev = li;
+    }
+    for (const li of have.values()) li.remove();
+  }
   function renderListsSheet() {
     if (!S.listsOpen) return;
+    renderCatRows();
     const ul = $('#listRows');
     const lists = sortedLists();
     const have = new Map([...ul.children].map(li => [li.dataset.id, li]));
@@ -4925,7 +5213,8 @@ button.wk-head { cursor: pointer; }
       input.setAttribute('aria-label', `Name of the ${l.name} list`);
       const sw = li.querySelector('.swatch');
       setColor(sw, l.color);
-      sw.setAttribute('aria-label', `Change the color of ${l.name}`);
+      sw.setAttribute('aria-label', `Color of ${l.name}: ${COLOR_NAMES[l.color]}. Tap to change it.`);
+      paintRowPicks(li, 'list', l);
       const del = li.querySelector('.list-del');
       del.setAttribute('aria-label', del.classList.contains('armed') ? `Tap again to delete ${l.name}` : `Delete the ${l.name} list`);
       const want = prev ? prev.nextSibling : ul.firstChild;
@@ -5262,6 +5551,8 @@ button.wk-head { cursor: pointer; }
     const end = cleanEnd(data.time, sh.end);
     if (end) data.end = end;
     if (sh.client && S.clients.has(sh.client) && isJarsList(data.list)) data.client = sh.client;
+    const dupCats = cleanCats(sh.cats);
+    if (dupCats.length) data.cats = dupCats;
     const photos = cleanPhotos(sh.photos.filter(p => !p.loading));
     if (photos.length) data.photos = photos; // shared with the original, like a repeating task's next copy
     const who = clean($('#taskWaiting').value, 60);
@@ -5275,7 +5566,7 @@ button.wk-head { cursor: pointer; }
   /* ---------- job reports: a PDF for the client, from a JARS job's checklist and photos ---------- */
   // Drawn on letter-size pages (8.5 x 11 in at 200 dpi), each page a JPEG inside a small PDF this page writes itself.
   const REPORT_W = 1700, REPORT_H = 2200, REPORT_M = 140;
-  const PRINT_SOLID = ['#111111', '#2348F5', '#0B8A55', '#00808A', '#6B3FE8', '#D35400', '#C72C78']; // list colors on paper
+  const PRINT_SOLID = ['#111111', '#2348F5', '#0B8A55', '#00808A', '#6B3FE8', '#D35400', '#C72C78', '#C62828', '#9A6A00', '#7A4E2D', '#4A5568']; // list colors on paper
   const isJarsList = id => /jars/i.test(nameOf(id));
   const report = { open: false, inc: { checklist: true, photos: true, notes: false }, timer: 0, busy: false, n: 0, run: 0 };
   function reportBusiness(listId) {
@@ -6515,6 +6806,17 @@ button.wk-head { cursor: pointer; }
          ...lists.map(l => ({ key: l.id, label: l.name, color: l.color, count: open.get(l.id) || 0, pressed: S.filter === l.id }))]
       : [];
     syncChips($('#filterChips'), items, 'data-filter');
+    // Categories: one at a time, on top of the list chosen.
+    if (S.catsLoaded && S.catFilter && !S.cats.has(S.catFilter)) { S.catFilter = null; local.set('todo.cat', ''); }
+    const cats = sortedCats();
+    const catOpen = new Map();
+    for (const [, t] of S.tasks) {
+      if (t.done === true || !Array.isArray(t.cats) || (S.filter !== ALL && t.list !== S.filter)) continue;
+      for (const c of new Set(t.cats)) catOpen.set(c, (catOpen.get(c) || 0) + 1);
+    }
+    $('#catChips').hidden = !cats.length;
+    $('#catSep').hidden = !cats.length;
+    syncChips($('#catChips'), cats.map(c => ({ key: c.id, label: c.name, color: c.color, count: catOpen.get(c.id) || 0, pressed: S.catFilter === c.id })), 'data-cat-filter');
     $('#editListsBtn').hidden = !writable();
     $('#selectBtn').hidden = !writable() || !S.tasksLoaded;
     $('#sortChip').hidden = !S.tasksLoaded;
@@ -7461,7 +7763,7 @@ button.wk-head { cursor: pointer; }
   // A saved file is checked before anything in it is kept: its size, its keys, its ids, and every photo's actual bytes.
   const MAX_IMPORT_BYTES = 250 * 1024 * 1024;
   const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
-  const IMPORT_CAP = { tasks: 20000, lists: 200, clients: 2000, templates: 500, history: 4000, photos: 3000 };
+  const IMPORT_CAP = { tasks: 20000, lists: 200, categories: 500, clients: 2000, templates: 500, history: 4000, photos: 3000 };
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
   const safeId = id => typeof id === 'string' && id.length > 0 && id.length <= 200 && !/[\/\u0000-\u001F\u007F]/.test(id);
   // What the bytes are, whatever the file says: only real pictures get in (JPEG, PNG, WebP, GIF, and iPhone HEIC/AVIF).
@@ -7539,12 +7841,12 @@ button.wk-head { cursor: pointer; }
       const tasks = plainCopy(S.tasks, keep);
       const data = {
         app: EXPORT_APP, version: 1, exportedAt: new Date().toISOString(),
-        collections: { tasks, lists: plainCopy(S.lists), history: plainCopy(S.history), templates: plainCopy(S.templates), clients: plainCopy(S.clients) },
+        collections: { tasks, lists: plainCopy(S.lists), categories: plainCopy(S.cats), history: plainCopy(S.history), templates: plainCopy(S.templates), clients: plainCopy(S.clients) },
         settings: { skin: S.skin, textSize: S.textSize, sort: S.sort, streak: { ...S.streak.days }, sign: signoffs() },
         photos,
       };
       const nt = Object.keys(tasks).length;
-      const what = [plural(nt, 'task', 'tasks'), plural(S.lists.size, 'list', 'lists'), S.clients.size ? plural(S.clients.size, 'client', 'clients') : '', n ? plural(n, 'photo', 'photos') : '']
+      const what = [plural(nt, 'task', 'tasks'), plural(S.lists.size, 'list', 'lists'), S.cats.size ? plural(S.cats.size, 'category', 'categories') : '', S.clients.size ? plural(S.clients.size, 'client', 'clients') : '', n ? plural(n, 'photo', 'photos') : '']
         .filter(Boolean).join(', ');
       const res = await saveFileOut(new Blob([JSON.stringify(data)], { type: 'application/json' }), `To-do everything ${S.today}.json`, 'application/json');
       if (res === null) renderMove(null, '');
@@ -7591,8 +7893,9 @@ button.wk-head { cursor: pointer; }
         }
       }
       const jobs = [];
-      let nt = 0, nl = 0, nc = 0;
+      let nt = 0, nl = 0, nc = 0, ncat = 0;
       for (const [id, d] of entries('lists')) if (!S.lists.has(id)) { nl++; jobs.push(() => write('lists/' + id, () => db.doc('lists/' + id).set(d), { create: true })); }
+      for (const [id, d] of entries('categories')) if (!S.cats.has(id)) { ncat++; jobs.push(() => write('categories/' + id, () => db.doc('categories/' + id).set(d), { create: true })); }
       for (const [id, d] of entries('clients')) if (!S.clients.has(id)) { nc++; jobs.push(() => write('clients/' + id, () => db.doc('clients/' + id).set(d), { create: true })); }
       for (const [id, d] of entries('templates')) if (!S.templates.has(id)) jobs.push(() => write('templates/' + id, () => db.doc('templates/' + id).set(d), { create: true }));
       for (const [id, d] of entries('tasks')) {
@@ -7616,10 +7919,10 @@ button.wk-head { cursor: pointer; }
       const sign = cleanSignoffs(st.sign);
       if (Object.keys(sign).length) local.set('todo.sign', JSON.stringify(sign));
       local.set('todo.welcomed', '1');
-      const parts = [plural(nt, 'task', 'tasks'), nl ? plural(nl, 'list', 'lists') : '', nc ? plural(nc, 'client', 'clients') : '', np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
+      const parts = [plural(nt, 'task', 'tasks'), nl ? plural(nl, 'list', 'lists') : '', ncat ? plural(ncat, 'category', 'categories') : '', nc ? plural(nc, 'client', 'clients') : '', np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
       const inSafari = phoneWhere() === 'ios-safari' ? ' This copy is in Safari. The Home Screen icon keeps its own, so load the file there too.' : '';
-      renderMove('done', (nt || nl || nc ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
-      if (nt || nl || nc) toast(`Loaded ${parts.join(', ')}`);
+      renderMove('done', (nt || nl || nc || ncat ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
+      if (nt || nl || nc || ncat) toast(`Loaded ${parts.join(', ')}`);
       render();
     } catch (e) {
       renderMove('error', 'That file couldn’t be loaded. Try again.');
@@ -7816,13 +8119,13 @@ button.wk-head { cursor: pointer; }
   };
   const upFirst = x => (x ? x.charAt(0).toUpperCase() + x.slice(1) : '');
   function backupRows() {
-    const head = ['Title', 'List', 'Due', 'Time', 'Ends', 'Priority', 'Status', 'Done on', 'Repeats', 'Waiting on', 'Waiting since',
+    const head = ['Title', 'List', 'Categories', 'Due', 'Time', 'Ends', 'Priority', 'Status', 'Done on', 'Repeats', 'Waiting on', 'Waiting since',
       'Follow-ups sent', 'PO number', 'Vendor', 'Expected', 'PO status', 'Client', 'Checklist', 'Notes', 'Photos', 'Added'];
     const all = [...S.tasks].map(([id, raw]) => taskView(id, raw)).filter(t => !t.sample);
     all.sort((a, b) => Number(a.done) - Number(b.done) || (a.done ? b.doneAt - a.doneAt
       : (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') || byTime(a, b) || byCreated(a, b)));
     return [head, ...all.map(t => [
-      t.title, nameOf(t.list), t.due || '', t.time ? timeLabel(t.time) : '', t.end ? timeLabel(t.end) : '',
+      t.title, nameOf(t.list), catNames(t.cats).join('; '), t.due || '', t.time ? timeLabel(t.time) : '', t.end ? timeLabel(t.end) : '',
       t.priority ? PRIORITY[t.priority].name : '', t.done ? 'Done' : t.waiting ? 'Waiting' : 'Open', t.done ? stampText(t.doneAt) : '',
       t.repeat ? upFirst(REPEATS[t.repeat]) : '', t.waiting ? t.waiting.on : '', t.waiting && t.waiting.since ? t.waiting.since : '',
       t.waiting && t.waiting.nudges ? t.waiting.nudges : '',
@@ -8048,7 +8351,7 @@ button.wk-head { cursor: pointer; }
     const listName = nameOf(t.list);
     const ring = li.querySelector('.ring');
     ring.setAttribute('aria-pressed', String(t.done));
-    ring.setAttribute('aria-label', `${t.done ? 'Mark as not done' : 'Mark as done'}: ${title}${listName ? `, ${listName}` : ''}`);
+    ring.setAttribute('aria-label', `${t.done ? 'Mark as not done' : 'Mark as done'}: ${title}${listName ? `, ${listName}` : ''}${t.cats.length ? `, ${catNames(t.cats).join(', ')}` : ''}`);
     ring.disabled = !writable();
     const body = li.querySelector('.task-body');
     body.disabled = !writable();
@@ -8126,6 +8429,13 @@ button.wk-head { cursor: pointer; }
       sr.className = 'sr-only';
       sr.textContent = t.photos.length === 1 ? ' photo' : ' photos';
       s.append(String(t.photos.length), sr);
+      meta.append(s);
+    }
+    for (const cid of t.cats) {
+      const c = catView(cid, S.cats.get(cid));
+      const s = document.createElement('span');
+      s.className = 'cat-tag c' + c.color;
+      s.textContent = c.name;
       meta.append(s);
     }
     if (listName && S.filter === ALL) {
@@ -8571,6 +8881,10 @@ button.wk-head { cursor: pointer; }
     if (b) setFilter(b.getAttribute('data-filter'));
   });
   $('#editListsBtn').addEventListener('click', openListsSheet);
+  $('#catChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-cat-filter]');
+    if (b) { const id = b.getAttribute('data-cat-filter'); setCatFilter(S.catFilter === id ? null : id); }
+  });
   $('#clearSamples').addEventListener('click', () => {
     const entries = [...S.tasks].filter(([, t]) => t.sample === true);
     removeMany(entries, `Cleared ${plural(entries.length, 'sample task', 'sample tasks')}`);
@@ -9110,8 +9424,31 @@ button.wk-head { cursor: pointer; }
     if (listBtn) {
       S.sheet.list = listBtn.getAttribute('data-sheet-list') || null;
       pickedByHand('list');
+      return;
     }
+    const catBtn = e.target.closest('[data-sheet-cat]');
+    if (catBtn) { toggleSheetCat(catBtn.getAttribute('data-sheet-cat')); return; }
+    if (e.target.closest('#newListChip')) { openMaker('list'); return; }
+    if (e.target.closest('#newCatChip')) { openMaker('cat'); return; }
+    const pick = e.target.closest('.maker [data-color]');
+    if (pick) {
+      const kind = pick.closest('#listMaker') ? 'list' : 'cat';
+      maker[kind].color = clampColor(pick.dataset.color);
+      renderMakers();
+      return;
+    }
+    if (e.target.closest('#listMakerAdd')) { makeFromSheet('list'); return; }
+    if (e.target.closest('#catMakerAdd')) { makeFromSheet('cat'); return; }
+    if (e.target.closest('#listMakerCancel')) { closeMaker('list'); return; }
+    if (e.target.closest('#catMakerCancel')) closeMaker('cat');
   });
+  // In a maker, Enter adds (it never sends the task form) and Esc closes just the maker.
+  for (const kind of ['list', 'cat']) {
+    $(`#${kind}MakerName`).addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); makeFromSheet(kind); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMaker(kind); }
+    });
+  }
   $('#taskDate').addEventListener('change', e => {
     if (!S.sheet) return;
     S.sheet.due = isYmd(e.target.value) ? e.target.value : null;
@@ -9140,10 +9477,16 @@ button.wk-head { cursor: pointer; }
   $('#listsDone').addEventListener('click', closeListsSheet);
   $('#listRows').addEventListener('click', e => {
     const li = e.target.closest('.list-row');
-    const act = e.target.closest('[data-act]');
-    if (!li || !act) return;
+    if (!li) return;
     const id = li.dataset.id;
-    if (act.dataset.act === 'color') cycleColor(id);
+    const pick = e.target.closest('.row-picks [data-color]');
+    if (pick) { setListColor(id, clampColor(pick.dataset.color)); rowPicks = null; renderListsSheet(); return; }
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    if (act.dataset.act === 'color') {
+      rowPicks = rowPicks && rowPicks.kind === 'list' && rowPicks.id === id ? null : { kind: 'list', id };
+      renderListsSheet();
+    }
     if (act.dataset.act === 'del-list') {
       if (act.classList.contains('armed')) { deleteList(id); return; }
       act.classList.add('armed');
@@ -9167,6 +9510,42 @@ button.wk-head { cursor: pointer; }
     e.preventDefault();
     const input = $('#newListName');
     if (addList(input.value)) input.value = '';
+  });
+  $('#catRows').addEventListener('click', e => {
+    const li = e.target.closest('.cat-row');
+    if (!li) return;
+    const id = li.dataset.id;
+    const pick = e.target.closest('.row-picks [data-color]');
+    if (pick) { setCatColor(id, clampColor(pick.dataset.color)); rowPicks = null; renderListsSheet(); return; }
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    if (act.dataset.act === 'color') {
+      rowPicks = rowPicks && rowPicks.kind === 'cat' && rowPicks.id === id ? null : { kind: 'cat', id };
+      renderListsSheet();
+    }
+    if (act.dataset.act === 'del-cat') {
+      if (act.classList.contains('armed')) { deleteCat(id); return; }
+      act.classList.add('armed');
+      act.textContent = 'Delete';
+      renderListsSheet();
+      setTimeout(() => {
+        if (!act.isConnected || !act.classList.contains('armed')) return;
+        act.classList.remove('armed');
+        act.innerHTML = TRASH_SVG;
+        renderListsSheet();
+      }, 3000);
+    }
+  });
+  $('#catRows').addEventListener('change', e => {
+    if (e.target.matches('input')) renameCat(e.target.closest('.cat-row').dataset.id, e.target);
+  });
+  $('#catRows').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); e.target.blur(); }
+  });
+  $('#newCatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('#newCatName');
+    if (addCat(input.value)) input.value = '';
   });
 
   // search
@@ -9594,6 +9973,16 @@ button.wk-head { cursor: pointer; }
         renderTaskSheet();
         renderClients();
       }, () => { /* the client book is a nice-to-have; tasks keep working without it */ }),
+      db.collection('categories').onSnapshot(snap => {
+        const m = new Map();
+        for (const d of snap.docs) if (d.exists) m.set(d.id, d.data() || {});
+        catsSaved = m;
+        S.cats = overlay('categories', m);
+        S.catsLoaded = true;
+        render();
+        renderTaskSheet();
+        renderListsSheet();
+      }, () => { /* categories are a nice-to-have; tasks keep working without them */ }),
       db.doc('settings/streak').onSnapshot(snap => {
         const d = snap.exists ? (snap.data() || {}) : {};
         const days = d.days && typeof d.days === 'object' ? d.days : {};
