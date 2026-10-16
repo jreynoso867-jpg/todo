@@ -1,0 +1,12 @@
+{
+  "name": "todo-tests",
+  "private": true,
+  "description": "Browser tests and benchmarks for the to-do app. Nothing here ships with the app.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 upgrade.test.cjs features.test.cjs",
+    "bench": "node bench.cjs .."
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

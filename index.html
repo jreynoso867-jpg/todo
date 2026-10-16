@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DSkJ9cLfEwbYqBwa20rMJLcctD6tEwjpCqqWagADHDQ=' 'sha256-GOYvOna5XQBIQmvB6/grROYgHWA2F2U5s20QOc/H+A4=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-JZaR141NM7lV6SEhmlyGxGxTCgEb0wI+8cwfp/DkP3E=' 'sha256-tkgdqeRRSW7yEyNU2QpRrPJsRaPrcj6QebiQbEM/sZE=' 'sha256-TQq74j/raeE8Lef8vlFXefTGHmqW5R1K2sbeR4giaC8=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -79,7 +79,16 @@ img { max-width: 100%; }
     return o;
   };
   const listeners = new Map(), docListeners = new Map(), due = new Set();
-  const docSnap = (c, id) => { const d = coll(c).get(id); return { id, exists: !!d, data: () => copy(d), metadata: { fromCache: false, hasPendingWrites: false } }; };
+  // The copy handed to the page is made once per change and then reused, so a task that didn't change is the same
+  // object from one update to the next, and the page can skip redrawing it. (The page never edits these in place.)
+  const copies = new Map();
+  const copyOf = (c, id) => {
+    const key = c + '/' + id;
+    let v = copies.get(key);
+    if (v === undefined) { const d = coll(c).get(id); if (d === undefined) return undefined; v = copy(d); copies.set(key, v); }
+    return v;
+  };
+  const docSnap = (c, id) => ({ id, exists: !!coll(c).get(id), data: () => copyOf(c, id), metadata: { fromCache: false, hasPendingWrites: false } });
   const collSnap = c => { const docs = [...coll(c).keys()].map(id => docSnap(c, id)); return { docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }; };
   const tell = fn => arg => { try { fn(arg); } catch (e) { console.error(e); } };
   const emit = c => {
@@ -97,20 +106,33 @@ img { max-width: 100%; }
   });
   let n = 0;
   const newId = () => Date.now().toString(36) + (++n).toString(36) + Math.random().toString(36).slice(2, 8);
+  // A change shows right away. If the phone's storage turns it down, it's taken back off the screen (unless a newer
+  // change already replaced it), so what you see is always what's kept. The page then retries it or says so.
+  async function commit(c, id, v) {
+    const m = coll(c), key = c + '/' + id, had = m.has(id), prev = m.get(id);
+    if (v === undefined) m.delete(id); else m.set(id, v);
+    copies.delete(key);
+    emit(c);
+    try { await persist(key, v); } catch (e) {
+      if (v === undefined ? !m.has(id) : m.get(id) === v) {
+        if (had) m.set(id, prev); else m.delete(id);
+        copies.delete(key);
+        emit(c);
+      }
+      throw e;
+    }
+  }
   const docRef = (c, id) => ({
     id, path: c + '/' + id,
     async get() { await loaded; return docSnap(c, id); },
-    async set(d) { await loaded; const v = copy(d); coll(c).set(id, v); emit(c); await persist(c + '/' + id, v); },
+    async set(d) { await loaded; await commit(c, id, copy(d)); },
     async update(d) {
       await loaded;
       const cur = coll(c).get(id);
       if (!cur) throw { code: 'invalid_argument', message: 'not found' };
-      const v = merge(cur, copy(d));
-      coll(c).set(id, v);
-      emit(c);
-      await persist(c + '/' + id, v);
+      await commit(c, id, merge(cur, copy(d)));
     },
-    async delete() { await loaded; coll(c).delete(id); emit(c); await persist(c + '/' + id, undefined); },
+    async delete() { await loaded; await commit(c, id, undefined); },
     onSnapshot(next) {
       const key = c + '/' + id;
       if (!docListeners.has(key)) docListeners.set(key, new Set());
@@ -185,6 +207,74 @@ img { max-width: 100%; }
     },
   };
   const user = { can: async () => true, canEdit: async () => true, isOwner: async () => true };
+  // ---------- safety copies: the whole list, kept on this phone ----------
+  // Before a new version of the app first runs, and once a day after that, everything in the list (tasks, lists,
+  // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
+  // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
+  // changed since the last one, and only the newest few of each kind are kept.
+  const APP_VERSION = '2.0.0';
+  const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
+  const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
+  function allDocs() {
+    const out = {};
+    for (const [c, m] of store) for (const [id, v] of m) out[c + '/' + id] = v;
+    return out;
+  }
+  function countsOf(docs) {
+    const counts = {};
+    for (const [k, v] of Object.entries(docs)) {
+      const c = k.slice(0, k.indexOf('/'));
+      if (c === 'tasks' && v && v.sample === true) continue;
+      counts[c] = (counts[c] || 0) + 1;
+    }
+    return counts;
+  }
+  async function listSnaps() {
+    const metas = await run(BLOBS, 'readonly', s => s.getAll(IDBKeyRange.bound('snapmeta:', 'snapmeta:￿')));
+    return (metas || []).filter(m => m && typeof m.key === 'string').sort((a, b) => b.takenAt - a.takenAt);
+  }
+  // docs, when given, is read right away (before anything else can change the list).
+  async function takeSnap(kind, docs) {
+    if (!docs) { await loaded; docs = allDocs(); }
+    const body = JSON.stringify(docs);
+    const takenAt = Date.now();
+    const key = `snap:${kind}:${takenAt}`;
+    const meta = { key, kind, takenAt, version: APP_VERSION, hash: fnv(body), counts: countsOf(docs), bytes: body.length };
+    const buf = new TextEncoder().encode(body).buffer;
+    await run(BLOBS, 'readwrite', s => { s.put({ type: 'application/json', buf }, key); s.put(meta, 'snapmeta:' + key.slice(5)); });
+    ls.set('todo.snapLast', JSON.stringify({ day: dayOf(takenAt), hash: meta.hash }));
+    const old = (await listSnaps()).filter(m => m.kind === kind).slice(KEEP[kind] || 3);
+    if (old.length) await run(BLOBS, 'readwrite', s => { for (const m of old) { s.delete(m.key); s.delete('snapmeta:' + m.key.slice(5)); } });
+    return meta;
+  }
+  function autoSnap() {
+    let last = null;
+    try { last = JSON.parse(ls.get('todo.snapLast') || 'null'); } catch (e) { last = null; }
+    const upgrade = ls.get('todo.version') !== APP_VERSION;
+    if (!upgrade && last && last.day === dayOf(Date.now())) return;
+    const docs = allDocs();
+    if (!Object.keys(docs).length) { ls.set('todo.version', APP_VERSION); return; } // a new phone: nothing to keep yet
+    const hash = fnv(JSON.stringify(docs));
+    if (!upgrade && last && last.hash === hash) { ls.set('todo.snapLast', JSON.stringify({ day: dayOf(Date.now()), hash })); return; }
+    takeSnap(upgrade ? 'upgrade' : 'daily', docs).then(() => { if (upgrade) ls.set('todo.version', APP_VERSION); }, e => console.error('safety copy', e));
+  }
+  // The list becomes exactly what the copy holds, in one step that either all happens or doesn't happen at all.
+  // What's here right before is copied first, so a restore can be undone too.
+  async function restoreSnap(key) {
+    if (typeof key !== 'string' || !/^snap:[a-z]+:\d+$/.test(key)) throw { code: 'not_found' };
+    const rec = await run(BLOBS, 'readonly', s => s.get(key));
+    let docs = null;
+    try { docs = JSON.parse(new TextDecoder().decode(rec.buf)); } catch (e) { docs = null; }
+    if (!docs || typeof docs !== 'object' || Array.isArray(docs)) throw { code: 'not_found' };
+    const entries = Object.entries(docs).filter(([k]) => k.indexOf('/') > 0 && !UNSAFE.has(k));
+    await takeSnap('restore');
+    await run(DOCS, 'readwrite', s => { s.clear(); for (const [k, v] of entries) s.put(v, k); });
+    ls.del('todo.outbox'); // changes still waiting to save belonged to the list that was just replaced
+    location.reload();
+  }
+  loaded.then(autoSnap).catch(() => { /* no storage: nothing to copy */ });
+  const snapshots = { version: APP_VERSION, list: listSnaps, take: () => takeSnap('manual'), restore: restoreSnap };
   // Ask the phone to keep this app's storage even when space runs low.
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* not offered here */ }
   // A photo straight from the phone's storage (for the backup file, and for any picture the service worker didn't serve).
@@ -495,7 +585,7 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
     return ios ? (home ? 'ios-home' : 'ios-safari') : (home ? 'home' : 'browser');
   })();
   const caps = { assets, downloads, user };
-  window.claude = { phone: true, where, photo, lock, use: async name => (name === 'db' ? (await unlock(), await loaded, db) : caps[name] || null) };
+  window.claude = { phone: true, where, photo, lock, snapshots, use: async name => (name === 'db' ? (await unlock(), await loaded, db) : caps[name] || null) };
 })();
 </script>
 <style>
@@ -1778,26 +1868,643 @@ button.wk-head { cursor: pointer; }
 .welcome .move-row .btn-small { height: 44px; }
 .hero.behind-welcome { display: none; }
 
+/* =====================================================================================================
+   2.0: bold and deadline-first. Cards with a priority stripe, live countdowns, a progress ring, views,
+   a floating dock. Every color is a token from the look (the theme engine sets them for the new themes;
+   Classic and the original looks set them here). Nothing here blurs or animates layout, so it stays fast.
+   ===================================================================================================== */
+:root {
+  --card: #F5F5F7; --raise: #FFFFFF; --card-line: #EAEAEE;
+  --accent: #000000; --accent-2: #2348F5; --on-accent: #FFFFFF; --accent-ink: #000000; --accent-soft: rgba(0, 0, 0, .07);
+  --grad: linear-gradient(135deg, #2348F5 0%, #6B3FE8 100%); --glow: rgba(35, 72, 245, .3); --page-glow: none;
+  --prio-3: #DC2A1D; --prio-2: #A15C00; --prio-1: #1F5FD6; --ok: #0A7A43;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-skin]) {
+    --card: #141416; --raise: #1C1C1F; --card-line: #26262A;
+    --accent: #FFFFFF; --accent-2: #7D98FF; --on-accent: #000000; --accent-ink: #FFFFFF; --accent-soft: rgba(255, 255, 255, .1);
+    --grad: linear-gradient(135deg, #2F55FF 0%, #7650F0 100%); --glow: rgba(47, 85, 255, .4);
+    --prio-3: #FF5B4F; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
+  }
+}
+:root[data-theme="dark"]:not([data-skin]) {
+  --card: #141416; --raise: #1C1C1F; --card-line: #26262A;
+  --accent: #FFFFFF; --accent-2: #7D98FF; --on-accent: #000000; --accent-ink: #FFFFFF; --accent-soft: rgba(255, 255, 255, .1);
+  --grad: linear-gradient(135deg, #2F55FF 0%, #7650F0 100%); --glow: rgba(47, 85, 255, .4);
+  --prio-3: #FF5B4F; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
+}
+/* the original orange looks */
+:root[data-skin] {
+  --card: #FFF4F7; --raise: #FFFFFF; --card-line: #F6DCD3;
+  --accent: #F55F00; --accent-2: #E0244B; --on-accent: #FFFFFF; --accent-ink: #B83D00; --accent-soft: rgba(245, 95, 0, .12);
+  --grad: linear-gradient(135deg, #F55F00 0%, #E0244B 100%); --glow: rgba(245, 95, 0, .3);
+  --prio-3: #E0244B; --prio-2: #B35200; --prio-1: #8A4B2A;
+}
+:root[data-skin="orange-pink"], :root[data-skin="pink-orange-card"] { --card: #FFFFFF; --card-line: #F1C2BD; }
+:root[data-skin="orange-bg"] {
+  --card: #E85900; --raise: #E05400; --card-line: #F88F4C; --accent: #FFFFFF; --on-accent: #F55F00; --accent-ink: #FFFFFF;
+  --accent-soft: rgba(255, 255, 255, .2); --grad: linear-gradient(135deg, #FFFFFF 0%, #FFE3EC 100%); --glow: rgba(0, 0, 0, .25);
+  --prio-3: #FFFFFF; --prio-2: #FFE3EC; --prio-1: #FFE3EC; --ok: #FFFFFF;
+}
+
+/* a soft glow of the look's colors behind everything (themes that have one) */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--page-glow); }
+
+/* ---------- the top: weekday, date, progress ring ---------- */
+.top { display: block; }
+.top-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-top: -8px; }
+.top-kicker {
+  font-size: calc(13px * var(--ts)); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink);
+}
+.top-actions { margin: 0 -10px 0 0; }
+.top-main { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.top-text { flex: 1; min-width: 0; }
+.top h1 { font-size: calc(36px * var(--tsb)); font-weight: 900; font-stretch: 78%; letter-spacing: -.02em; line-height: 1; }
+.top #daySum { margin-top: 8px; font-weight: 500; }
+.ring-prog { position: relative; flex: none; width: 68px; height: 68px; }
+.ring-prog svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.rp-track, .fr-track { fill: none; stroke: var(--card-line); stroke-width: 6; }
+.rp-fill, .fr-fill {
+  fill: none; stroke: url(#rpGrad); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100;
+  transition: stroke-dashoffset .7s cubic-bezier(.2, .8, .2, 1);
+}
+.fr-fill { stroke: url(#frGrad); stroke-width: 7; }
+.rp-stop1 { stop-color: var(--accent); }
+.rp-stop2 { stop-color: var(--accent-2); }
+.ring-prog.is-full .rp-fill { stroke: var(--ok); }
+.rp-text {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: calc(15px * var(--ts)); font-weight: 850; font-stretch: 85%; font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.motive { margin: 12px 0 0; padding-left: 12px; border-left: 3px solid var(--accent); font-size: calc(15px * var(--ts)); font-weight: 650; line-height: 1.35; color: var(--ink); }
+.stat-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.stat-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px;
+  border: 1px solid var(--card-line); background: var(--card); color: var(--ink);
+  font-size: calc(13.5px * var(--ts)); font-weight: 750; white-space: nowrap;
+}
+.stat-chip .ico { width: 16px; height: 16px; }
+.stat-chip.hot { border-color: transparent; background: var(--accent-soft); color: var(--accent-ink); }
+.stat-chip.hot .ico { fill: currentColor; stroke-width: 1.4; }
+.stat-chip.ok .ico { color: var(--ok); stroke-width: 2.8; }
+
+/* ---------- the daily kickoff ---------- */
+.brief {
+  position: relative; margin-top: 16px; padding: 16px 16px 14px; border-radius: 24px;
+  border: 1px solid var(--card-line); background: var(--card); overflow: hidden;
+}
+.brief::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--grad); }
+.brief-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px 0 0; }
+.brief h2 { margin: 0; font-size: calc(18px * var(--tsb)); font-weight: 850; font-stretch: 85%; color: var(--head); }
+.brief-text { margin: 4px 0 12px; font-size: calc(15px * var(--ts)); line-height: 1.45; color: var(--ink); }
+.brief-text .late { color: var(--red); font-weight: 700; }
+.brief-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.brief-acts .btn-small { height: 42px; }
+
+/* ---------- quick add ---------- */
+.quick {
+  height: 58px; margin-top: 18px; padding: 0 7px 0 8px; gap: 10px;
+  border: 1.5px solid var(--card-line); border-radius: 20px; background: var(--card);
+}
+.quick:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.quick > .ico { width: 36px; height: 36px; padding: 8px; border-radius: 12px; background: var(--grad); color: var(--on-accent); stroke-width: 2.6; }
+.quick-more { height: 40px; border-radius: 13px; background: var(--wash); font-weight: 700; }
+.quick-hint .ico { color: var(--accent-ink); }
+
+/* ---------- views ---------- */
+.scope {
+  display: flex; gap: 6px; margin: 16px -16px 0; padding: 2px 16px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.scope::-webkit-scrollbar { display: none; }
+@media (max-width: 599px) { .scope { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); } }
+.scope-tab {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 15px;
+  border: 1px solid var(--card-line); border-radius: 999px; background: var(--card); color: var(--soft);
+  font-size: calc(14.5px * var(--ts)); font-weight: 750; white-space: nowrap; transition: background-color .2s, color .2s;
+}
+.scope-tab[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.scope-n {
+  min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--wash); color: var(--ink);
+  font-size: calc(12.5px * var(--ts)); font-weight: 800; line-height: 22px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.scope-n:empty { display: none; }
+.scope-tab[aria-pressed="true"] .scope-n { background: rgba(255, 255, 255, .25); color: inherit; }
+.scope-tab[data-scope="overdue"] .scope-n { background: var(--red); color: #FFFFFF; }
+@media (min-width: 600px) { .scope { margin-inline: 0; padding-inline: 0; } }
+
+/* ---------- the week strip ---------- */
+.week { gap: 6px; }
+.day { min-height: 72px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); }
+.day.is-today { border-color: var(--accent); }
+.day[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+
+/* ---------- Up next ---------- */
+.hero {
+  position: relative; margin-top: 18px; padding: 20px 20px 18px; border-radius: 30px; overflow: hidden; isolation: isolate;
+  box-shadow: 0 22px 44px -22px var(--glow);
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .2), transparent 55%);
+}
+.hero.is-empty { box-shadow: none; border: 1px solid var(--card-line); }
+.hero.is-empty::after { display: none; }
+@supports (color: color-mix(in srgb, red, blue)) {
+  .hero:not(.is-empty) { background: var(--hero-bg, linear-gradient(135deg, var(--solid) 0%, color-mix(in oklab, color-mix(in oklab, var(--solid) 82%, var(--accent-2)) 74%, #000) 100%)); }
+}
+.hero.c0:not(.is-empty) {
+  background: var(--hero-bg, var(--grad)); color: var(--hero-ink, var(--on-accent));
+  --on-solid: var(--on-accent); --on-solid-soft: var(--on-accent); --on-solid-wash: rgba(255, 255, 255, .18);
+}
+:root[data-skin] .hero.c0:not(.is-empty) { --on-solid-wash: var(--hero-wash, rgba(255, 255, 255, .2)); }
+.hero-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: calc(12.5px * var(--ts)); font-weight: 800; }
+.hero-title { font-size: calc(42px * var(--tsb)); font-weight: 900; font-stretch: 70%; letter-spacing: -.015em; }
+.hero-cd {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 18px;
+  background: var(--hero-wash, var(--on-solid-wash));
+}
+.hero.is-empty .hero-cd { background: var(--wash); }
+.hero-cd-label { display: inline-flex; align-items: center; gap: 8px; font-size: calc(12.5px * var(--ts)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.hero-cd-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.hero-cd-time {
+  font-size: calc(30px * var(--tsb)); font-weight: 900; font-stretch: 75%; font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: .01em; white-space: nowrap;
+}
+.hero-cd.is-urgent .hero-cd-label::before, .hero-cd.is-live .hero-cd-label::before, .hero-cd.is-late .hero-cd-label::before { animation: pulseDot 1.4s ease-in-out infinite; }
+.hero-cd.is-late { background: rgba(0, 0, 0, .28); }
+.hero-cd.is-late .hero-cd-label::before { background: #FF5B5B; box-shadow: 0 0 0 3px rgba(255, 91, 91, .3); }
+@keyframes pulseDot { 50% { opacity: .25; } }
+.btn-hero { height: 50px; padding: 0 18px; font-weight: 800; }
+.btn-hero.primary { box-shadow: 0 8px 20px -10px rgba(0, 0, 0, .5); }
+
+/* ---------- sections ---------- */
+.sec { margin-top: 30px; }
+.sec h2 { display: flex; align-items: center; gap: 10px; font-size: calc(20px * var(--tsb)); font-weight: 850; font-stretch: 82%; letter-spacing: -.005em; }
+.sec h2::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--sec-color, var(--soft)); transform: rotate(45deg); }
+.sec[data-sec="day"], .sec[data-sec="today"] { --sec-color: var(--accent-ink); }
+.sec[data-sec="overdue"] { --sec-color: var(--red); }
+.sec[data-sec="tomorrow"] { --sec-color: var(--prio-1); }
+.sec[data-sec="waiting"] { --sec-color: var(--prio-2); }
+.sec[data-sec="done"] { --sec-color: var(--ok); }
+.sec .count {
+  display: inline-block; min-width: 26px; height: 24px; margin-left: 0; padding: 0 8px; border-radius: 12px; background: var(--wash);
+  font-size: calc(13px * var(--ts)); font-weight: 800; font-stretch: 100%; line-height: 24px; text-align: center; color: var(--ink);
+}
+.sec-toggle { gap: 10px; }
+.sec[data-sec="overdue"] .count { background: var(--red); color: #FFFFFF; }
+.sec[data-sec="overdue"] h2::before { animation: pulseDot 1.6s ease-in-out infinite; }
+@supports (color: color-mix(in srgb, red, blue)) {
+  .sec[data-sec="overdue"] {
+    margin-inline: -10px; padding: 14px 10px 6px; border-radius: 26px;
+    background: color-mix(in srgb, var(--red) 9%, transparent); border: 1px solid color-mix(in srgb, var(--red) 22%, transparent);
+  }
+}
+.done-more { display: block; margin: 6px auto 0; padding: 10px 16px; color: var(--accent-ink); }
+
+/* ---------- tasks: cards with a priority stripe ---------- */
+.tasks { margin-top: 10px; }
+.task { padding-bottom: 8px; }
+.swipe-bg { inset: 0 0 8px 0; border-radius: 20px; }
+.task-inner {
+  align-items: flex-start; gap: 4px; padding: 4px 14px 4px 4px;
+  border: 1px solid var(--card-line); border-radius: 20px; background: var(--card);
+}
+.task-inner::before {
+  content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 4px; border-radius: 0 4px 4px 0;
+  background: var(--stripe, transparent);
+}
+.task[data-prio="3"] { --stripe: var(--prio-3); }
+.task[data-prio="2"] { --stripe: var(--prio-2); }
+.task[data-prio="1"] { --stripe: var(--prio-1); }
+.ring { margin-left: 0; }
+.task-body { padding: 11px 0 11px; border-bottom: 0; }
+.task-title { font-size: calc(16.5px * var(--ts)); font-weight: 600; line-height: 1.32; }
+.task-meta { align-items: center; gap: 4px 10px; margin-top: 6px; font-size: calc(13.5px * var(--ts)); }
+.task.is-done .task-inner { background: transparent; border-style: dashed; }
+.task.is-late .task-inner { border-color: var(--red); }
+.task.is-pinned .task-inner { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html.selecting .task.is-selected .task-inner { background: var(--accent-soft); border-color: var(--accent); }
+.task.dragging .task-inner { margin-inline: 0; padding-inline: 4px 14px; border-radius: 20px; box-shadow: var(--shadow); transform: scale(1.02); }
+.prio { font-stretch: 90%; }
+.prio-3 { color: var(--prio-3); }
+.prio-2 { color: var(--prio-2); }
+.prio-1 { color: var(--prio-1); }
+/* the countdown on a row */
+.cd {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px;
+  background: var(--wash); color: var(--ink); font-size: calc(12.5px * var(--ts)); font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cd::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cd.soon, .cd.live { background: var(--accent-soft); color: var(--accent-ink); }
+.cd.urgent { color: var(--prio-2); }
+.cd.late { color: var(--red); }
+@supports (color: color-mix(in srgb, red, blue)) {
+  .cd.urgent { background: color-mix(in srgb, var(--prio-2) 16%, transparent); }
+  .cd.late { background: color-mix(in srgb, var(--red) 15%, transparent); }
+}
+.cd.urgent::before, .cd.live::before, .cd.late::before { animation: pulseDot 1.6s ease-in-out infinite; }
+/* Long sections draw only the rows on screen (rows that can be dragged stay fully drawn). */
+.sec[data-sec="overdue"] .task, .sec[data-sec="later"] .task, .sec[data-sec="waiting"] .task, .sec[data-sec="done"] .task {
+  content-visibility: auto; contain-intrinsic-size: auto 78px;
+}
+.task.swiping, .task.settling, .task.snooze-open { content-visibility: visible; }
+
+/* ---------- the floating dock ---------- */
+.dock {
+  left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: 540px; margin-inline: auto;
+  padding: 0 4px; border: 1px solid var(--card-line); border-radius: 28px; background: var(--raise);
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, .45);
+}
+.dock-inner { height: 64px; }
+.dock-btn { border-radius: 22px; }
+.dock-btn[aria-current="page"] { color: var(--accent-ink); }
+.dock .fab {
+  width: 60px; height: 60px; margin: -24px 6px 0; background: var(--grad); color: var(--on-accent);
+  box-shadow: 0 12px 28px -8px var(--glow), 0 0 0 5px var(--page);
+}
+.dock-badge { background: var(--accent); color: var(--on-accent); }
+.toast { bottom: calc(106px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; }
+.select-bar { border-radius: 26px 26px 0 0; background: var(--raise); border-color: var(--card-line); }
+
+/* ---------- buttons, chips and sheets in the look's colors ---------- */
+.chip { border-color: var(--card-line); background: var(--card); }
+.chip[aria-pressed="true"], .chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip.has-color[aria-pressed="true"] { background: var(--solid); border-color: var(--solid); color: var(--on-solid); }
+.chip-quiet { background: transparent; }
+.sheet { background: var(--page); }
+@media (min-width: 640px) { .sheet { border: 1px solid var(--card-line); } }
+.sheet-head h2 { font-weight: 850; }
+.btn-primary { height: 56px; border-radius: 18px; font-weight: 800; }
+.sheet.c0 .btn-primary { background: var(--btn-bg, var(--grad)); color: var(--btn-fg, var(--on-accent)); box-shadow: 0 12px 26px -14px var(--glow); }
+.btn-small { border-radius: 14px; background: var(--accent); color: var(--on-accent); font-weight: 750; }
+.btn-small.quiet { background: var(--wash); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.stats { padding: 18px 16px 14px; border: 1px solid var(--card-line); border-radius: 26px; background: var(--card); }
+.bar-tip { background: var(--raise); }
+.link-btn { font-weight: 700; }
+.tip, .welcome { background: var(--card); border: 1px solid var(--card-line); }
+.month-day.is-today, .day.is-today { border-color: var(--accent); }
+.month-day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.wk-list { background: var(--card); }
+.wk-task { background: var(--raise); }
+.tl-block { border-radius: 14px; }
+/* the hour lines start after their labels, so the labels need no backing (a look's glow shows through) */
+.tl-hour:not(.is-half) { border-top-color: transparent; }
+.tl-hour:not(.is-half)::after { content: ""; position: absolute; left: 52px; right: 0; top: -1px; border-top: 1px solid var(--line); }
+.tl-hour span { background: none; }
+.foot.warn { padding: 12px 14px; border-radius: 16px; background: var(--accent-soft); color: var(--ink); font-weight: 650; }
+:focus-visible { outline-color: var(--accent-ink); }
+
+/* ---------- Settings: appearance, themes, accents, extras ---------- */
+.sheet-sub-first { margin-top: 8px; }
+.sheet-sub-sm { margin-top: 22px; font-size: calc(15px * var(--ts)); color: var(--soft); }
+.seg-wide { display: flex; width: 100%; background: var(--wash); }
+.seg-wide button { flex: 1 1 0; min-width: 0; height: 40px; padding: 0 6px; }
+.seg-wide button:disabled { opacity: .45; }
+.skins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.skin { gap: 6px; padding: 6px; border: 2.5px solid transparent; border-radius: 24px; }
+.skin[aria-pressed="true"] { border-color: var(--accent); }
+.skin-preview { position: relative; display: flex; flex-direction: row; gap: 0; height: 128px; padding: 0; border: 1px solid var(--card-line); border-radius: 18px; }
+.skin-half { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 9px; }
+.skin-preview.is-split .skin-half + .skin-half { border-left: 1px solid rgba(127, 127, 127, .25); }
+.skin-card { display: flex; flex-direction: column; gap: 5px; height: 38px; padding: 8px; border-radius: 9px; }
+.skin-line { display: block; flex: none; height: 6px; border-radius: 3px; }
+.skin-line-on { width: 74%; background: rgba(255, 255, 255, .85); }
+.skin-line-on.short { width: 44%; }
+.skin-row { display: flex; align-items: center; gap: 5px; height: 18px; padding: 0 6px 0 5px; border: 1px solid; border-radius: 6px; }
+.skin-row i { flex: none; width: 8px; height: 8px; border: 2px solid; border-radius: 50%; }
+.skin-row .skin-line { height: 4px; }
+.skin-name { font-size: calc(15px * var(--ts)); font-weight: 750; padding: 0 2px; }
+.skin-note { padding: 0 2px; }
+.accent-picks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.accent-pick {
+  position: relative; flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 50%; background: var(--sw, var(--wash)); cursor: pointer;
+}
+.accent-pick[aria-pressed="true"], .accent-custom.is-on { box-shadow: 0 0 0 3px var(--page), 0 0 0 5.5px var(--ink); }
+.accent-theme { width: auto; padding: 0 14px; border-radius: 22px; background: var(--grad); color: var(--on-accent); font-size: calc(13.5px * var(--ts)); font-weight: 800; }
+.accent-custom { border: 2px dashed var(--soft); background: var(--sw, transparent); color: var(--ink); }
+.accent-custom.is-on { border-style: solid; border-color: transparent; }
+.accent-custom .ico { width: 20px; height: 20px; }
+.accent-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.accent-custom:focus-within { outline: 2.5px solid var(--accent-ink); outline-offset: 3px; }
+.toggles { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.toggle-row { display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 14px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); }
+.toggle-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.toggle-text b { font-size: calc(15.5px * var(--ts)); font-weight: 750; }
+.toggle-text span { font-size: calc(13.5px * var(--ts)); line-height: 1.35; color: var(--soft); }
+.switch {
+  position: relative; flex: none; width: 52px; height: 32px; padding: 0; border: 0; border-radius: 16px; background: var(--line);
+  transition: background-color .2s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--on-accent); }
+.snap-rows { margin-bottom: 10px; }
+.snap-row { padding: 10px 10px 10px 14px; }
+.snap-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.btn-small.armed { background: var(--red); color: #FFFFFF; }
+
+/* ---------- focus ---------- */
+.focus {
+  position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; overflow-y: auto;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: var(--page); color: var(--ink);
+}
+.focus::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--page-glow); }
+.focus:focus { outline: none; }
+.focus-inner { width: 100%; max-width: 380px; display: grid; justify-items: center; gap: 18px; text-align: center; }
+.focus-kicker { margin: 0; font-size: calc(13px * var(--ts)); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink); }
+.focus-title { margin: -8px 0 0; font-size: calc(24px * var(--tsb)); font-weight: 850; font-stretch: 80%; line-height: 1.2; overflow-wrap: anywhere; }
+.focus-ring { position: relative; width: min(260px, 70vw); aspect-ratio: 1; }
+.focus-ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.focus-time {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: calc(58px * var(--tsb)); font-weight: 900; font-stretch: 72%; font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+.focus-lens { justify-content: center; }
+.focus-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.btn-focus {
+  height: 52px; padding: 0 22px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); color: var(--ink);
+  font-size: calc(16px * var(--ts)); font-weight: 800;
+}
+.btn-focus.primary { min-width: 160px; border: 0; background: var(--grad); color: var(--on-accent); box-shadow: 0 14px 30px -14px var(--glow); }
+.btn-focus.quiet { border-color: transparent; background: none; color: var(--soft); }
+.focus-note { margin: 0; max-width: 320px; font-size: calc(13.5px * var(--ts)); line-height: 1.4; color: var(--soft); }
+.focus-pill {
+  position: fixed; z-index: 31; left: max(16px, calc((100% - 560px) / 2 + 16px)); bottom: calc(94px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px 0 12px; border: 0; border-radius: 999px;
+  background: var(--grad); color: var(--on-accent); box-shadow: 0 10px 24px -10px var(--glow);
+  font-size: calc(14.5px * var(--ts)); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.focus-pill .ico { width: 18px; height: 18px; }
+html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); } /* above the running timer */
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
 }
 </style>
+<script>
+/* Looks: every color in the app comes from the look you pick. A look is a handful of named colors for its dark
+   and/or light version; everything else (text on buttons, readable link colors, glows) is worked out from those
+   here, with contrast checked. Adding a look is adding one entry to THEMES. This runs before the page shows,
+   so the app always opens in its own colors. */
+(() => {
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } },
+  };
+  // ---- color math: hex in, hex out ----
+  const hex = h => { const s = String(h).replace('#', ''); const f = s.length === 3 ? s.replace(/./g, c => c + c) : s; return [0, 2, 4].map(i => parseInt(f.slice(i, i + 2), 16)); };
+  const toHex = rgb => '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+  const mix = (a, b, t) => { const x = hex(a), y = hex(b); return toHex(x.map((v, i) => v + (y[i] - v) * t)); };
+  const rgba = (h, a) => `rgba(${hex(h).join(', ')}, ${a})`;
+  const lum = h => { const c = hex(h).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+  // Text on an accent fill: white or near-black, whichever reads better.
+  const onFill = c => (contrast(c, '#FFFFFF') >= contrast(c, '#0B0B10') ? '#FFFFFF' : '#0B0B10');
+  // An accent used as text: moved toward the text color until it reads on every surface it sits on (4.5:1).
+  function readable(c, ink, grounds) {
+    let v = c;
+    for (let t = 0.1; t <= 1 && grounds.some(g => contrast(v, g) < 4.5); t += 0.1) v = mix(c, ink, t);
+    return v;
+  }
+  // A second accent for a custom color: a shifted hue, for gradients.
+  function shift(h, deg) {
+    let [r, g, b] = hex(h).map(v => v / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    let hh = 0, s = 0;
+    if (d) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      hh = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      hh *= 60;
+    }
+    hh = (hh + deg + 360) % 360;
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+    return s ? toHex([f(hh / 360 + 1 / 3), f(hh / 360), f(hh / 360 - 1 / 3)].map(v => v * 255)) : h;
+  }
+
+  // List colors (Blue, Green…) stay the same family in every look, tuned for light and for dark.
+  const LIST = {
+    light: [['#000000', '#9A9A9A'], ['#2348F5', '#2348F5'], ['#087A4B', '#087A4B'], ['#00808A', '#00808A'], ['#6B3FE8', '#6B3FE8'], ['#BF4C00', '#BF4C00'],
+      ['#C72C78', '#C72C78'], ['#C62828', '#C62828'], ['#9A6A00', '#9A6A00'], ['#7A4E2D', '#7A4E2D'], ['#4A5568', '#4A5568']],
+    dark: [['#2A2A2E', '#74747C'], ['#2F55FF', '#7D98FF'], ['#08804E', '#4FD394'], ['#007F89', '#48CBD4'], ['#7650F0', '#A98DFF'], ['#C24E00', '#FF9C58'],
+      ['#D23585', '#FF7DB9'], ['#C62828', '#FF7A70'], ['#9A6A00', '#F2C14E'], ['#7A4E2D', '#D9A07A'], ['#4A5568', '#A9B4C6']],
+  };
+
+  // The looks. kind 'tokens': colors made here. kind 'css': Classic, written in the stylesheet.
+  // kind 'skin': the six original orange looks, also in the stylesheet; they're always light.
+  const THEMES = [
+    { id: 'midnight', name: 'Midnight Neon', note: 'Black, electric blue and purple', kind: 'tokens',
+      dark: { page: '#05060D', card: '#0E1122', raise: '#151933', line: '#232845', ink: '#F3F5FF', soft: '#959CC4', red: '#FF4D6A',
+        accent: '#2563FF', accent2: '#A855F7', glow: 'radial-gradient(900px 520px at 88% -14%, rgba(61,123,255,.22), transparent 62%), radial-gradient(760px 520px at -12% 8%, rgba(168,85,247,.16), transparent 60%)' },
+      light: { page: '#F4F6FF', card: '#FFFFFF', raise: '#FFFFFF', line: '#DDE2F6', ink: '#0B0D1F', soft: '#55608A', red: '#D3173F',
+        accent: '#2E5BFF', accent2: '#8B3DFF', glow: 'radial-gradient(900px 520px at 88% -14%, rgba(46,91,255,.12), transparent 62%)' } },
+    { id: 'cyberpunk', name: 'Cyberpunk', note: 'Neon pink and cyan on near-black', kind: 'tokens',
+      dark: { page: '#0B0613', card: '#160C24', raise: '#1E1131', line: '#2E1C47', ink: '#FFF1FB', soft: '#B79AD0', red: '#FF4D6D',
+        accent: '#FF2E97', accent2: '#00E5FF', glow: 'radial-gradient(900px 520px at 90% -12%, rgba(255,46,151,.22), transparent 60%), radial-gradient(760px 520px at -14% 18%, rgba(0,229,255,.14), transparent 60%)' },
+      light: { page: '#FFF4FB', card: '#FFFFFF', raise: '#FFFFFF', line: '#F3CFE6', ink: '#1C0B19', soft: '#7A4B6E', red: '#C8102E',
+        accent: '#D10069', accent2: '#008B99', glow: 'radial-gradient(900px 520px at 90% -12%, rgba(209,0,105,.10), transparent 60%)' } },
+    { id: 'ocean', name: 'Ocean Blue', note: 'Navy, turquoise and light blue', kind: 'tokens',
+      dark: { page: '#061328', card: '#0B1E3A', raise: '#10284B', line: '#1A3863', ink: '#EAF6FF', soft: '#8FB4D8', red: '#FF6B6B',
+        accent: '#22D3C5', accent2: '#5AB8FF', glow: 'radial-gradient(900px 560px at 85% -12%, rgba(34,211,197,.18), transparent 62%), radial-gradient(760px 520px at -10% 20%, rgba(90,184,255,.14), transparent 60%)' },
+      light: { page: '#F0F7FF', card: '#FFFFFF', raise: '#FFFFFF', line: '#D3E5F7', ink: '#0A2540', soft: '#4B6A8A', red: '#C92A2A',
+        accent: '#0077B6', accent2: '#00A8A8', glow: 'radial-gradient(900px 520px at 85% -12%, rgba(0,168,168,.12), transparent 62%)' } },
+    { id: 'emerald', name: 'Emerald Dark', note: 'Charcoal and vibrant green', kind: 'tokens',
+      dark: { page: '#0F1213', card: '#171C1C', raise: '#1E2525', line: '#2A3433', ink: '#ECFDF5', soft: '#93ABA3', red: '#FF6B6B',
+        accent: '#22E58B', accent2: '#14B8A6', glow: 'radial-gradient(900px 520px at 88% -14%, rgba(34,229,139,.16), transparent 62%)' },
+      light: { page: '#F2FAF6', card: '#FFFFFF', raise: '#FFFFFF', line: '#D2EADF', ink: '#0D1F17', soft: '#4F6B5F', red: '#C92A2A',
+        accent: '#087F45', accent2: '#0F766E', glow: 'radial-gradient(900px 520px at 88% -14%, rgba(8,127,69,.10), transparent 62%)' } },
+    { id: 'sunset', name: 'Sunset', note: 'Orange, red and purple gradients', kind: 'tokens',
+      dark: { page: '#170A12', card: '#24111C', raise: '#2E1624', line: '#422034', ink: '#FFF3EC', soft: '#D3A6A6', red: '#FF4D5E',
+        accent: '#FF7A2F', accent2: '#FF2E63', grad: 'linear-gradient(135deg, #FF8A2B 0%, #FF2E63 55%, #8E44FF 100%)',
+        glow: 'radial-gradient(900px 560px at 90% -14%, rgba(255,122,47,.22), transparent 60%), radial-gradient(760px 520px at -12% 22%, rgba(142,68,255,.16), transparent 60%)' },
+      light: { page: '#FFF6EF', card: '#FFFFFF', raise: '#FFFFFF', line: '#F6D9C8', ink: '#2A1208', soft: '#7A4E3A', red: '#C21F3A',
+        accent: '#C2410C', accent2: '#C2255C', grad: 'linear-gradient(135deg, #F76707 0%, #E03131 55%, #7048E8 100%)',
+        glow: 'radial-gradient(900px 560px at 90% -14%, rgba(247,103,7,.12), transparent 60%)' } },
+    { id: 'minimal', name: 'Minimal Light', note: 'White, gray and a quiet blue. Always light', kind: 'tokens',
+      light: { page: '#FFFFFF', card: '#F6F7F9', raise: '#FFFFFF', line: '#E6E8EC', ink: '#111318', soft: '#5F6672', red: '#D92D20',
+        accent: '#2F6FEB', accent2: '#6B8AF0', grad: 'linear-gradient(135deg, #2F6FEB 0%, #5B84EE 100%)' } },
+    { id: 'amoled', name: 'AMOLED Black', note: 'Pure black, made for your accent color. Always dark', kind: 'tokens',
+      dark: { page: '#000000', card: '#0B0B0B', raise: '#121212', line: '#222222', ink: '#FFFFFF', soft: '#9A9A9A', red: '#FF453A',
+        accent: '#B8FF3C', accent2: '#3CFFD0' } },
+    { id: 'royal', name: 'Royal Purple', note: 'Deep purple, lavender and violet', kind: 'tokens',
+      dark: { page: '#0E0A1C', card: '#181130', raise: '#20173F', line: '#2F2456', ink: '#F6F1FF', soft: '#AB9DD3', red: '#FF5C7A',
+        accent: '#7C3AED', accent2: '#C4B5FD', grad: 'linear-gradient(135deg, #5B21B6 0%, #8B5CF6 60%, #C4B5FD 100%)',
+        glow: 'radial-gradient(900px 560px at 88% -14%, rgba(139,92,246,.24), transparent 62%), radial-gradient(760px 520px at -10% 18%, rgba(196,181,253,.10), transparent 60%)' },
+      light: { page: '#F7F3FF', card: '#FFFFFF', raise: '#FFFFFF', line: '#E4DAFA', ink: '#1C1030', soft: '#62568A', red: '#C2185B',
+        accent: '#6D28D9', accent2: '#A855F7', grad: 'linear-gradient(135deg, #6D28D9 0%, #A855F7 100%)' } },
+    { id: 'classic', name: 'Classic', note: 'The original black and white', kind: 'css',
+      light: { page: '#FFFFFF', card: '#F5F5F7', line: '#E7E7EB', ink: '#000000', soft: '#66666E', accent: '#000000', accent2: '#2348F5', grad: 'linear-gradient(135deg, #2348F5, #6B3FE8)' },
+      dark: { page: '#000000', card: '#141416', line: '#232327', ink: '#FFFFFF', soft: '#9C9CA4', accent: '#FFFFFF', accent2: '#7D98FF', grad: 'linear-gradient(135deg, #2F55FF, #7650F0)' } },
+    // The original color looks, kept as they were.
+    { id: 'orange-white', name: 'Orange letters on white', group: 'original', kind: 'skin', light: { page: '#FFFFFF', card: '#FFF1F5', line: '#FDE2D1', ink: '#F55F00', soft: '#F6873F', accent: '#F55F00', accent2: '#E0244B', grad: '#FFE3EC' } },
+    { id: 'white-orange-card', name: 'White with an orange card', group: 'original', kind: 'skin', light: { page: '#FFFFFF', card: '#FFF1F5', line: '#F6DCCD', ink: '#B83D00', soft: '#A85A30', accent: '#F55F00', accent2: '#E0244B', grad: '#F55F00' } },
+    { id: 'orange-headings', name: 'Orange headings, dark letters', group: 'original', kind: 'skin', light: { page: '#FFFFFF', card: '#FFF1F5', line: '#EFE3DE', ink: '#2A1610', soft: '#7A5A4E', accent: '#F55F00', accent2: '#E0244B', grad: '#FFE3EC' } },
+    { id: 'orange-pink', name: 'Orange letters on pink', group: 'original', kind: 'skin', light: { page: '#FFE3EC', card: '#FFFFFF', line: '#F1C2BD', ink: '#B83D00', soft: '#A85A30', accent: '#F55F00', accent2: '#C0123A', grad: '#FFFFFF' } },
+    { id: 'pink-orange-card', name: 'Pink with an orange card', group: 'original', kind: 'skin', light: { page: '#FFE3EC', card: '#FFFFFF', line: '#F1C2BD', ink: '#B83D00', soft: '#A85A30', accent: '#F55F00', accent2: '#C0123A', grad: '#F55F00' } },
+    { id: 'orange-bg', name: 'Orange background', group: 'original', kind: 'skin', light: { page: '#F55F00', card: '#E05400', line: '#F88F4C', ink: '#FFFFFF', soft: '#FFE3EC', accent: '#FFFFFF', accent2: '#FFE3EC', grad: '#FFE3EC' } },
+  ];
+  const byId = new Map(THEMES.map(t => [t.id, t]));
+  const modesOf = t => ['dark', 'light'].filter(m => t[m]);
+  // Accent colors to pick from (any color works too).
+  const ACCENTS = [['Electric blue', '#2563FF'], ['Violet', '#7C3AED'], ['Hot pink', '#FF2E97'], ['Red', '#FF3B30'], ['Orange', '#FF7A2F'],
+    ['Gold', '#FFC53D'], ['Lime', '#B8FF3C'], ['Green', '#22E58B'], ['Turquoise', '#22D3C5'], ['Cyan', '#00E5FF']];
+
+  // What a look's colors work out to, for one mode (with an accent of your own, if you picked one).
+  function tokens(t, mode, accent) {
+    const v = t[mode];
+    if (!v) return null;
+    const dark = mode === 'dark';
+    const card = v.card || v.page, raise = v.raise || card;
+    const acc = isHex(accent) ? accent.toUpperCase() : v.accent;
+    const acc2 = isHex(accent) ? shift(acc, 38) : v.accent2;
+    const onAcc = onFill(acc);
+    const accInk = readable(acc, v.ink, [v.page, card]);
+    const toastBg = dark ? mix(raise, v.ink, 0.1) : v.ink;
+    const list = LIST[mode];
+    const out = {
+      '--page': v.page, '--card': card, '--raise': raise, '--line': v.line, '--card-line': v.cardLine || (dark ? mix(card, v.ink, 0.07) : v.line),
+      '--wash': v.wash || mix(v.page, v.ink, dark ? 0.08 : 0.045), '--ink': v.ink, '--head': v.head || v.ink, '--soft': v.soft, '--red': v.red,
+      '--accent': acc, '--accent-2': acc2, '--on-accent': onAcc, '--accent-ink': accInk, '--accent-soft': rgba(acc, dark ? 0.18 : 0.12),
+      '--grad': isHex(accent) || !v.grad ? `linear-gradient(135deg, ${acc} 0%, ${acc2} 100%)` : v.grad,
+      '--glow': rgba(acc, dark ? 0.45 : 0.3), '--page-glow': v.glow || 'none',
+      '--on-solid': '#FFFFFF', '--on-solid-wash': 'rgba(255, 255, 255, .2)', '--on-solid-soft': 'rgba(255, 255, 255, .88)',
+      '--fab-bg': acc, '--fab-fg': onAcc, '--toast-bg': toastBg, '--toast-fg': dark ? v.ink : v.page,
+      '--toast-action': readable(dark ? accInk : mix(acc, '#FFFFFF', 0.45), dark ? v.ink : '#FFFFFF', [toastBg]),
+      '--scrim': dark ? 'rgba(0, 0, 0, .62)' : 'rgba(12, 14, 30, .32)',
+      '--shadow': dark ? '0 16px 40px rgba(0, 0, 0, .6)' : '0 14px 34px rgba(17, 20, 45, .14)',
+      '--empty-bg': card, '--empty-fg': v.ink,
+      '--solid-0': dark ? mix(v.soft, v.page, 0.5) : v.ink, '--tone-0': v.soft,
+      '--prio-3': v.red, '--prio-2': dark ? '#FFB547' : '#A15C00', '--prio-1': dark ? '#6AA8FF' : '#1F5FD6',
+      '--ok': dark ? '#3DDC97' : '#0A7A43',
+    };
+    for (let i = 1; i < list.length; i++) { out['--solid-' + i] = list[i][0]; out['--tone-' + i] = list[i][1]; }
+    return out;
+  }
+  // Just the accent, laid over Classic or an original look.
+  function accentOnly(t, mode, accent) {
+    const v = t[mode] || t.light;
+    const acc = accent.toUpperCase();
+    const onAcc = onFill(acc);
+    return { '--accent': acc, '--accent-2': shift(acc, 38), '--on-accent': onAcc, '--accent-ink': readable(acc, v.ink, [v.page, v.card || v.page]),
+      '--accent-soft': rgba(acc, mode === 'dark' ? 0.18 : 0.12), '--grad': `linear-gradient(135deg, ${acc} 0%, ${shift(acc, 38)} 100%)`,
+      '--glow': rgba(acc, mode === 'dark' ? 0.45 : 0.3), '--fab-bg': acc, '--fab-fg': onAcc };
+  }
+
+  // ---- what you picked: the look, light/dark/system, and an accent ----
+  const legacy = ls.get('todo.skin');
+  const prefs = {
+    look: byId.has(ls.get('todo.theme')) ? ls.get('todo.theme') : byId.has(legacy) ? legacy : 'classic',
+    appearance: ['light', 'dark'].includes(ls.get('todo.appearance')) ? ls.get('todo.appearance') : 'system',
+    accent: isHex(ls.get('todo.accent')) ? ls.get('todo.accent') : '',
+  };
+  const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const systemMode = () => (media && media.matches ? 'dark' : 'light');
+  function modeFor(t) {
+    const m = modesOf(t);
+    if (m.length === 1) return m[0]; // a look made for one mode stays in it
+    return prefs.appearance === 'system' ? systemMode() : prefs.appearance;
+  }
+  let styleEl = null;
+  const listeners = new Set();
+  function apply() {
+    const t = byId.get(prefs.look) || byId.get('classic');
+    const mode = modeFor(t);
+    const root = document.documentElement;
+    root.setAttribute('data-theme', mode);
+    if (t.kind === 'skin') root.setAttribute('data-skin', t.id); else root.removeAttribute('data-skin');
+    if (t.kind === 'tokens') root.setAttribute('data-look', t.id); else root.removeAttribute('data-look');
+    if (prefs.accent) root.setAttribute('data-accent', ''); else root.removeAttribute('data-accent');
+    root.setAttribute('data-mode', mode);
+    const decl = o => Object.entries(o).map(([k, v]) => `${k}:${v}`).join(';');
+    let css = '';
+    // :not(#_) lifts these above every look in the stylesheet, without !important.
+    if (t.kind === 'tokens') css += `:root:not(#_)[data-look="${t.id}"]{${decl(tokens(t, mode, prefs.accent))};color-scheme:${mode}}`;
+    else if (prefs.accent) css += `:root:not(#_):not(#__)[data-accent]{${decl(accentOnly(t, mode, prefs.accent))}}`;
+    if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'themeVars'; document.head.append(styleEl); }
+    if (styleEl.textContent !== css) styleEl.textContent = css;
+    // The phone's status bar and the browser's own bars take the page color.
+    const page = (t[mode] || t.light).page;
+    for (const m of document.querySelectorAll('meta[name="theme-color"]')) { m.removeAttribute('media'); m.setAttribute('content', page); }
+    listeners.forEach(fn => { try { fn(state()); } catch (e) { console.error(e); } });
+  }
+  const state = () => { const t = byId.get(prefs.look) || byId.get('classic'); return { ...prefs, mode: modeFor(t), modes: modesOf(t), kind: t.kind }; };
+  function set(p) {
+    if (p && byId.has(p.look)) prefs.look = p.look;
+    if (p && ['system', 'light', 'dark'].includes(p.appearance)) prefs.appearance = p.appearance;
+    if (p && 'accent' in p) prefs.accent = isHex(p.accent) ? p.accent.toUpperCase() : '';
+    ls.set('todo.theme', prefs.look);
+    ls.set('todo.appearance', prefs.appearance);
+    ls.set('todo.accent', prefs.accent);
+    apply();
+    return state();
+  }
+  if (media) {
+    const onSystem = () => { if (prefs.appearance === 'system') apply(); };
+    if (media.addEventListener) media.addEventListener('change', onSystem); else if (media.addListener) media.addListener(onSystem);
+  }
+  apply();
+  // For the Settings sheet: the looks, a preview of each, and the picks.
+  const preview = (id, mode) => {
+    const t = byId.get(id);
+    if (!t) return null;
+    const v = t[mode] || t[modesOf(t)[0]];
+    if (t.kind === 'tokens') {
+      const k = tokens(t, mode in t ? mode : modesOf(t)[0], prefs.accent);
+      return { page: k['--page'], card: k['--card'], ink: k['--ink'], soft: k['--soft'], accent: k['--accent'], grad: k['--grad'], line: k['--line'] };
+    }
+    return { page: v.page, card: v.card, ink: v.ink, soft: v.soft, accent: prefs.accent || v.accent, grad: v.grad.startsWith('#') ? v.grad : (prefs.accent ? `linear-gradient(135deg, ${prefs.accent}, ${shift(prefs.accent, 38)})` : v.grad), line: v.line };
+  };
+  window.todoTheme = Object.freeze({
+    themes: THEMES.map(t => ({ id: t.id, name: t.name, note: t.note, group: t.group || (t.kind === 'css' ? 'classic' : 'new'), modes: modesOf(t), kind: t.kind })),
+    accents: ACCENTS.map(([name, color]) => ({ name, color })),
+    get: state, set, preview, contrast,
+    tokens: (id, mode, accent) => { const t = byId.get(id); return t && t.kind === 'tokens' ? tokens(t, mode, accent) : null; },
+    onChange: fn => { listeners.add(fn); return () => listeners.delete(fn); },
+  });
+})();
+</script>
 
 <main class="app" id="app">
   <header class="top">
-    <div class="top-text">
-      <h1 id="dateTitle"></h1>
-      <p id="daySum"></p>
-      <div class="prog" id="dayProg" role="img" hidden><i id="dayProgFill"></i></div>
-    </div>
+    <div class="top-bar">
+    <span class="top-kicker" id="dateKicker" aria-hidden="true"></span>
     <div class="top-actions">
       <button type="button" class="icon-btn" id="tlBtn" aria-label="Day timeline" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5v15"/><rect x="7.5" y="4.5" width="12.5" height="5.5" rx="1.8"/><rect x="7.5" y="13" width="8.5" height="6.5" rx="1.8"/></svg></button>
       <button type="button" class="icon-btn" id="monthBtn" aria-label="Month calendar" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 13.5h.01M12 13.5h.01M16 13.5h.01M8 16.8h.01M12 16.8h.01" stroke-width="2.8"/></svg></button>
       <button type="button" class="icon-btn" id="searchBtn" aria-label="Search tasks" aria-controls="searchBar" aria-expanded="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
       <button type="button" class="icon-btn" id="colorsBtn" aria-label="Settings" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8.2-9-8.2z"/><circle cx="7.5" cy="11.5" r="1.3"/><circle cx="10.5" cy="7.5" r="1.3"/><circle cx="15" cy="8" r="1.3"/></svg></button>
     </div>
+    </div>
+    <div class="top-main">
+      <div class="top-text">
+        <h1 id="dateTitle"></h1>
+        <p id="daySum"></p>
+      </div>
+      <div class="ring-prog" id="dayProg" role="img" hidden>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="rpGrad" x1="0" y1="0" x2="1" y2="1"><stop class="rp-stop1" offset="0"/><stop class="rp-stop2" offset="1"/></linearGradient></defs><circle class="rp-track" cx="32" cy="32" r="27"/><circle class="rp-fill" id="dayProgFill" cx="32" cy="32" r="27" pathLength="100"/></svg>
+        <span class="rp-text" id="dayProgText" aria-hidden="true"></span>
+      </div>
+    </div>
+    <p class="motive" id="motive" hidden></p>
+    <div class="stat-chips" id="statChips" hidden></div>
   </header>
   <p class="net" id="net" role="status" aria-live="polite" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18.5h9.8a3.7 3.7 0 0 0 .6-7.35A5.6 5.6 0 0 0 7.2 9.4a4.6 4.6 0 0 0 .3 9.1z"/><path class="net-slash" d="M4 4l16 16"/></svg><span id="netText"></span></p>
+  <section class="brief" id="brief" aria-labelledby="briefTitle" hidden>
+    <div class="brief-head">
+      <h2 id="briefTitle"></h2>
+      <button type="button" class="icon-btn brief-x" id="briefClose" aria-label="Close the daily kickoff"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+    </div>
+    <p class="brief-text" id="briefText"></p>
+    <div class="brief-acts"><button type="button" class="btn-small" id="briefOverdue" hidden></button><button type="button" class="btn-small quiet" id="briefOk">Let’s go</button></div>
+  </section>
   <div class="ai-row" id="aiRow">
     <button type="button" class="ai-btn plan-btn" id="planBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z"/><path d="M18 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>Plan my day</button>
     <button type="button" class="ai-btn" id="askBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M8.5 10.2h7M8.5 13h4.5"/></svg>Ask Claude</button>
@@ -1821,6 +2528,14 @@ button.wk-head { cursor: pointer; }
   </form>
   <p class="quick-hint" id="quickHint" hidden></p>
 
+  <nav class="scope" id="scope" aria-label="Show" hidden>
+    <button type="button" class="scope-tab" data-scope="all" aria-pressed="true">All</button>
+    <button type="button" class="scope-tab" data-scope="today" aria-pressed="false">Today<span class="scope-n"></span></button>
+    <button type="button" class="scope-tab" data-scope="upcoming" aria-pressed="false">Upcoming<span class="scope-n"></span></button>
+    <button type="button" class="scope-tab" data-scope="overdue" aria-pressed="false">Overdue<span class="scope-n"></span></button>
+    <button type="button" class="scope-tab" data-scope="done" aria-pressed="false">Done<span class="scope-n"></span></button>
+  </nav>
+
   <nav class="week" id="week" aria-label="The next seven days" hidden></nav>
 
   <section class="welcome" id="welcome" aria-labelledby="welcomeTitle" hidden>
@@ -1843,12 +2558,14 @@ button.wk-head { cursor: pointer; }
         <span class="hero-when" id="heroWhen">Add a task to start your list.</span>
         <span class="hero-note" id="heroNote" hidden><span class="hero-note-text" id="heroNoteText"></span></span>
       </button>
+      <div class="hero-cd" id="heroCd" hidden><span class="hero-cd-label" id="heroCdLabel"></span><span class="hero-cd-time" id="heroCdTime"></span></div>
       <ul class="hero-check" id="heroCheck" aria-label="Checklist" hidden></ul>
       <div class="hero-photos" id="heroPhotos" hidden></div>
       <div class="hero-links" id="heroLinks" hidden></div>
       <div class="hero-actions">
         <button type="button" class="btn-hero primary" id="heroDone" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="heroDoneLabel">Mark done</span></button>
         <button type="button" class="btn-hero secondary" id="heroNudge" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z"/><path d="M18 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>Write follow-up</button>
+        <button type="button" class="btn-hero secondary" id="heroFocus" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg>Focus</button>
         <button type="button" class="btn-hero secondary" id="heroLater" hidden>Move to tomorrow</button>
         <button type="button" class="btn-hero primary" id="heroAdd" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a task</button>
       </div>
@@ -1862,7 +2579,7 @@ button.wk-head { cursor: pointer; }
       <div class="chip-group" id="catChips" role="group" aria-label="Categories" hidden></div>
       <button type="button" class="chip chip-quiet" id="editListsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span id="editListsLabel">Edit lists</span></button>
       <button type="button" class="chip chip-quiet" id="selectBtn" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>Select</button>
-      <label class="chip chip-quiet chip-sort" id="sortChip" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3.5 16.5L7 20l3.5-3.5"/><path d="M14 6h7M14 11h5M14 16h3"/></svg><select id="sortSel" aria-label="Sort tasks"><option value="mine">My order</option><option value="time">Time</option><option value="priority">Priority</option><option value="newest">Newest</option></select><svg class="ico chev-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
+      <label class="chip chip-quiet chip-sort" id="sortChip" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3.5 16.5L7 20l3.5-3.5"/><path d="M14 6h7M14 11h5M14 16h3"/></svg><select id="sortSel" aria-label="Sort tasks"><option value="mine">My order</option><option value="time">Time</option><option value="priority">Priority</option><option value="newest">Newest</option><option value="list">List</option></select><svg class="ico chev-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
     </div>
   </nav>
 
@@ -1924,6 +2641,7 @@ button.wk-head { cursor: pointer; }
         <button type="button" class="link-btn" id="clearDone">Clear done</button>
       </div>
       <ul class="tasks" id="doneList" hidden></ul>
+      <button type="button" class="link-btn done-more" id="doneMore" hidden>Show more</button>
     </section>
     <div class="list-foot">
       <p class="trash-link" id="trashLink" hidden><button type="button" class="link-btn" id="trashOpen">Recently deleted</button></p>
@@ -1963,7 +2681,7 @@ button.wk-head { cursor: pointer; }
 </div>
 <nav class="dock" id="dock" aria-label="Places" hidden>
   <div class="dock-inner">
-    <button type="button" class="dock-btn" id="dockToday" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h9M4 12h9M4 17.5h6"/><path d="M14.5 16.2l2.4 2.4 4.1-4.6"/></svg><span>Today</span></button>
+    <button type="button" class="dock-btn" id="dockToday" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h9M4 12h9M4 17.5h6"/><path d="M14.5 16.2l2.4 2.4 4.1-4.6"/></svg><span>Today</span><span class="dock-badge late" id="todayBadge"></span></button>
     <button type="button" class="dock-btn" id="dockWeek"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 10v10M14.5 10v10"/></svg><span>Week</span></button>
     <button type="button" class="fab" id="fab" aria-label="Add a task"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     <button type="button" class="dock-btn" id="poBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg><span>POs</span><span class="dock-badge" id="poCount"></span></button>
@@ -2228,14 +2946,46 @@ button.wk-head { cursor: pointer; }
       <h2 id="colorsTitle">Settings</h2>
       <button type="button" class="link-btn end" id="colorsDone">Done</button>
     </div>
-    <p class="sheet-note">Tap a look to try it. It saves right away and shows on all your devices.</p>
-    <div class="skins" id="skinGrid" role="group" aria-label="Color looks"></div>
+    <h3 class="sheet-sub sheet-sub-first" id="apTitle">Appearance</h3>
+    <div class="seg seg-wide" role="group" aria-labelledby="apTitle">
+      <button type="button" data-appearance="system" aria-pressed="true">System</button>
+      <button type="button" data-appearance="light" aria-pressed="false">Light</button>
+      <button type="button" data-appearance="dark" aria-pressed="false">Dark</button>
+    </div>
+    <p class="field-note" id="apNote" hidden></p>
+    <h3 class="sheet-sub" id="themeTitle">Theme</h3>
+    <p class="sheet-note">Tap a theme to try it. It saves right away. Each picture shows the light and the dark version.</p>
+    <div class="skins" id="skinGrid" role="group" aria-labelledby="themeTitle"></div>
+    <h3 class="sheet-sub sheet-sub-sm" id="oldLooksTitle">Your original looks</h3>
+    <div class="skins" id="skinGridOld" role="group" aria-labelledby="oldLooksTitle"></div>
+    <h3 class="sheet-sub" id="accentTitle">Accent color</h3>
+    <p class="sheet-note">For buttons, progress and highlights. Theme keeps each theme’s own color.</p>
+    <div class="accent-picks" id="accentPicks" role="group" aria-labelledby="accentTitle">
+      <label class="accent-pick accent-custom" id="accentCustom" title="Any color"><span class="sr-only">Any color</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><input type="color" id="accentInput" value="#2563ff"></label>
+    </div>
     <h3 class="sheet-sub" id="textSizeTitle">Text size</h3>
     <div class="text-sizes" id="textSizes" role="group" aria-labelledby="textSizeTitle">
       <button type="button" class="text-size" data-text-size="default" aria-pressed="true"><span class="ts-aa" style="font-size:16px" aria-hidden="true">Aa</span>Default</button>
       <button type="button" class="text-size" data-text-size="large" aria-pressed="false"><span class="ts-aa" style="font-size:20px" aria-hidden="true">Aa</span>Large</button>
       <button type="button" class="text-size" data-text-size="xl" aria-pressed="false"><span class="ts-aa" style="font-size:24px" aria-hidden="true">Aa</span>Extra large</button>
     </div>
+    <h3 class="sheet-sub" id="featTitle">Extras</h3>
+    <p class="sheet-note">All optional. Turn off anything you don’t want.</p>
+    <ul class="toggles" aria-labelledby="featTitle">
+      <li class="toggle-row"><span class="toggle-text" id="tgCountdowns"><b>Countdowns</b><span>Time left until each deadline, ticking live on Up next.</span></span><button type="button" class="switch" role="switch" aria-checked="true" data-pref="countdowns" aria-labelledby="tgCountdowns"></button></li>
+      <li class="toggle-row"><span class="toggle-text" id="tgSummary"><b>Daily kickoff</b><span>A short plan for the day, the first time you open the app.</span></span><button type="button" class="switch" role="switch" aria-checked="true" data-pref="summary" aria-labelledby="tgSummary"></button></li>
+      <li class="toggle-row"><span class="toggle-text" id="tgMotivation"><b>Pep talk</b><span>One line under the date that keeps you moving.</span></span><button type="button" class="switch" role="switch" aria-checked="true" data-pref="motivation" aria-labelledby="tgMotivation"></button></li>
+      <li class="toggle-row"><span class="toggle-text" id="tgFocus"><b>Focus timer</b><span>A Focus button on Up next that times a work session.</span></span><button type="button" class="switch" role="switch" aria-checked="true" data-pref="focus" aria-labelledby="tgFocus"></button></li>
+    </ul>
+    <h3 class="sheet-sub" id="remTitle">Reminders</h3>
+    <div class="seg seg-wide" role="group" aria-labelledby="remTitle">
+      <button type="button" data-rem="off" aria-pressed="false">Off</button>
+      <button type="button" data-rem="gentle" aria-pressed="true">Gentle</button>
+      <button type="button" data-rem="standard" aria-pressed="false">Standard</button>
+      <button type="button" data-rem="intense" aria-pressed="false">Intense</button>
+    </div>
+    <p class="field-note" id="remNote"></p>
+    <p class="field-note">With the app closed, reminders come from your phone’s calendar: open a task with a date and tap Phone calendar.</p>
     <div id="gcalSec" hidden>
       <h3 class="sheet-sub" id="gcalTitle">Google Calendar</h3>
       <p class="sheet-note">Tasks with a time go on your Google Calendar on their own, and change when you change them. Your phone’s calendar alerts can remind you, with no Claude usage.</p>
@@ -2247,6 +2997,14 @@ button.wk-head { cursor: pointer; }
     <div class="move-row"><button type="button" class="btn-small" id="exportAll">Save everything</button><button type="button" class="btn-small quiet" id="importAll">Load a saved file</button></div>
     <input type="file" id="importInput" accept="application/json,.json" hidden>
     <p class="field-note move-status" id="moveStatus" role="status" aria-live="polite" hidden></p>
+    <p class="field-note" id="moveLast" hidden></p>
+    <div id="snapSec" hidden>
+      <h3 class="sheet-sub" id="snapTitle">Safety copies</h3>
+      <p class="sheet-note">Your whole list (everything but the photos) is copied on this phone each day you use the app, and before every update. If something ever goes wrong, put a copy back.</p>
+      <ul class="card-rows snap-rows" id="snapRows" aria-labelledby="snapTitle"></ul>
+      <div class="move-row"><button type="button" class="btn-small quiet" id="snapNow">Make a copy now</button></div>
+      <p class="field-note move-status" id="snapStatus" role="status" aria-live="polite" hidden></p>
+    </div>
     <div id="lockSec" hidden>
       <h3 class="sheet-sub" id="lockTitle">Passcode lock</h3>
       <p class="sheet-note" id="lockNote">Ask for a 6-digit passcode when the app opens, and again after a minute away. Your list is hidden while you switch apps.</p>
@@ -2405,6 +3163,28 @@ button.wk-head { cursor: pointer; }
   <span class="viewer-count" id="viewerCount"></span>
 </div>
 
+<div class="focus" id="focus" role="dialog" aria-modal="true" aria-labelledby="focusTitle" tabindex="-1" hidden>
+  <div class="focus-inner">
+    <p class="focus-kicker" id="focusKicker">Focus</p>
+    <h2 class="focus-title" id="focusTitle"></h2>
+    <div class="focus-ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="frGrad" x1="0" y1="0" x2="1" y2="1"><stop class="rp-stop1" offset="0"/><stop class="rp-stop2" offset="1"/></linearGradient></defs><circle class="fr-track" cx="60" cy="60" r="52"/><circle class="fr-fill" id="focusFill" cx="60" cy="60" r="52" pathLength="100"/></svg>
+      <span class="focus-time" id="focusTime" role="timer" aria-live="off">25:00</span>
+    </div>
+    <div class="chips focus-lens" id="focusLens" role="group" aria-label="How long">
+      <button type="button" class="chip" data-focus-min="15">15 min</button><button type="button" class="chip" data-focus-min="25">25 min</button><button type="button" class="chip" data-focus-min="45">45 min</button><button type="button" class="chip" data-focus-min="60">60 min</button>
+    </div>
+    <div class="focus-acts">
+      <button type="button" class="btn-focus primary" id="focusStart">Start</button>
+      <button type="button" class="btn-focus" id="focusPause" hidden>Pause</button>
+      <button type="button" class="btn-focus" id="focusDone" hidden>Task done</button>
+      <button type="button" class="btn-focus quiet" id="focusEnd">Close</button>
+    </div>
+    <p class="focus-note" id="focusNote">The timer keeps going if you leave the app. Your phone won’t ring when it ends unless the app is open.</p>
+  </div>
+</div>
+<button type="button" class="focus-pill" id="focusPill" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/></svg><span id="focusPillTime"></span></button>
+
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastMsg"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
 <script>
@@ -2471,7 +3251,9 @@ button.wk-head { cursor: pointer; }
     planOpen: false,
     downloads: null,            // saving a file to the phone (job reports, backups), or null where this view can't
     offline: false,
+    doneShown: 100,             // how many done rows show while Done is open (Show more adds a page)
   };
+  const DONE_PAGE = 100;
   let db = null;
   const writable = () => S.status === 'ready';
   const taskRef = id => db.collection('tasks').doc(id);
@@ -2479,25 +3261,42 @@ button.wk-head { cursor: pointer; }
   const tplRef = id => db.collection('templates').doc(id);
   const trashRef = id => db.collection('trash').doc(id);
 
-  /* ---------- color looks (the six options from the color canvas, plus Classic) ---------- */
-  const SKINS = [
-    { id: 'classic', name: 'Classic', note: 'Follows your phone’s light or dark mode', page: '#FFFFFF', head: '#000000', text: '#000000', card: '#2348F5', cardText: '#FFFFFF' },
-    { id: 'orange-white', name: '1. Orange letters on white', page: '#FFFFFF', head: '#F55F00', text: '#F55F00', card: '#FFE3EC', cardText: '#F55F00' },
-    { id: 'white-orange-card', name: '2. White with an orange card', page: '#FFFFFF', head: '#F55F00', text: '#B83D00', card: '#F55F00', cardText: '#FFFFFF' },
-    { id: 'orange-headings', name: '3. Orange headings, dark letters', page: '#FFFFFF', head: '#F55F00', text: '#2A1610', card: '#FFE3EC', cardText: '#B83D00' },
-    { id: 'orange-pink', name: '4. Orange letters on pink', page: '#FFE3EC', head: '#F55F00', text: '#B83D00', card: '#FFFFFF', cardText: '#F55F00' },
-    { id: 'pink-orange-card', name: '5. Pink with an orange card', page: '#FFE3EC', head: '#F55F00', text: '#B83D00', card: '#F55F00', cardText: '#FFFFFF' },
-    { id: 'orange-bg', name: '6. Orange background', page: '#F55F00', head: '#FFFFFF', text: '#FFFFFF', card: '#FFE3EC', cardText: '#B83D00' },
-  ];
-  const skinIds = new Set(SKINS.map(s => s.id));
-  function applySkin(id) {
-    const skin = skinIds.has(id) ? id : 'classic';
-    S.skin = skin;
-    if (skin === 'classic') document.documentElement.removeAttribute('data-skin');
-    else document.documentElement.setAttribute('data-skin', skin);
-    local.set('todo.skin', skin);
+  /* ---------- looks: the theme engine (it runs before the page shows) paints the colors; this keeps the pick ---------- */
+  const THEME = window.todoTheme;
+  const LOOK_IDS = new Set(THEME.themes.map(t => t.id));
+  const SKIN_IDS = new Set(THEME.themes.filter(t => t.kind === 'skin').map(t => t.id)); // the six original orange looks
+  const DEFAULT_LOOK = 'midnight'; // only for a list where no look was ever picked
+  // The pick is saved with the list (settings/theme). A list from before themes may only have its old color pick
+  // (settings/app), and that one is kept. Each is undefined until it loads, null when there isn't one.
+  const lookDocs = { theme: undefined, app: undefined };
+  function settleLook() {
+    if (lookDocs.theme === undefined || lookDocs.app === undefined) return;
+    const d = lookDocs.theme;
+    const want = d && LOOK_IDS.has(d.look) ? { look: d.look, appearance: d.appearance, accent: typeof d.accent === 'string' ? d.accent : '' }
+      : lookDocs.app && LOOK_IDS.has(lookDocs.app.skin) ? { look: lookDocs.app.skin }
+      : { look: DEFAULT_LOOK };
+    const cur = THEME.get();
+    if (want.look !== cur.look || (want.appearance && want.appearance !== cur.appearance) || (want.accent !== undefined && want.accent !== cur.accent)) {
+      THEME.set(want);
+    }
   }
-  applySkin(local.get('todo.skin')); // this device's last pick, until the saved one loads
+  // An older copy of the app (if one ever opens this list again) knows Classic and the orange looks only.
+  const legacySkin = look => (look === 'classic' || SKIN_IDS.has(look) ? look : 'classic');
+  function saveLook() {
+    const p = THEME.get();
+    local.set('todo.skin', legacySkin(p.look));
+    if (!writable()) return;
+    write('settings/theme', () => db.doc('settings/theme').set({ look: p.look, appearance: p.appearance, accent: p.accent || '', updatedAt: Date.now() }), { create: true });
+    if (!lookDocs.app || lookDocs.app.skin !== legacySkin(p.look)) {
+      write('settings/app', () => db.doc('settings/app').set({ skin: legacySkin(p.look), updatedAt: Date.now() }), { create: true });
+    }
+  }
+  function pickLook(p, save = true) {
+    if (!writable()) return;
+    THEME.set(p);
+    if (save) saveLook();
+  }
+  THEME.onChange(() => { if (S.colorsOpen) renderThemeSheet(); });
   if (S.textSize !== 'default') document.documentElement.setAttribute('data-text', S.textSize);
 
   /* ---------- dates: stored as local YYYY-MM-DD ---------- */
@@ -2509,7 +3308,16 @@ button.wk-head { cursor: pointer; }
   const isYmd = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const nextMonday = s => { const d = parseYmd(s); d.setDate(d.getDate() + (((8 - d.getDay()) % 7) || 7)); return ymd(d); };
   S.today = todayStr();
+  // Formatting dates and times through the browser is slow, and every row asks, so each answer is kept
+  // (date labels until the day changes).
+  const labelCache = { day: '', dates: new Map(), times: new Map() };
   function dateLabel(due) {
+    if (labelCache.day !== S.today) { labelCache.day = S.today; labelCache.dates = new Map(); }
+    let v = labelCache.dates.get(due);
+    if (v === undefined) { v = makeDateLabel(due); labelCache.dates.set(due, v); }
+    return v;
+  }
+  function makeDateLabel(due) {
     if (due === S.today) return 'Today';
     if (due === addDays(S.today, 1)) return 'Tomorrow';
     if (due === addDays(S.today, -1)) return 'Yesterday';
@@ -2546,8 +3354,13 @@ button.wk-head { cursor: pointer; }
   // Optional time of day, stored as 24-hour "HH:MM" next to the date.
   const isHHMM = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
   const timeLabel = hhmm => {
-    const [h, m] = hhmm.split(':').map(Number);
-    return new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    let v = labelCache.times.get(hhmm);
+    if (v === undefined) {
+      const [h, m] = hhmm.split(':').map(Number);
+      v = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      labelCache.times.set(hhmm, v);
+    }
+    return v;
   };
   const nowHHMM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   // An end time is optional too ("HH:MM" next to the start). One earlier than the start runs past midnight.
@@ -2568,31 +3381,44 @@ button.wk-head { cursor: pointer; }
   // Repeating tasks: checking one off creates the next one on the next date in the pattern.
   const REPEATS = { daily: 'daily', weekdays: 'on weekdays', weekly: 'weekly', biweekly: 'every 2 weeks', monthly: 'monthly', yearly: 'yearly' };
   const cleanRepeat = r => (typeof r === 'string' && Object.prototype.hasOwnProperty.call(REPEATS, r) ? r : null);
-  function stepDate(s, repeat) {
+  // Monthly and yearly repeats on the 29th to 31st remember their day (repeatAnchor), so a bill due on the 31st
+  // comes back on Feb 28 and then on Mar 31, instead of sliding to the 28th for good. A task that was moved to
+  // another day simply repeats from its new day.
+  const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
+  function anchorFor(t) {
+    if (!isYmd(t.due) || (t.repeat !== 'monthly' && t.repeat !== 'yearly')) return null;
+    const d = parseYmd(t.due);
+    const a = Number(t.repeatAnchor);
+    if (Number.isInteger(a) && a > d.getDate() && a <= 31 && d.getDate() === Math.min(a, daysIn(d.getFullYear(), d.getMonth()))) return a;
+    return d.getDate() > 28 ? d.getDate() : null;
+  }
+  function stepDate(s, repeat, anchor) {
     const d = parseYmd(s);
     if (repeat === 'daily') d.setDate(d.getDate() + 1);
     else if (repeat === 'weekdays') { do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); }
     else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
     else if (repeat === 'biweekly') d.setDate(d.getDate() + 14);
     else if (repeat === 'yearly') {
-      const day = d.getDate(), month = d.getMonth(), year = d.getFullYear() + 1;
+      const day = anchor || d.getDate(), month = d.getMonth(), year = d.getFullYear() + 1;
       d.setFullYear(year, month, 1);
-      d.setDate(Math.min(day, new Date(year, month + 1, 0).getDate()));
+      d.setDate(Math.min(day, daysIn(year, month)));
     }
     else if (repeat === 'monthly') {
-      const day = d.getDate();
+      const day = anchor || d.getDate();
       d.setDate(1);
       d.setMonth(d.getMonth() + 1);
-      d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      d.setDate(Math.min(day, daysIn(d.getFullYear(), d.getMonth())));
     }
     return ymd(d);
   }
   // Checklist items inside a task: [{ id, text, done }], at most 50.
   const rid = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  // An item saved without an id (older lists) gets one from its place, so it's the same id every time it's read
+  // (a random one each time meant the first tap on it in Up next did nothing).
   const cleanChecklist = c => (Array.isArray(c) ? c : [])
     .filter(i => i && typeof i.text === 'string' && clean(i.text, 200))
     .slice(0, 50)
-    .map(i => ({ id: typeof i.id === 'string' && i.id ? i.id : rid(), text: clean(i.text, 200), done: i.done === true }));
+    .map((i, n) => ({ id: typeof i.id === 'string' && i.id ? i.id : 'n' + n, text: clean(i.text, 200), done: i.done === true }));
   // Waiting on someone: { on: who, since: the day the wait started, nudges: follow-ups sent, last: the day of the
   // latest one }. The task's own date is when to follow up.
   function cleanWaiting(w) {
@@ -2611,9 +3437,9 @@ button.wk-head { cursor: pointer; }
     return d;
   }
   // The first date after today that fits the pattern, counted from the task's own date so a schedule never drifts.
-  function nextOccurrence(due, repeat) {
+  function nextOccurrence(due, repeat, anchor = null) {
     let s = isYmd(due) ? due : S.today;
-    for (let i = 0; i < 1000; i++) { s = stepDate(s, repeat); if (s > S.today) break; }
+    for (let i = 0; i < 1000; i++) { s = stepDate(s, repeat, anchor); if (s > S.today) break; }
     return s;
   }
 
@@ -3541,7 +4367,24 @@ button.wk-head { cursor: pointer; }
   const catNames = ids => ids.map(id => catView(id, S.cats.get(id)).name);
   const sortedLists = () => [...S.lists].map(([id, l]) => listView(id, l))
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-  const taskView = (id, t) => ({
+  // What a stored task means to the page. Worked out once per stored object and reused until that task changes, or
+  // the lists, categories or clients it points at change: stored objects are never edited in place (each change
+  // brings a new one), so the same object always means the same view. Callers treat views as read-only.
+  let viewCache = new WeakMap();
+  let viewDeps = [];
+  function taskView(id, t) {
+    if (viewDeps[0] !== S.lists || viewDeps[1] !== S.cats || viewDeps[2] !== S.clients) {
+      viewCache = new WeakMap();
+      viewDeps = [S.lists, S.cats, S.clients];
+    }
+    const keyed = !!t && typeof t === 'object';
+    const hit = keyed ? viewCache.get(t) : null;
+    if (hit && hit.id === id) return hit;
+    const v = makeTaskView(id, t || {});
+    if (keyed) viewCache.set(t, v);
+    return v;
+  }
+  const makeTaskView = (id, t) => ({
     id,
     title: typeof t.title === 'string' ? t.title : '',
     note: typeof t.note === 'string' ? t.note : '',
@@ -3549,6 +4392,7 @@ button.wk-head { cursor: pointer; }
     time: isYmd(t.due) && isHHMM(t.time) ? t.time : null,
     end: isYmd(t.due) ? cleanEnd(t.time, t.end) : null,
     repeat: isYmd(t.due) ? cleanRepeat(t.repeat) : null,
+    repeatAnchor: Number.isInteger(t.repeatAnchor) ? t.repeatAnchor : null,
     spawnedId: typeof t.spawnedId === 'string' ? t.spawnedId : null,
     checklist: cleanChecklist(t.checklist),
     photos: cleanPhotos(t.photos),
@@ -3872,7 +4716,7 @@ button.wk-head { cursor: pointer; }
     }
     if (done && t.repeat) {
       // Check this one off and create the next one right away, so the schedule keeps going.
-      const nextDue = nextOccurrence(t.due, t.repeat);
+      const nextDue = nextOccurrence(t.due, t.repeat, anchorFor(t));
       const ref = db.collection('tasks').doc();
       const copy = repeatCopy(t, nextDue);
       write('tasks/' + ref.id, () => ref.set(copy), { create: true });
@@ -3897,11 +4741,22 @@ button.wk-head { cursor: pointer; }
     }
     render();
   }
+  // A tap that checks a task off moves it to Done, out of sight, so it says so and offers Undo
+  // (a repeating task already says when the next one is due).
+  function checkOff(id) {
+    const raw = S.tasks.get(id);
+    if (!raw || !writable()) return;
+    const t = taskView(id, raw);
+    toggleDone(id);
+    if (!t.done && !t.repeat) toast('Marked done', () => toggleDone(id));
+  }
   function repeatCopy(t, nextDue) {
     const copy = { title: t.title, note: t.note, priority: t.priority, done: false, due: nextDue, time: t.time,
       repeat: t.repeat, list: t.list, createdAt: Date.now(), doneAt: null,
       checklist: t.checklist.map(i => ({ id: i.id, text: i.text, done: false })) };
     if (t.end) copy.end = t.end;
+    const anchor = anchorFor(t);
+    if (anchor) copy.repeatAnchor = anchor;
     if (t.photos.length) copy.photos = t.photos; // the next one keeps the photos (a label to match, a how-to)
     if (t.cats && t.cats.length) copy.cats = t.cats.slice();
     return copy;
@@ -3923,7 +4778,7 @@ button.wk-head { cursor: pointer; }
       n++;
       if (t.repeat) {
         const ref = db.collection('tasks').doc();
-        const copy = repeatCopy(t, nextOccurrence(t.due, t.repeat));
+        const copy = repeatCopy(t, nextOccurrence(t.due, t.repeat, anchorFor(t)));
         jobs.push(() => write('tasks/' + ref.id, () => ref.set(copy), { create: true }));
         jobs.push(() => write('tasks/' + id, () => taskRef(id).update({ done: true, doneAt: at, spawnedId: ref.id })));
         back.push(() => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
@@ -4208,9 +5063,14 @@ button.wk-head { cursor: pointer; }
   /* ---------- search ---------- */
   // Every word typed has to appear somewhere in the task: title, notes, checklist or list name.
   const searchQuery = () => (S.searchOpen ? S.query.trim().toLowerCase() : '');
+  const hayCache = new WeakMap(); // view -> its words, lowercased (a view is remade when the task changes)
   function matchesQuery(t, q) {
-    const hay = [t.title, t.note, nameOf(t.list), t.waiting ? t.waiting.on : '', ...t.checklist.map(i => i.text),
-      t.po ? `PO ${t.po.number} ${t.po.vendor}` : '', t.client ? clientView(t.client, S.clients.get(t.client)).name : '', ...catNames(t.cats || [])].join('\n').toLowerCase();
+    let hay = hayCache.get(t);
+    if (hay === undefined) {
+      hay = [t.title, t.note, nameOf(t.list), t.waiting ? t.waiting.on : '', ...t.checklist.map(i => i.text),
+        t.po ? `PO ${t.po.number} ${t.po.vendor}` : '', t.client ? clientView(t.client, S.clients.get(t.client)).name : '', ...catNames(t.cats || [])].join('\n').toLowerCase();
+      hayCache.set(t, hay);
+    }
     return q.split(/\s+/).every(w => hay.includes(w));
   }
   function openSearch() {
@@ -4237,8 +5097,7 @@ button.wk-head { cursor: pointer; }
     scrim.hidden = false;
     el.hidden = false;
     document.documentElement.classList.add('locked');
-    $('#app').inert = true;
-    $('#fab').inert = true;
+    for (const el of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) el.inert = true;
     void el.offsetWidth;
     scrim.classList.add('open');
     el.classList.add('open');
@@ -4250,8 +5109,7 @@ button.wk-head { cursor: pointer; }
     if (!others.length) {
       $('#scrim').classList.remove('open');
       document.documentElement.classList.remove('locked');
-      $('#app').inert = false;
-      $('#fab').inert = false;
+      for (const el of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) el.inert = false;
     }
     setTimeout(() => {
       if (!el.classList.contains('open')) el.hidden = true;
@@ -4598,8 +5456,8 @@ button.wk-head { cursor: pointer; }
       closeTaskSheet(true);
       if (pinned) unpinOthers(ref.id);
       if (received) { recordDone([[ref.id, { list, at: data.doneAt }]]); armCheer(); }
-      const hidden = S.filter !== ALL && list !== S.filter;
-      toast(hidden ? `Task added to ${nameOf(list) || 'All'}` : 'Task added');
+      revealScopeFor(data);
+      toast(`Task added${addedNote(data)}`);
       write('tasks/' + ref.id, () => ref.set(data), { create: true }).then(ok => {
         if (!ok) releasePhotos(photos.map(p => p.id)); // the task never saved, so its photos would point nowhere
       });
@@ -5079,54 +5937,98 @@ button.wk-head { cursor: pointer; }
     closeSheet($('#listsSheet'));
   }
 
-  function buildSkinGrid() {
-    const grid = $('#skinGrid');
-    if (grid.childElementCount) return;
-    const bar = (color, width) => {
-      const l = document.createElement('span');
-      l.className = 'skin-line';
-      l.style.background = color;
-      l.style.width = width;
-      return l;
+  /* ---------- Settings: the look, light or dark, and an accent color ---------- */
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  // A small picture of a look: its page, the Up next card in its colors, and two task rows.
+  function previewHalf(id, mode) {
+    const c = THEME.preview(id, mode);
+    const half = el('span', 'skin-half');
+    half.style.background = c.page;
+    const head = el('span', 'skin-line');
+    head.style.cssText = `background:${c.ink};width:52%`;
+    const card = el('span', 'skin-card');
+    card.style.background = c.grad;
+    card.append(el('span', 'skin-line skin-line-on'), el('span', 'skin-line skin-line-on short'));
+    const row = w => {
+      const r = el('span', 'skin-row');
+      r.style.cssText = `background:${c.card};border-color:${c.line}`;
+      const dot = el('i');
+      dot.style.borderColor = c.accent;
+      const bar = el('span', 'skin-line');
+      bar.style.cssText = `background:${c.soft};width:${w}`;
+      r.append(dot, bar);
+      return r;
     };
-    for (const s of SKINS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'skin';
-      b.dataset.look = s.id;
-      const preview = document.createElement('span');
-      preview.className = 'skin-preview';
-      preview.setAttribute('aria-hidden', 'true');
-      preview.style.background = s.page;
-      const card = document.createElement('span');
-      card.className = 'skin-card';
-      card.style.background = s.card;
-      card.append(bar(s.cardText, '72%'), bar(s.cardText, '46%'));
-      preview.append(bar(s.head, '58%'), card, bar(s.text, '84%'), bar(s.text, '62%'));
-      const name = document.createElement('span');
-      name.className = 'skin-name';
-      name.textContent = s.name;
-      b.append(preview, name);
-      if (s.note) {
-        const note = document.createElement('span');
-        note.className = 'skin-note';
-        note.textContent = s.note;
-        b.append(note);
-      }
-      grid.append(b);
-    }
+    half.append(head, card, row('68%'), row('48%'));
+    return half;
   }
-  function renderSkins() {
+  function themeCard(t) {
+    const b = el('button', 'skin');
+    b.type = 'button';
+    b.dataset.look = t.id;
+    const pv = el('span', 'skin-preview' + (t.modes.length > 1 ? ' is-split' : ''));
+    pv.setAttribute('aria-hidden', 'true');
+    for (const m of t.modes.length > 1 ? ['light', 'dark'] : t.modes) pv.append(previewHalf(t.id, m));
+    b.append(pv, el('span', 'skin-name', t.name));
+    if (t.note) b.append(el('span', 'skin-note', t.note));
+    return b;
+  }
+  function buildAccentPicks() {
+    const box = $('#accentPicks');
+    if (box.querySelector('[data-accent]')) return; // made once (the custom picker is in the markup)
+    const own = el('button', 'accent-pick accent-theme');
+    own.type = 'button';
+    own.dataset.accent = '';
+    own.setAttribute('aria-label', 'The theme’s own color');
+    own.append(el('span', 'accent-theme-text', 'Theme'));
+    const picks = THEME.accents.map(a => {
+      const b = el('button', 'accent-pick');
+      b.type = 'button';
+      b.dataset.accent = a.color;
+      b.style.setProperty('--sw', a.color);
+      b.setAttribute('aria-label', a.name);
+      return b;
+    });
+    box.prepend(own, ...picks); // the custom color picker is already in the markup, last
+  }
+  let themeGridSig = null;
+  function renderThemeSheet() {
     if (!S.colorsOpen) return;
-    buildSkinGrid();
-    for (const b of $('#skinGrid').children) b.setAttribute('aria-pressed', String(b.dataset.look === S.skin));
+    const p = THEME.get();
+    if (themeGridSig !== p.accent) { // the little pictures show your accent
+      themeGridSig = p.accent;
+      $('#skinGrid').replaceChildren(...THEME.themes.filter(t => t.group !== 'original').map(themeCard));
+      $('#skinGridOld').replaceChildren(...THEME.themes.filter(t => t.group === 'original').map(themeCard));
+    }
+    for (const b of document.querySelectorAll('#colorsSheet [data-look]')) b.setAttribute('aria-pressed', String(b.dataset.look === p.look));
+    const fixed = p.modes.length === 1;
+    for (const b of document.querySelectorAll('[data-appearance]')) {
+      b.setAttribute('aria-pressed', String(fixed ? b.dataset.appearance === p.mode : b.dataset.appearance === p.appearance));
+      b.disabled = fixed;
+    }
+    const name = (THEME.themes.find(t => t.id === p.look) || {}).name || 'This look';
+    const note = fixed ? `${name} is always ${p.mode}. Pick another theme to switch between light and dark.`
+      : p.appearance === 'system' ? `Following your phone, which is in ${p.mode} mode right now.` : '';
+    $('#apNote').textContent = note;
+    $('#apNote').hidden = !note;
+    buildAccentPicks();
+    const preset = !p.accent || THEME.accents.some(a => a.color === p.accent);
+    for (const b of document.querySelectorAll('#accentPicks [data-accent]')) b.setAttribute('aria-pressed', String(b.dataset.accent === (p.accent || '')));
+    const custom = $('#accentCustom');
+    custom.classList.toggle('is-on', !preset);
+    custom.style.setProperty('--sw', !preset ? p.accent : 'transparent');
+    if (document.activeElement !== $('#accentInput')) $('#accentInput').value = (p.accent || '#2563FF').toLowerCase();
   }
   function openColorsSheet() {
     renderLock();
     if (!writable()) return;
     S.colorsOpen = true;
-    renderSkins();
+    themeGridSig = null;
+    renderThemeSheet();
     renderTextSizes();
+    renderPrefs();
+    renderSnaps();
+    renderMoveInfo();
     const sheet = $('#colorsSheet');
     openSheet(sheet);
     sheet.scrollTop = 0;
@@ -5136,12 +6038,6 @@ button.wk-head { cursor: pointer; }
     if (!S.colorsOpen) return;
     S.colorsOpen = false;
     closeSheet($('#colorsSheet'));
-  }
-  function chooseSkin(id) {
-    if (!writable() || !skinIds.has(id)) return;
-    applySkin(id);
-    renderSkins();
-    write('settings/app', () => db.doc('settings/app').set({ skin: id, updatedAt: Date.now() }), { create: true });
   }
   const TRASH_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg>';
   function buildListRow(id) {
@@ -5244,20 +6140,32 @@ button.wk-head { cursor: pointer; }
   let measureCtx = null;
   function fitPlaceholder(input, options) {
     const room = input.clientWidth - 4;
-    if (room <= 0) return;
+    if (room <= 0) return false;
     if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
     const cs = getComputedStyle(input);
     measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
     const text = options.find(t => measureCtx.measureText(t).width <= room) || options[options.length - 1];
     if (input.placeholder !== text) input.placeholder = text;
+    return true;
   }
+  // Measuring the box makes the browser lay out the whole page, so it's only done when the day or the width changes.
+  let quickFit = '';
+  let quickFitQueued = false;
   function renderQuick() {
     const show = writable() && S.tasksLoaded && !S.searchOpen;
     $('#quickForm').hidden = !show;
     renderRcptBtns();
-    if (show) {
-      fitPlaceholder($('#quickInput'), S.day ? [`Add a task for ${dayInSentence(S.day)}`, 'Add a task…']
-        : ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
+    const key = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
+    if (show && key !== quickFit && !quickFitQueued) {
+      quickFitQueued = true;
+      requestAnimationFrame(() => setTimeout(() => {
+        quickFitQueued = false;
+        if ($('#quickForm').hidden) return;
+        const want = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
+        const ok = fitPlaceholder($('#quickInput'), S.day ? [`Add a task for ${dayInSentence(S.day)}`, 'Add a task…']
+          : ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
+        if (ok) quickFit = want;
+      }, 0));
     }
     renderQuickHint(show);
   }
@@ -5290,14 +6198,22 @@ button.wk-head { cursor: pointer; }
       checklist: [], createdAt: Date.now(), doneAt: null };
     const end = cleanEnd(data.time, v.end);
     if (end) data.end = end;
+    // The category being shown goes on it too (as in the full sheet), so it doesn't vanish from view.
+    if (S.catFilter && S.cats.has(S.catFilter)) data.cats = [S.catFilter];
     const ref = db.collection('tasks').doc();
     write('tasks/' + ref.id, () => ref.set(data), { create: true });
     $('#quickInput').value = '';
     renderQuickHint();
-    // Say where it went when that isn't the list on screen.
-    const where = S.filter !== ALL && list !== S.filter ? ` to ${nameOf(list) || 'All'}`
-      : due && due !== (S.day || S.today) ? ` for ${dayInSentence(due)}` : '';
-    toast(`Task added${where}`, () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
+    revealScopeFor(data);
+    toast(`Task added${addedNote(data)}`, () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
+  }
+
+  // Where a new task went, when that isn't what's on screen: another list, another day, or a view that hides it.
+  function addedNote(data) {
+    if (S.filter !== ALL && data.list !== S.filter) return ` to ${nameOf(data.list) || 'All'}`;
+    if (S.catFilter && !(data.cats || []).includes(S.catFilter)) return ' (not in the category you’re viewing)';
+    if (data.due && data.due !== (S.day || S.today)) return ` for ${dayInSentence(data.due)}`;
+    return '';
   }
 
   /* ---------- read a receipt: a photo of a receipt, invoice or bill becomes the task's details ---------- */
@@ -6440,6 +7356,327 @@ button.wk-head { cursor: pointer; }
     }
   }
 
+  /* ---------- deadlines: when each task is due, and how long is left ---------- */
+  // A task with a time is due then (a job with an end time runs until it ends). One with only a date is due by the
+  // end of that day.
+  function dueTimes(t) {
+    if (!t.due) return null;
+    const d = parseYmd(t.due);
+    if (!t.time) { const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(); return { start: end, end, untimed: true }; }
+    const [h, m] = t.time.split(':').map(Number);
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
+    return { start, end: t.end ? start + lengthMin(t.time, t.end) * 60000 : start, untimed: false };
+  }
+  // "3d", "1d 4h", "5h 12m", "42m"
+  function span(ms) {
+    const m = Math.max(1, Math.floor(ms / 60000));
+    const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+    if (d >= 2) return `${d}d`;
+    if (d) return h ? `${d}d ${h}h` : `${d}d`;
+    return h ? (mm ? `${h}h ${mm}m` : `${h}h`) : `${mm}m`;
+  }
+  const minuteNow = () => Math.floor(Date.now() / 60000) * 60000;
+  // The countdown on a row: { text, cls } (cls: calm, soon, urgent, live, late), or null when it would only repeat
+  // what the row already says. Rows redraw once a minute, so it counts in minutes.
+  function countdown(t, now) {
+    if (!S.prefs.countdowns || t.done || !t.due || (t.waiting && t.due > S.today)) return null;
+    const w = dueTimes(t);
+    if (now >= w.end) {
+      if (w.untimed) { const days = daysBetween(t.due, ymd(new Date(now))); return { text: days <= 1 ? '1 day late' : `${days} days late`, cls: 'late' }; }
+      return { text: `${span(now - w.end)} late`, cls: 'late' };
+    }
+    if (!w.untimed && now >= w.start) return { text: `${span(w.end - now)} left`, cls: 'live' };
+    const left = w.start - now;
+    if (w.untimed) {
+      const days = daysBetween(S.today, t.due);
+      return days >= 2 && days <= 7 ? { text: `${days} days left`, cls: 'calm' } : null;
+    }
+    if (left > 48 * 3600000) return null;
+    return { text: `in ${span(left)}`, cls: left <= 3600000 ? 'urgent' : left <= 6 * 3600000 ? 'soon' : 'calm' };
+  }
+  // Up next counts down to the second.
+  const two = n => String(n).padStart(2, '0');
+  const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${two(Math.floor(s / 3600))}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`; };
+  function heroCountdown(t, now) {
+    const w = dueTimes(t);
+    if (!w) return null;
+    if (now >= w.end) return { label: 'Overdue by', time: now - w.end < 864e5 ? clock(now - w.end) : span(now - w.end), cls: 'late' };
+    if (!w.untimed && now >= w.start) return { label: 'Ends in', time: clock(w.end - now), cls: 'live' };
+    const left = w.start - now;
+    const label = w.untimed ? (t.due === S.today ? 'Left today' : 'Due in') : t.end ? 'Starts in' : 'Due in';
+    return { label, time: left < 864e5 ? clock(left) : span(left), cls: left <= 3600000 ? 'urgent' : '' };
+  }
+  let heroCdFor = null;
+  function paintHeroCd() {
+    const box = $('#heroCd');
+    const t = heroCdFor;
+    const v = t && !$('#hero').hidden ? heroCountdown(t, Date.now()) : null;
+    box.hidden = !v;
+    if (!v) return;
+    if ($('#heroCdLabel').textContent !== v.label) $('#heroCdLabel').textContent = v.label;
+    if ($('#heroCdTime').textContent !== v.time) $('#heroCdTime').textContent = v.time;
+    const cls = 'hero-cd' + (v.cls ? ' is-' + v.cls : '');
+    if (box.className !== cls) box.className = cls;
+  }
+  setInterval(() => { if (heroCdFor && !document.hidden) paintHeroCd(); }, 1000);
+
+  /* ---------- the top: today's progress ring, a streak, focus time and a pep talk ---------- */
+  const FLAME_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.6-8.3.3 2 1.3 3 2.4 3.6.2-2.9 1.7-5.4 4.2-7.1-.3 3 .9 4.7 2.1 6.5.9 1.4 1.7 2.8 1.7 5 0 3.8-3 6.5-7.5 6.5z"/></svg>';
+  const TARGET_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/></svg>';
+  const DONE_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  function statChip(svg, text, cls) {
+    const c = el('span', 'stat-chip' + (cls ? ' ' + cls : ''));
+    c.innerHTML = svg;
+    c.append(text);
+    return c;
+  }
+  // One line under the date. Tough when things slip, warm when they don't; it changes with the day, not every glance.
+  // st: { open, late, done, total, streak, hour }
+  function motivationFor(st) {
+    const pick = list => list[(parseYmd(S.today).getDate() + st.open) % list.length];
+    if (st.total && !st.open && !st.late) return pick(['All clear. That’s how it’s done.', 'Done for the day. Go enjoy it.', 'Nothing left. You earned the rest.']);
+    if (st.late >= 3) return pick(['Overdue is piling up. Knock out the smallest one now.', `${st.late} overdue. Pick one, finish it, repeat.`]);
+    if (st.late) return pick(['One overdue. Clear it before it grows.', 'Something slipped. Fix that first, then move on.']);
+    if (st.streak >= 2 && st.open) return pick([`${st.streak}-day streak on the line. Finish today’s list.`, `Keep the ${st.streak}-day streak alive.`]);
+    if (st.done && st.done >= st.open) return pick(['Past halfway. Keep the pace.', 'Momentum is on your side. Next one.']);
+    if (st.open && st.hour < 12) return pick(['Fresh day. Start with the hardest one.', 'Pick one task and start the clock.']);
+    if (st.open) return pick([`${st.open} to go. You’ve got this.`, 'Small steps. Check off the next one.']);
+    return '';
+  }
+  function renderTopExtras(st) {
+    const chips = [];
+    const fin = streakCount();
+    if (fin >= 2) chips.push(statChip(FLAME_SVG, `${fin}-day streak`, 'hot'));
+    if (st.done) chips.push(statChip(DONE_SVG, `${st.done} done today`, 'ok'));
+    const fm = focusMinutesToday();
+    if (fm) chips.push(statChip(TARGET_SVG, `${fm} min focus`, ''));
+    const box = $('#statChips');
+    box.replaceChildren(...chips);
+    box.hidden = !chips.length;
+    const line = S.prefs.motivation ? motivationFor({ ...st, streak: fin, hour: new Date().getHours() }) : '';
+    $('#motive').hidden = !line;
+    $('#motive').textContent = line;
+  }
+
+  /* ---------- views: All, Today, Upcoming, Overdue and Done ---------- */
+  const SCOPES = { all: null, today: ['today'], upcoming: ['tomorrow', 'later', 'waiting'], overdue: ['overdue'], done: ['done'] };
+  S.scope = Object.prototype.hasOwnProperty.call(SCOPES, local.get('todo.scope')) ? local.get('todo.scope') : 'all';
+  function setScope(v) {
+    S.scope = Object.prototype.hasOwnProperty.call(SCOPES, v) ? v : 'all';
+    local.set('todo.scope', S.scope);
+    if (S.scope === 'done') S.doneShown = DONE_PAGE;
+    render();
+  }
+  // A view that would hide a task you just added steps aside to the view it went to.
+  function revealScopeFor(data) {
+    if (S.scope === 'all') return;
+    const sec = sectionOf({ ...data, id: '', done: data.done === true, due: isYmd(data.due) ? data.due : null, waiting: data.waiting || null });
+    const want = Object.keys(SCOPES).find(k => SCOPES[k] && SCOPES[k].includes(sec)) || 'all';
+    if (want !== S.scope) setScope(want);
+  }
+  function renderScope(groups, show) {
+    const nav = $('#scope');
+    nav.hidden = !show;
+    if (!show) return;
+    const open = sec => groups[sec].filter(t => !t.done).length;
+    const n = { today: open('today'), upcoming: open('tomorrow') + open('later') + open('waiting'), overdue: open('overdue'), done: groups.done.length };
+    for (const b of nav.children) {
+      const k = b.dataset.scope;
+      b.setAttribute('aria-pressed', String(k === S.scope));
+      const c = b.querySelector('.scope-n');
+      if (c) c.textContent = n[k] ? String(n[k]) : '';
+    }
+  }
+
+  /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
+  function renderBrief(show) {
+    const box = $('#brief');
+    const want = show && S.prefs.summary && local.get('todo.summarySeen') !== S.today;
+    let today = 0, late = 0, mins = 0, first = null;
+    if (want) {
+      for (const [id, raw] of S.tasks) {
+        const t = taskView(id, raw);
+        if (t.done || t.sample || !t.due) continue;
+        if (t.due < S.today && !t.waiting) late++;
+        else if (t.due === S.today) {
+          today++;
+          if (t.time) { if (!first || t.time < first) first = t.time; mins += t.end ? lengthMin(t.time, t.end) : 0; }
+        }
+      }
+    }
+    box.hidden = !want || !(today || late);
+    if (box.hidden) return;
+    const h = new Date().getHours();
+    $('#briefTitle').textContent = h < 12 ? 'Good morning, Jose' : h < 17 ? 'Good afternoon, Jose' : 'Good evening, Jose';
+    const parts = [today ? `${plural(today, 'task', 'tasks')} due today` : 'Nothing new due today'];
+    if (first) parts.push(`first one at ${timeLabel(first)}`);
+    if (mins >= 30) parts.push(`${minLabel(mins)} of jobs on the clock`);
+    $('#briefText').replaceChildren(parts.join(', ') + '.');
+    if (late) {
+      const s = el('span', 'late', ` ${plural(late, 'task is', 'tasks are')} overdue.`);
+      $('#briefText').append(s);
+    }
+    const b = $('#briefOverdue');
+    b.hidden = !late || !writable();
+    b.textContent = late > 1 ? `Move all ${late} to today` : 'Move it to today';
+  }
+  function closeBrief() {
+    local.set('todo.summarySeen', S.today);
+    $('#brief').hidden = true;
+  }
+  function moveOverdueToToday() {
+    const entries = [...S.tasks].filter(([tid, raw]) => {
+      const t = taskView(tid, raw);
+      return !t.done && t.due && t.due < S.today && inFilter(t);
+    });
+    if (!entries.length || !writable()) return 0;
+    const before = entries.map(([tid, raw]) => [tid, { due: raw.due, rank: Number.isFinite(raw.rank) ? raw.rank : null }]);
+    runPool(before.map(([tid]) => () => write('tasks/' + tid, () => taskRef(tid).update({ due: S.today, rank: null }))));
+    toast(`Moved ${plural(before.length, 'task', 'tasks')} to today`,
+      () => runPool(before.map(([tid, was]) => () => write('tasks/' + tid, () => taskRef(tid).update(was)))));
+    return before.length;
+  }
+
+  /* ---------- focus: a timer for working on one task ---------- */
+  // The session is kept by its end time (on this phone), so it keeps counting if the app closes or reloads.
+  const focus = { on: false, taskId: null, title: '', min: 25, endAt: 0, left: 0, paused: false, back: null };
+  try {
+    const f = JSON.parse(local.get('todo.focus') || 'null');
+    if (f && typeof f === 'object' && Number(f.endAt) > 0 && [15, 25, 45, 60].includes(Number(f.min))) {
+      Object.assign(focus, { on: true, taskId: typeof f.taskId === 'string' ? f.taskId : null, title: clean(f.title, 200), min: Number(f.min),
+        endAt: Number(f.endAt), left: Number(f.left) || 0, paused: f.paused === true });
+    }
+  } catch (e) { /* no session */ }
+  const saveFocus = () => local.set('todo.focus', focus.on ? JSON.stringify({ taskId: focus.taskId, title: focus.title, min: focus.min, endAt: focus.endAt, left: focus.left, paused: focus.paused }) : '');
+  const focusLeft = () => (focus.paused ? focus.left : Math.max(0, focus.endAt - Date.now()));
+  function focusLog() { try { const v = JSON.parse(local.get('todo.focusLog') || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+  const focusMinutesToday = () => Number(focusLog()[S.today]) || 0;
+  function logFocus(min) {
+    if (min < 1) return;
+    const log = focusLog();
+    log[S.today] = (Number(log[S.today]) || 0) + Math.round(min);
+    const cutoff = addDays(S.today, -30);
+    for (const k of Object.keys(log)) if (!isYmd(k) || k < cutoff) delete log[k];
+    local.set('todo.focusLog', JSON.stringify(log));
+  }
+  function openFocus(id) {
+    if (!S.prefs.focus) return;
+    if (!focus.on) {
+      const raw = id && S.tasks.get(id);
+      focus.taskId = raw ? id : null;
+      focus.title = raw ? (taskView(id, raw).title || 'Untitled task') : 'Focus';
+    }
+    focus.back = document.activeElement;
+    const box = $('#focus');
+    box.hidden = false;
+    document.documentElement.classList.add('locked');
+    paintFocus();
+    box.focus({ preventScroll: true });
+  }
+  function closeFocus() {
+    const box = $('#focus');
+    if (box.hidden) return false;
+    box.hidden = true;
+    if (!document.querySelector('.sheet.open')) document.documentElement.classList.remove('locked');
+    if (focus.back && focus.back.isConnected) { try { focus.back.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    paintFocus();
+    return true;
+  }
+  function startFocus() {
+    focus.on = true;
+    focus.paused = false;
+    focus.endAt = Date.now() + focus.min * 60000;
+    saveFocus();
+    buzz(10);
+    paintFocus();
+  }
+  function pauseFocus() {
+    if (!focus.on) return;
+    if (focus.paused) { focus.endAt = Date.now() + focus.left; focus.paused = false; }
+    else { focus.left = focusLeft(); focus.paused = true; }
+    saveFocus();
+    paintFocus();
+  }
+  // Ending early still counts the minutes you put in.
+  function stopFocus(log = true) {
+    if (focus.on && log) logFocus(focus.min - focusLeft() / 60000);
+    focus.on = false;
+    focus.paused = false;
+    saveFocus();
+    paintFocus();
+    renderHeader();
+  }
+  function finishFocus() {
+    const { min, title, taskId } = focus;
+    logFocus(min);
+    focus.on = false;
+    saveFocus();
+    buzz([40, 80, 40, 80, 60]);
+    paintFocus();
+    renderHeader();
+    const raw = taskId && S.tasks.get(taskId);
+    const open = raw && raw.done !== true;
+    toast(`Focus done: ${min} min on ${clean(title, 40)}.`, open ? () => checkOff(taskId) : null, 'Mark done', 9000);
+  }
+  function paintFocus() {
+    const box = $('#focus');
+    const shown = !box.hidden;
+    const pill = $('#focusPill');
+    pill.hidden = !focus.on || shown || !S.prefs.focus;
+    document.documentElement.classList.toggle('focusing', !pill.hidden);
+    const left = focus.on ? focusLeft() : focus.min * 60000;
+    const text = `${two(Math.floor(left / 60000))}:${two(Math.floor(left / 1000) % 60)}`;
+    if (!pill.hidden) $('#focusPillTime').textContent = `${text}${focus.paused ? ' · Paused' : ''}`;
+    if (!shown) return;
+    $('#focusTitle').textContent = focus.title || 'Focus';
+    $('#focusKicker').textContent = focus.on ? (focus.paused ? 'Paused' : 'Focusing') : 'Focus session';
+    $('#focusTime').textContent = text;
+    const done = focus.on ? 1 - left / (focus.min * 60000) : 0;
+    $('#focusFill').style.strokeDashoffset = String(100 - Math.max(0, Math.min(1, done)) * 100);
+    $('#focusFill').style.opacity = done > 0.002 ? '1' : '0'; // a round line end would show as a dot at 0
+    $('#focusLens').hidden = focus.on;
+    for (const b of $('#focusLens').children) b.setAttribute('aria-pressed', String(Number(b.dataset.focusMin) === focus.min));
+    $('#focusStart').hidden = focus.on;
+    $('#focusPause').hidden = !focus.on;
+    $('#focusPause').textContent = focus.paused ? 'Resume' : 'Pause';
+    $('#focusDone').hidden = !(focus.on && focus.taskId && S.tasks.has(focus.taskId) && S.tasks.get(focus.taskId).done !== true);
+    $('#focusEnd').textContent = focus.on ? 'End session' : 'Close';
+  }
+  setInterval(() => {
+    if (!focus.on) return;
+    if (!focus.paused && Date.now() >= focus.endAt) { finishFocus(); return; }
+    if (!document.hidden) paintFocus();
+  }, 1000);
+
+  /* ---------- reminders while the app is open (with it closed, the phone's calendar does it) ---------- */
+  const REMIND_AT = { off: [], gentle: [0], standard: [15, 0], intense: [60, 15, 0] }; // minutes before
+  function checkReminders() {
+    const offs = REMIND_AT[S.prefs.reminders] || [];
+    if (!offs.length || !S.tasksLoaded || !writable() || document.hidden) return;
+    let seen = {};
+    try { seen = JSON.parse(local.get('todo.alerted') || '{}') || {}; } catch (e) { seen = {}; }
+    for (const k of Object.keys(seen)) if (seen[k] !== S.today) delete seen[k];
+    const now = Date.now();
+    const hits = [];
+    for (const [id, raw] of S.tasks) {
+      const t = taskView(id, raw);
+      if (t.done || t.sample || t.due !== S.today || !t.time) continue;
+      const start = dueTimes(t).start;
+      for (const off of offs) {
+        const at = start - off * 60000;
+        const key = `${id}|${t.due}|${t.time}|${off}`;
+        if (now >= at && now < at + 10 * 60000 && !seen[key]) { seen[key] = S.today; hits.push({ t, off }); break; }
+      }
+    }
+    local.set('todo.alerted', JSON.stringify(seen));
+    if (!hits.length) return;
+    const { t, off } = hits[0];
+    const when = off === 60 ? 'In 1 hour' : off ? `In ${off} min` : 'Due now';
+    const more = hits.length > 1 ? ` (+${hits.length - 1} more)` : '';
+    toast(`${when}: ${clean(t.title, 50) || 'Untitled task'}${more}`, () => openTaskSheet('edit', t.id), 'Open', 9000);
+    buzz(S.prefs.reminders === 'intense' ? [60, 80, 60, 80, 60] : [30, 60, 30]);
+  }
+
   /* ---------- rendering ---------- */
   const CHECK_SVG ='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 12.6l3.7 3.6 7.4-8.3"/></svg>';
   const rowEls = new Map();
@@ -6476,6 +7713,13 @@ button.wk-head { cursor: pointer; }
     items.forEach((i, n) => box.children[n].setAttribute('aria-pressed', String(!!i.pressed)));
   }
 
+  // Changes that arrive together (opening the app brings ten at once) draw the page once.
+  let renderQueued = false;
+  function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    queueMicrotask(() => { renderQueued = false; render(); maybeSwipeTip(); });
+  }
   function render() {
     renderHeader();
     renderWeek();
@@ -6508,17 +7752,24 @@ button.wk-head { cursor: pointer; }
     $('#foot').hidden = !(writable() && S.tasksLoaded);
     renderTaskSheet();
     renderListsSheet();
-    renderSkins();
+    renderFoot();
   }
 
+  let headerDay = '';
   function renderHeader() {
     const d = parseYmd(S.today);
-    $('#dateTitle').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    if (headerDay !== S.today) { // the weekday on top, the date big, and the whole thing for screen readers
+      headerDay = S.today;
+      const wd = d.toLocaleDateString('en-US', { weekday: 'long' });
+      $('#dateKicker').textContent = wd;
+      $('#dateTitle').replaceChildren(el('span', 'sr-only', wd + ', '), d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }));
+    }
     const sum = $('#daySum');
     const prog = $('#dayProg');
     sum.replaceChildren();
     prog.hidden = true;
-    if (S.status === 'unavailable') { sum.textContent = 'Tasks can’t load or save in this view.'; return; }
+    $('#todayBadge').textContent = '';
+    if (S.status === 'unavailable') { sum.textContent = 'Tasks can’t load or save in this view.'; renderTopExtras({ open: 0, late: 0, done: 0, total: 0 }); return; }
     if (S.status === 'readonly') { sum.textContent = 'View only. You can see this list but not change it.'; return; }
     if (!S.tasksLoaded) return;
     let today = 0, late = 0, doneToday = 0;
@@ -6531,13 +7782,19 @@ button.wk-head { cursor: pointer; }
       if (t.due < S.today) late++;
       else if (t.due === S.today) today++;
     }
-    // The bar fills as the day's tasks get checked off.
+    // The ring fills as the day's tasks get checked off.
     const total = today + doneToday;
     prog.hidden = total === 0;
     if (total) {
-      $('#dayProgFill').style.width = (doneToday / total * 100).toFixed(1) + '%';
+      const pct = doneToday / total * 100;
+      $('#dayProgFill').style.strokeDashoffset = (100 - pct).toFixed(1);
+      $('#dayProgFill').style.opacity = pct ? '1' : '0';
+      $('#dayProgText').textContent = `${doneToday}/${total}`;
+      prog.classList.toggle('is-full', doneToday === total);
       prog.setAttribute('aria-label', `${doneToday} of ${total} done today`);
     }
+    $('#todayBadge').textContent = late ? String(late) : '';
+    renderTopExtras({ open: today, late, done: doneToday, total });
     if (!today && !late) {
       sum.textContent = doneToday ? 'Everything due today is done.' : 'Nothing due today.';
       return;
@@ -6672,8 +7929,11 @@ button.wk-head { cursor: pointer; }
   }
 
   // Every finished task we know about, by id: the done ones still on the list, plus cleared ones from the history.
+  let complMemo = null;
   function completions() {
+    if (complMemo && complMemo[0] === S.tasks && complMemo[1] === S.history) return complMemo[2];
     const out = new Map();
+    complMemo = [S.tasks, S.history, out];
     for (const [, doc] of S.history) {
       const items = doc && doc.items && typeof doc.items === 'object' ? doc.items : {};
       for (const [id, rec] of Object.entries(items)) {
@@ -6693,7 +7953,7 @@ button.wk-head { cursor: pointer; }
   // Your week: how many tasks got done on each of the last 7 days, in their lists' colors.
   function renderStats() {
     const box = $('#stats');
-    const show = (S.status === 'ready' || S.status === 'readonly') && S.tasksLoaded && !searchQuery() && !S.day;
+    const show = (S.status === 'ready' || S.status === 'readonly') && S.tasksLoaded && !searchQuery() && !S.day && S.scope === 'all';
     if (!show) { box.hidden = true; return; }
     const days = Array.from({ length: 7 }, (_, i) => addDays(S.today, i - 6));
     const weekBefore = addDays(days[0], -7);
@@ -7721,6 +8981,11 @@ button.wk-head { cursor: pointer; }
   /* ---------- a phone-calendar event file: the task with a 15-minute alert (phone app) ---------- */
   const icsText = v => String(v || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
   const icsFold = line => { const out = []; let rest = line; while (rest.length > 73) { out.push(rest.slice(0, 73)); rest = ' ' + rest.slice(73); } out.push(rest); return out.join('\r\n'); };
+  // Alerts on a calendar event, by the reminder setting. All-day: 9 AM that day, 6 PM and 9 AM the day before.
+  const ICS_ALARMS = {
+    timed: { off: ['-PT15M'], gentle: ['-PT15M'], standard: ['-PT1H', '-PT15M'], intense: ['-P1D', '-PT1H', '-PT15M', 'PT0M'] },
+    allDay: { off: ['PT9H'], gentle: ['PT9H'], standard: ['-PT6H', 'PT9H'], intense: ['-PT15H', '-PT6H', 'PT9H'] },
+  };
   function icsFor(id, v) {
     const ev = calendarEvent({ title: v.title || 'Task', note: '', due: v.due, time: v.time, end: v.end, repeat: v.repeat });
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
@@ -7732,8 +8997,10 @@ button.wk-head { cursor: pointer; }
     lines.push(`SUMMARY:${icsText(v.title || 'Task')}`);
     const list = nameOf(v.list);
     if (list) lines.push(`DESCRIPTION:${icsText(`${list} · from your to-do list`)}`);
-    lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsText(v.title || 'Task')}`, ev.allDay ? 'TRIGGER;RELATED=START:PT9H' : 'TRIGGER:-PT15M', 'END:VALARM',
-      'END:VEVENT', 'END:VCALENDAR');
+    for (const trig of (ev.allDay ? ICS_ALARMS.allDay : ICS_ALARMS.timed)[S.prefs.reminders] || ICS_ALARMS.timed.gentle) {
+      lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsText(v.title || 'Task')}`, `TRIGGER;RELATED=START:${trig}`, 'END:VALARM');
+    }
+    lines.push('END:VEVENT', 'END:VCALENDAR');
     return lines.map(icsFold).join('\r\n') + '\r\n';
   }
   function savePhoneEvent() {
@@ -7750,7 +9017,8 @@ button.wk-head { cursor: pointer; }
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast(v.time ? 'Event file saved. Open it to add the task to your calendar with a 15-minute alert.' : 'Event file saved. Open it to add the day to your calendar.');
+    const alerts = { off: 'an alert 15 minutes before', gentle: 'an alert 15 minutes before', standard: 'alerts 1 hour and 15 minutes before', intense: 'alerts the day before, 1 hour and 15 minutes before, and on time' }[S.prefs.reminders];
+    toast(v.time ? `Event file saved. Open it to add the task to your calendar, with ${alerts}.` : 'Event file saved. Open it to add the day to your calendar.');
   }
 
   /* ---------- your list in one file: save everything, and load it back (to move to the phone app) ---------- */
@@ -7842,13 +9110,15 @@ button.wk-head { cursor: pointer; }
       const data = {
         app: EXPORT_APP, version: 1, exportedAt: new Date().toISOString(),
         collections: { tasks, lists: plainCopy(S.lists), categories: plainCopy(S.cats), history: plainCopy(S.history), templates: plainCopy(S.templates), clients: plainCopy(S.clients) },
-        settings: { skin: S.skin, textSize: S.textSize, sort: S.sort, streak: { ...S.streak.days }, sign: signoffs() },
+        settings: { skin: legacySkin(THEME.get().look), theme: { look: THEME.get().look, appearance: THEME.get().appearance, accent: THEME.get().accent || '' },
+          prefs: { ...S.prefs }, textSize: S.textSize, sort: S.sort, streak: { ...S.streak.days }, sign: signoffs() },
         photos,
       };
       const nt = Object.keys(tasks).length;
       const what = [plural(nt, 'task', 'tasks'), plural(S.lists.size, 'list', 'lists'), S.cats.size ? plural(S.cats.size, 'category', 'categories') : '', S.clients.size ? plural(S.clients.size, 'client', 'clients') : '', n ? plural(n, 'photo', 'photos') : '']
         .filter(Boolean).join(', ');
       const res = await saveFileOut(new Blob([JSON.stringify(data)], { type: 'application/json' }), `To-do everything ${S.today}.json`, 'application/json');
+      if (res) { local.set('todo.lastExport', String(Date.now())); renderMoveInfo(); renderFoot(); }
       if (res === null) renderMove(null, '');
       else if (res) renderMove('done', `Saved ${what}. ${IS_PHONE ? 'Keep the file somewhere safe.' : 'In the phone app, open Settings and tap Load a saved file.'}`);
       else renderMove('error', 'Saving files isn’t available in this view. Open your list in the Claude app and try again.');
@@ -7910,7 +9180,9 @@ button.wk-head { cursor: pointer; }
       renderMove('busy', 'Adding your tasks…');
       await runPool(jobs, 6);
       const st = isPlain(data.settings) ? data.settings : {};
-      if (typeof st.skin === 'string' && skinIds.has(st.skin) && st.skin !== S.skin) chooseSkin(st.skin);
+      if (isPlain(st.theme) && LOOK_IDS.has(st.theme.look)) pickLook({ look: st.theme.look, appearance: st.theme.appearance, accent: st.theme.accent || '' });
+      else if (typeof st.skin === 'string' && LOOK_IDS.has(st.skin) && st.skin !== THEME.get().look) pickLook({ look: st.skin });
+      if (isPlain(st.prefs)) setPrefs(st.prefs);
       let view = false;
       if (TEXT_SIZES.includes(st.textSize) && st.textSize !== S.textSize) { applyTextSize(st.textSize); view = true; }
       if (isSort(st.sort) && st.sort !== S.sort) { applySort(st.sort); view = true; }
@@ -7971,9 +9243,125 @@ button.wk-head { cursor: pointer; }
     $('#welcomeLoad').classList.toggle('quiet', where === 'ios-safari');
   }
 
+  /* ---------- extras: each one optional, saved with the list (settings/prefs) and on this phone ---------- */
+  const PREF_DEFAULTS = { countdowns: true, summary: true, motivation: true, focus: true, reminders: 'gentle' };
+  const PREF_SWITCHES = ['countdowns', 'summary', 'motivation', 'focus'];
+  const REMINDERS = ['off', 'gentle', 'standard', 'intense'];
+  function cleanPrefs(v) {
+    const o = { ...PREF_DEFAULTS };
+    if (v && typeof v === 'object') {
+      for (const k of PREF_SWITCHES) if (typeof v[k] === 'boolean') o[k] = v[k];
+      if (REMINDERS.includes(v.reminders)) o.reminders = v.reminders;
+    }
+    return o;
+  }
+  try { S.prefs = cleanPrefs(JSON.parse(local.get('todo.prefs') || 'null')); } catch (e) { S.prefs = cleanPrefs(null); }
+  function setPrefs(change) {
+    const next = cleanPrefs({ ...S.prefs, ...change });
+    if (JSON.stringify(next) === JSON.stringify(S.prefs)) return;
+    S.prefs = next;
+    local.set('todo.prefs', JSON.stringify(next));
+    if (writable()) write('settings/prefs', () => db.doc('settings/prefs').set({ ...next, updatedAt: Date.now() }), { create: true });
+    if (!next.focus && focus.on) stopFocus(false);
+    render();
+    renderPrefs();
+  }
+  const REM_NOTE = {
+    off: 'No alerts while the app is open.',
+    gentle: 'While the app is open: a nudge when a task with a time is due. Phone calendar events: an alert 15 minutes before.',
+    standard: 'While the app is open: 15 minutes before and when it’s due. Phone calendar events: alerts 1 hour and 15 minutes before.',
+    intense: 'While the app is open: 1 hour before, 15 minutes before and when it’s due, with a buzz. Phone calendar events: the day before, 1 hour before, 15 minutes before and on time.',
+  };
+  function renderPrefs() {
+    if (!S.colorsOpen) return;
+    for (const b of document.querySelectorAll('#colorsSheet [data-pref]')) b.setAttribute('aria-checked', String(!!S.prefs[b.dataset.pref]));
+    for (const b of document.querySelectorAll('#colorsSheet [data-rem]')) b.setAttribute('aria-pressed', String(b.dataset.rem === S.prefs.reminders));
+    $('#remNote').textContent = REM_NOTE[S.prefs.reminders];
+  }
+
+  /* ---------- safety copies (the phone app keeps them; see the top of the page): list, make, put back ---------- */
+  const snapApi = () => (IS_PHONE && window.claude && window.claude.snapshots ? window.claude.snapshots : null);
+  const SNAP_KIND = { daily: 'Daily copy', upgrade: 'Before an update', manual: 'Made by you', restore: 'Before a put-back' };
+  let snapArmed = { key: '', timer: 0 };
+  function snapStatus(msg, error) {
+    const el2 = $('#snapStatus');
+    el2.hidden = !msg;
+    el2.textContent = msg || '';
+    el2.classList.toggle('is-error', !!error);
+  }
+  async function renderSnaps() {
+    const api = snapApi();
+    $('#snapSec').hidden = !api;
+    if (!api || !S.colorsOpen) return;
+    let list = [];
+    try { list = await api.list(); } catch (e) { list = []; }
+    const rows = list.map(m => {
+      const li = el('li', 'card-row snap-row');
+      const main = el('div', 'snap-main');
+      const at = new Date(m.takenAt);
+      main.append(el('span', 'card-title', `${upFirst(pastDay(m.takenAt))}, ${timeLabel(`${pad(at.getHours())}:${pad(at.getMinutes())}`)}`));
+      const c = m.counts || {};
+      main.append(el('span', 'card-meta', [SNAP_KIND[m.kind] || 'Copy', plural(c.tasks || 0, 'task', 'tasks'), c.lists ? plural(c.lists, 'list', 'lists') : ''].filter(Boolean).join(' · ')));
+      const b = el('button', 'btn-small quiet', snapArmed.key === m.key ? 'Tap again' : 'Put back');
+      b.type = 'button';
+      b.dataset.snap = m.key;
+      b.classList.toggle('armed', snapArmed.key === m.key);
+      b.setAttribute('aria-label', `Put back the copy from ${pastDay(m.takenAt)}`);
+      li.append(main, b);
+      return li;
+    });
+    if (!rows.length) rows.push(el('li', 'sheet-note', 'No copies yet. The first one is made the next time the app opens.'));
+    $('#snapRows').replaceChildren(...rows);
+  }
+  async function makeSnap() {
+    const api = snapApi();
+    if (!api) return;
+    snapStatus('Making a copy…');
+    try { await api.take(); snapStatus('Copy made. It’s at the top of the list.'); } catch (e) { snapStatus('The copy couldn’t be made. The phone may be out of space.', true); }
+    renderSnaps();
+  }
+  // Putting a copy back replaces the whole list with it, so it takes a second tap. What's there now is copied first.
+  async function restoreSnap(btn) {
+    const api = snapApi();
+    const key = btn.dataset.snap;
+    if (!api || !key) return;
+    if (snapArmed.key !== key) {
+      clearTimeout(snapArmed.timer);
+      snapArmed = { key, timer: setTimeout(() => { snapArmed = { key: '', timer: 0 }; renderSnaps(); }, 4000) };
+      snapStatus('Tap again to replace your list with that copy. Your list as it is now gets copied first, so you can come back to it.');
+      renderSnaps();
+      return;
+    }
+    clearTimeout(snapArmed.timer);
+    snapArmed = { key: '', timer: 0 };
+    snapStatus('Putting it back…');
+    try { await api.restore(key); } catch (e) { snapStatus('That copy couldn’t be put back.', true); renderSnaps(); }
+  }
+
+  // When this phone last saved everything to a file, and a nudge in the footer when it's been a while.
+  const lastExport = () => Number(local.get('todo.lastExport')) || 0;
+  function renderMoveInfo() {
+    const at = lastExport();
+    $('#moveLast').hidden = !IS_PHONE;
+    $('#moveLast').textContent = at ? `Last saved from this phone ${pastDay(at)}.` : 'You haven’t saved a file from this phone yet.';
+  }
+  function renderFoot() {
+    const foot = $('#foot');
+    if (foot.hidden) return;
+    const at = lastExport();
+    const days = at ? Math.floor((Date.now() - at) / 864e5) : -1;
+    const many = S.tasks.size >= 10;
+    const stale = IS_PHONE && many && (days < 0 || days >= 14);
+    foot.classList.toggle('warn', stale);
+    foot.textContent = stale
+      ? (days < 0 ? 'Your tasks live only on this phone. Save a backup file now and then: Settings, then Save everything.'
+        : `Your last backup file is ${days} days old. Settings, then Save everything.`)
+      : 'Your tasks save on this phone as you go. Now and then, tap Save everything in Settings to keep a backup.';
+  }
+
   /* ---------- text size, sorting, the all-done confetti, and the backup ---------- */
   const TEXT_SIZES = ['default', 'large', 'xl'];
-  const SORTS = { mine: 'My order', time: 'Time', priority: 'Priority', newest: 'Newest' };
+  const SORTS = { mine: 'My order', time: 'Time', priority: 'Priority', newest: 'Newest', list: 'List' };
   const isSort = v => typeof v === 'string' && Object.prototype.hasOwnProperty.call(SORTS, v);
   function renderTextSizes() {
     for (const b of document.querySelectorAll('#textSizes [data-text-size]')) b.setAttribute('aria-pressed', String(b.dataset.textSize === S.textSize));
@@ -8244,7 +9632,10 @@ button.wk-head { cursor: pointer; }
       laterBtn.hidden = next.done || !(!next.due || next.due <= S.today);
       laterBtn.disabled = !writable();
       $('#heroNudge').hidden = !(S.sample && writable() && !next.done && next.waiting && next.due && next.due <= S.today);
+      $('#heroFocus').hidden = !(S.prefs.focus && writable() && !next.done);
       addBtn.hidden = true;
+      heroCdFor = !next.done && S.prefs.countdowns && next.due ? next : null;
+      paintHeroCd();
     } else {
       title.classList.remove('long', 'xlong');
       listPill.hidden = true;
@@ -8260,12 +9651,17 @@ button.wk-head { cursor: pointer; }
       doneBtn.hidden = true;
       laterBtn.hidden = true;
       $('#heroNudge').hidden = true;
+      $('#heroFocus').hidden = true;
+      heroCdFor = null;
+      paintHeroCd();
       addBtn.hidden = S.status === 'readonly';
       addBtn.disabled = !writable();
       const listName = S.filter !== ALL ? nameOf(S.filter) : '';
       if (S.status === 'unavailable' || !S.tasksLoaded) {
         strike.textContent = 'Your next task shows up here';
-        $('#heroWhen').textContent = S.status === 'unavailable' ? 'Open this page signed in to Claude to see your tasks.' : 'Loading your tasks.';
+        $('#heroWhen').textContent = S.status !== 'unavailable' ? 'Loading your tasks.' : IS_PHONE
+          ? 'This browser isn’t letting the app use the phone’s storage. In a private window, open it in a normal one.'
+          : 'Open this page signed in to Claude to see your tasks.';
         addBtn.hidden = addBtn.hidden || S.status === 'unavailable';
       } else {
         let doneToday = 0;
@@ -8323,10 +9719,17 @@ button.wk-head { cursor: pointer; }
   const SWIPE_LATER_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>';
   const SNOOZE_WEEK_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5l5.5 5.5L5 17.5M12.5 6.5L18 12l-5.5 5.5"/></svg>';
   const SNOOZE_PICK_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+  let rowTemplate = null;
   function buildRow(id) {
+    if (!rowTemplate) rowTemplate = makeRowTemplate();
+    const li = rowTemplate.cloneNode(true);
+    li.dataset.id = id;
+    li.addEventListener('animationend', () => li.classList.remove('pop'));
+    return li;
+  }
+  function makeRowTemplate() {
     const li = document.createElement('li');
     li.className = 'task';
-    li.dataset.id = id;
     li.innerHTML = '<span class="swipe-bg" aria-hidden="true">' +
         '<span class="swipe-act swipe-done">' + SWIPE_DONE_SVG + '<span class="swipe-done-label">Done</span></span>' +
         '<span class="swipe-act swipe-later">' +
@@ -8339,13 +9742,21 @@ button.wk-head { cursor: pointer; }
         '<button type="button" class="ring" data-act="toggle">' + CHECK_SVG + '</button>' +
         '<button type="button" class="task-body" data-act="open"><span class="prio" hidden><span class="prio-mark" aria-hidden="true"></span><span class="sr-only"></span></span><span class="task-title strike"></span><span class="task-note" hidden></span><span class="task-meta"></span></button>' +
       '</div>';
-    li.addEventListener('animationend', () => li.classList.remove('pop'));
     return li;
   }
 
+  // What a row shows that changes with the clock alone: its countdown, and a time today turning late.
+  function rowTimeKey(t, sec, now, nowMs) {
+    const cd = countdown(t, nowMs);
+    const cdKey = cd ? cd.cls + cd.text : '';
+    if (t.done || !t.time || sec !== 'today') return cdKey;
+    const over = t.end && toMin(t.end) > toMin(t.time) ? t.end : t.time;
+    return (over < now ? 'L' : 'W') + cdKey;
+  }
   function updateRow(li, t, sec) {
     li.classList.toggle('is-done', t.done);
     li.classList.toggle('is-pinned', t.pinned && !t.done);
+    li.dataset.prio = t.done ? '0' : String(t.priority); // the color stripe on the card's edge
     setColor(li, colorOf(t.list));
     const title = t.title || 'Untitled task';
     const listName = nameOf(t.list);
@@ -8368,6 +9779,9 @@ button.wk-head { cursor: pointer; }
     noteEl.hidden = !preview;
     const meta = li.querySelector('.task-meta');
     meta.replaceChildren();
+    const cd = countdown(t, minuteNow());
+    li.classList.toggle('is-late', !!cd && cd.cls === 'late');
+    if (cd) meta.append(el('span', 'cd ' + cd.cls, cd.text));
     const at = t.time ? timeRange(t.time, t.end) : '';
     if (t.pinned && !t.done) {
       const s = document.createElement('span');
@@ -8455,6 +9869,12 @@ button.wk-head { cursor: pointer; }
   // Order inside each section: higher priority first, then the usual order.
   // "Later" spans many days, so it stays in date order and priority only breaks ties within a day.
   const byCreated = (a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id);
+  // Lists in their own order, tasks with no list last.
+  let listRankMemo = null;
+  const listRank = t => {
+    if (!listRankMemo || listRankMemo.lists !== S.lists) listRankMemo = { lists: S.lists, at: new Map(sortedLists().map((l, i) => [l.id, i])) };
+    return t.list && listRankMemo.at.has(t.list) ? listRankMemo.at.get(t.list) : 9999;
+  };
   // Within the same priority, tasks with a time come first, earliest first.
   const byTime = (a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || '').localeCompare(b.time || '');
   // Tasks dragged into an order keep it (within one day); anything never dragged follows them in the usual order.
@@ -8472,6 +9892,7 @@ button.wk-head { cursor: pointer; }
       const byDue = sec === 'later' || sec === 'overdue' ? a.due.localeCompare(b.due) : 0;
       if (S.sort === 'time') return (sec === 'later' ? byDue : 0) || byTime(a, b) || byDue || b.priority - a.priority || byCreated(a, b);
       if (S.sort === 'priority') return (sec === 'later' ? byDue : 0) || b.priority - a.priority || byDue || byTime(a, b) || byCreated(a, b);
+      if (S.sort === 'list') return (sec === 'later' ? byDue : 0) || listRank(a) - listRank(b) || b.priority - a.priority || byTime(a, b) || byCreated(a, b);
       return (sec === 'later' ? byDue : 0) || b.createdAt - a.createdAt || byCreated(a, b);
     }
     if (sec === 'later') return a.due.localeCompare(b.due) || b.priority - a.priority || byTime(a, b) || byCreated(a, b);
@@ -8491,18 +9912,25 @@ button.wk-head { cursor: pointer; }
     const groups = { day: [], overdue: [], today: [], anytime: [], tomorrow: [], later: [], waiting: [], done: [] };
     for (const t of visible) { const sec = sectionOf(t); groups[dayMode && sec !== 'done' ? 'day' : sec].push(t); }
     for (const sec of SECTIONS) groups[sec].sort((a, b) => compareInSection(sec, a, b));
+    // A view (the tabs) shows only its sections. Searching and a picked day look at everything.
+    const scoped = !q && !dayMode && S.scope !== 'all' ? SCOPES[S.scope] : null;
+    const inView = sec => !scoped || scoped.includes(sec);
+    renderScope(groups, S.tasksLoaded && !q && !dayMode && !S.selecting && (S.status === 'ready' || S.status === 'readonly'));
+    renderBrief(S.tasksLoaded && writable() && !q && !dayMode && !S.selecting);
 
-    // Up next: the first open task, in the order the sections run.
+    // Up next: the first open task, in the order the sections run (in All and Today).
     let next = null;
-    if (!q && !dayMode && !S.selecting) {
+    const heroOn = !q && !dayMode && !S.selecting && (!scoped || S.scope === 'today');
+    if (heroOn) {
+      const secs = scoped || OPEN_SECTIONS;
       // A pinned task that's due (or has no date) is Up next, even ahead of overdue ones.
-      next = ['overdue', 'today', 'anytime'].map(sec => groups[sec].find(t => t.pinned && (!t.done || t.id === S.heroId))).find(Boolean) || null;
-      if (!next) for (const sec of OPEN_SECTIONS) {
+      next = ['overdue', 'today', 'anytime'].filter(inView).map(sec => groups[sec].find(t => t.pinned && (!t.done || t.id === S.heroId))).find(Boolean) || null;
+      if (!next) for (const sec of secs) {
         next = groups[sec].find(t => !t.done || t.id === S.heroId) || null;
         if (next) break;
       }
     }
-    $('#hero').hidden = !!q || dayMode || S.selecting;
+    $('#hero').hidden = !heroOn;
     renderHero(next);
     $('#dayBar').hidden = !dayMode;
     if (dayMode) $('#dayTitle').textContent = parseYmd(S.day).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -8510,19 +9938,32 @@ button.wk-head { cursor: pointer; }
     const board = $('#board');
     const seen = new Set();
     let openShown = 0;
+    const showDone = S.showDone || !!q || S.scope === 'done';
+    // A row is only redrawn when its task, its section or what it shows about the time changed.
+    const ctx = `${S.filter === ALL ? 1 : 0}${writable() ? 1 : 0}${S.selecting ? 1 : 0}${S.prefs.countdowns ? 1 : 0}${S.today}`;
+    const now = nowHHMM();
+    const nowMs = minuteNow();
+    let doneHidden = 0;
     for (const sec of SECTIONS) {
       const secEl = board.querySelector(`[data-sec="${sec}"]`);
       const ul = secEl.querySelector('ul');
-      const items = groups[sec].filter(t => !next || t.id !== next.id);
+      const items = inView(sec) ? groups[sec].filter(t => !next || t.id !== next.id) : [];
       if (sec !== 'done') openShown += items.length;
       secEl.hidden = items.length === 0;
       secEl.querySelector('.count').textContent = String(items.length);
+      // Done rows are only made while Done is open, the most recent first, a page at a time.
+      const shown = sec !== 'done' ? items : showDone ? items.slice(0, S.doneShown) : [];
+      if (sec === 'done') doneHidden = showDone ? items.length - shown.length : 0;
       let prev = null;
-      for (const t of items) {
+      for (const t of shown) {
         seen.add(t.id);
         let li = rowEls.get(t.id);
         if (!li) { li = buildRow(t.id); rowEls.set(t.id, li); }
-        updateRow(li, t, sec);
+        const tk = rowTimeKey(t, sec, now, nowMs);
+        if (li._view !== t || li._sec !== sec || li._ctx !== ctx || li._tk !== tk) {
+          updateRow(li, t, sec);
+          li._view = t; li._sec = sec; li._ctx = ctx; li._tk = tk;
+        }
         const picked = S.selecting && S.selected.has(t.id);
         li.classList.toggle('is-selected', picked);
         if (S.selecting) {
@@ -8547,13 +9988,23 @@ button.wk-head { cursor: pointer; }
     } else if (dayMode) {
       note.hidden = groups.day.length > 0;
       note.textContent = groups.done.length ? `Everything due ${dayInSentence(S.day)} is done.` : `Nothing planned for ${dayInSentence(S.day)} yet. Tap + to add something.`;
+    } else if (scoped) {
+      const shownN = scoped.reduce((n, sec) => n + groups[sec].length, 0) - (next ? 1 : 0);
+      note.hidden = shownN > 0;
+      note.textContent = {
+        today: next ? 'Nothing else due today.' : 'Nothing due today. Add something, or enjoy the day.',
+        upcoming: 'Nothing coming up. Plan ahead with a date.',
+        overdue: 'Nothing overdue. You’re on top of it.',
+        done: 'Nothing done yet. Check one off.',
+      }[S.scope];
     } else {
       note.hidden = !(next && openShown === 0);
       note.textContent = listName ? `Nothing else in ${listName}.` : 'Nothing else on your list.';
     }
 
-    const showDone = S.showDone || !!q;
     $('#doneList').hidden = !showDone;
+    $('#doneMore').hidden = !doneHidden;
+    $('#doneMore').textContent = `Show ${Math.min(doneHidden, DONE_PAGE)} more`;
     const toggle = $('#doneToggle');
     toggle.setAttribute('aria-expanded', String(showDone));
     toggle.setAttribute('aria-label', `${showDone ? 'Hide' : 'Show'} ${plural(groups.done.length, 'done task', 'done tasks')}`);
@@ -8824,7 +10275,7 @@ button.wk-head { cursor: pointer; }
   $('#fab').addEventListener('click', () => openTaskSheet('new'));
   $('#heroAdd').addEventListener('click', () => openTaskSheet('new'));
   $('#heroOpen').addEventListener('click', () => { if (S.heroId) openTaskSheet('edit', S.heroId); });
-  $('#heroDone').addEventListener('click', () => { if (S.heroId) toggleDone(S.heroId); });
+  $('#heroDone').addEventListener('click', () => { if (S.heroId) checkOff(S.heroId); });
   $('#heroLater').addEventListener('click', () => { if (S.heroId) moveToTomorrow(S.heroId); });
   $('#hero').addEventListener('animationend', () => $('#hero').classList.remove('enter'));
   $('#heroCheck').addEventListener('click', e => {
@@ -9212,20 +10663,15 @@ button.wk-head { cursor: pointer; }
   }
 
   board.addEventListener('click', e => {
-    if (e.target.closest('#moveOverdue')) {
-      const entries = [...S.tasks].filter(([tid, raw]) => {
-        const t = taskView(tid, raw);
-        return !t.done && t.due && t.due < S.today && inFilter(t);
-      });
-      if (!entries.length || !writable()) return;
-      const before = entries.map(([tid, raw]) => [tid, { due: raw.due, rank: Number.isFinite(raw.rank) ? raw.rank : null }]);
-      runPool(before.map(([tid]) => () => write('tasks/' + tid, () => taskRef(tid).update({ due: S.today, rank: null }))));
-      toast(`Moved ${plural(before.length, 'task', 'tasks')} to today`,
-        () => runPool(before.map(([tid, was]) => () => write('tasks/' + tid, () => taskRef(tid).update(was)))));
+    if (e.target.closest('#moveOverdue')) { moveOverdueToToday(); return; }
+    if (e.target.closest('#doneMore')) {
+      S.doneShown += DONE_PAGE;
+      renderBoard();
       return;
     }
     if (e.target.closest('#doneToggle')) {
       S.showDone = !S.showDone;
+      S.doneShown = DONE_PAGE;
       local.set('todo.showDone', S.showDone ? '1' : '0');
       renderBoard();
       return;
@@ -9240,7 +10686,7 @@ button.wk-head { cursor: pointer; }
     const act = e.target.closest('[data-act]');
     if (!li || !act) return;
     if (S.selecting) { toggleSelected(li.dataset.id); return; } // while selecting, a tap picks the task
-    if (act.dataset.act === 'toggle') toggleDone(li.dataset.id);
+    if (act.dataset.act === 'toggle') checkOff(li.dataset.id);
     else if (act.dataset.act === 'open') openTaskSheet('edit', li.dataset.id);
   });
 
@@ -9813,10 +11259,24 @@ button.wk-head { cursor: pointer; }
   // colors sheet
   $('#colorsBtn').addEventListener('click', openColorsSheet);
   $('#colorsDone').addEventListener('click', closeColorsSheet);
-  $('#skinGrid').addEventListener('click', e => {
-    const b = e.target.closest('[data-look]');
-    if (b) chooseSkin(b.dataset.look);
+  $('#colorsSheet').addEventListener('click', e => {
+    const look = e.target.closest('#colorsSheet [data-look]'); // (the page itself carries data-look too)
+    if (look) { pickLook({ look: look.dataset.look }); return; }
+    const ap = e.target.closest('[data-appearance]');
+    if (ap && !ap.disabled) { pickLook({ appearance: ap.dataset.appearance }); return; }
+    const acc = e.target.closest('button[data-accent]');
+    if (acc) { pickLook({ accent: acc.dataset.accent }); return; }
+    const sw = e.target.closest('[data-pref]');
+    if (sw) { setPrefs({ [sw.dataset.pref]: sw.getAttribute('aria-checked') !== 'true' }); return; }
+    const rem = e.target.closest('[data-rem]');
+    if (rem) { setPrefs({ reminders: rem.dataset.rem }); return; }
+    const snap = e.target.closest('[data-snap]');
+    if (snap) { restoreSnap(snap); return; }
+    if (e.target.closest('#snapNow')) makeSnap();
   });
+  // A custom accent shows as you drag through the colors, and saves when you let go.
+  $('#accentInput').addEventListener('input', e => { if (writable()) THEME.set({ accent: e.target.value }); });
+  $('#accentInput').addEventListener('change', e => pickLook({ accent: e.target.value }));
 
   $('#scrim').addEventListener('click', () => {
     if (report.open) closeReport();
@@ -9826,6 +11286,7 @@ button.wk-head { cursor: pointer; }
     else { closeListsSheet(); closeColorsSheet(); closeTrash(); closeMonth(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
+    if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
     if (!$('#viewer').hidden) { // the photo viewer takes the keys while it is open
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeViewer(); }
       else if (e.key === 'ArrowLeft') stepViewer(-1);
@@ -9854,6 +11315,20 @@ button.wk-head { cursor: pointer; }
     else if (S.selecting) exitSelect();
     else if (S.day) { S.day = null; render(); }
   });
+
+  // views, the daily kickoff, focus
+  $('#scope').addEventListener('click', e => { const b = e.target.closest('[data-scope]'); if (b) setScope(b.dataset.scope); });
+  $('#briefClose').addEventListener('click', closeBrief);
+  $('#briefOk').addEventListener('click', closeBrief);
+  $('#briefOverdue').addEventListener('click', () => { if (moveOverdueToToday()) closeBrief(); });
+  $('#heroFocus').addEventListener('click', () => openFocus(S.heroId));
+  $('#focusPill').addEventListener('click', () => openFocus(focus.taskId));
+  $('#focusLens').addEventListener('click', e => { const b = e.target.closest('[data-focus-min]'); if (b && !focus.on) { focus.min = Number(b.dataset.focusMin); paintFocus(); } });
+  $('#focusStart').addEventListener('click', startFocus);
+  $('#focusPause').addEventListener('click', pauseFocus);
+  $('#focusDone').addEventListener('click', () => { const id = focus.taskId; stopFocus(true); closeFocus(); if (id) checkOff(id); });
+  $('#focusEnd').addEventListener('click', () => { if (focus.on) stopFocus(true); closeFocus(); });
+  paintFocus(); // a session left running from before shows its pill
 
   // the week chart: tap, hover or focus a day for its numbers; the table shows them all
   const bars = $('#bars');
@@ -9904,7 +11379,7 @@ button.wk-head { cursor: pointer; }
     const act = e.target.closest('[data-act]');
     if (act) {
       const id = act.closest('.tl-block').dataset.id;
-      if (act.dataset.act === 'toggle') toggleDone(id); else openTaskSheet('edit', id);
+      if (act.dataset.act === 'toggle') checkOff(id); else openTaskSheet('edit', id);
       return;
     }
     const free = e.target.closest('[data-free]');
@@ -9922,7 +11397,8 @@ button.wk-head { cursor: pointer; }
   function checkDate() {
     const t = todayStr();
     if (t !== S.today) { S.today = t; render(); }
-    else if (S.tasksLoaded) renderBoard(); // a time that just passed turns red, and the timeline's now line moves
+    else if (S.tasksLoaded) { renderBoard(); renderHeader(); } // a time that just passed turns red, countdowns tick, the now line moves
+    checkReminders();
   }
   setInterval(checkDate, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDate(); });
@@ -9940,9 +11416,8 @@ button.wk-head { cursor: pointer; }
         tasksSaved = m;
         layTasks();
         S.tasksLoaded = true;
-        render();
+        scheduleRender();
         queueGcal();
-        maybeSwipeTip();
       }, onSubError),
       db.collection('lists').onSnapshot(snap => {
         const m = new Map();
@@ -9950,7 +11425,7 @@ button.wk-head { cursor: pointer; }
         listsSaved = m;
         S.lists = overlay('lists', m);
         S.listsLoaded = true;
-        render();
+        scheduleRender();
       }, onSubError),
       db.collection('trash').onSnapshot(snap => {
         const m = new Map();
@@ -9969,8 +11444,7 @@ button.wk-head { cursor: pointer; }
         clientsSaved = m;
         S.clients = overlay('clients', m);
         S.clientsLoaded = true;
-        render();
-        renderTaskSheet();
+        scheduleRender();
         renderClients();
       }, () => { /* the client book is a nice-to-have; tasks keep working without it */ }),
       db.collection('categories').onSnapshot(snap => {
@@ -9979,16 +11453,14 @@ button.wk-head { cursor: pointer; }
         catsSaved = m;
         S.cats = overlay('categories', m);
         S.catsLoaded = true;
-        render();
-        renderTaskSheet();
-        renderListsSheet();
+        scheduleRender();
       }, () => { /* categories are a nice-to-have; tasks keep working without them */ }),
       db.doc('settings/streak').onSnapshot(snap => {
         const d = snap.exists ? (snap.data() || {}) : {};
         const days = d.days && typeof d.days === 'object' ? d.days : {};
         S.streak = { days: Object.fromEntries(Object.entries(days).filter(([k, v]) => isYmd(k) && (v === 'done' || v === 'missed'))) };
         S.streakLoaded = true;
-        render();
+        scheduleRender();
       }, () => { /* the streak is a nice-to-have */ }),
       db.collection('templates').onSnapshot(snap => {
         const m = new Map();
@@ -9998,11 +11470,24 @@ button.wk-head { cursor: pointer; }
         renderTaskSheet();
         renderListsSheet();
       }, () => { /* templates are a nice-to-have; tasks keep working without them */ }),
-      // The color look saved on any device wins over this device's last pick.
+      // The look saved with the list (and, for a list from before themes, its old color pick).
+      db.doc('settings/theme').onSnapshot(snap => {
+        lookDocs.theme = snap.exists ? (snap.data() || {}) : null;
+        settleLook();
+      }, () => { lookDocs.theme = null; settleLook(); }),
       db.doc('settings/app').onSnapshot(snap => {
-        const v = snap.exists ? (snap.data() || {}).skin : null;
-        if (typeof v === 'string' && skinIds.has(v) && v !== S.skin) { applySkin(v); renderSkins(); }
-      }, () => { /* the look is a nice-to-have; tasks keep working without it */ }),
+        lookDocs.app = snap.exists ? (snap.data() || {}) : null;
+        settleLook();
+      }, () => { lookDocs.app = null; settleLook(); }),
+      db.doc('settings/prefs').onSnapshot(snap => {
+        if (!snap.exists) return;
+        const p = cleanPrefs(snap.data());
+        if (JSON.stringify(p) === JSON.stringify(S.prefs)) return;
+        S.prefs = p;
+        local.set('todo.prefs', JSON.stringify(p));
+        scheduleRender();
+        renderPrefs();
+      }, () => { /* the extras are nice-to-haves */ }),
       // Text size and sort, saved from any device.
       db.doc('settings/view').onSnapshot(snap => {
         const d = snap.exists ? (snap.data() || {}) : {};
@@ -10010,7 +11495,7 @@ button.wk-head { cursor: pointer; }
         if (TEXT_SIZES.includes(d.textSize) && d.textSize !== S.textSize) { applyTextSize(d.textSize); changed = true; }
         if (isSort(d.sort) && d.sort !== S.sort) { applySort(d.sort); changed = true; }
         if ((d.gcal === true) !== S.gcalOn) { S.gcalOn = d.gcal === true; changed = true; if (S.gcalOn) queueGcal(1200); else stopGcal(); }
-        if (changed) render();
+        if (changed) scheduleRender();
       }, () => { /* a nice-to-have too */ }),
       db.collection('history').onSnapshot(snap => {
         const m = new Map();
