@@ -129,12 +129,13 @@ jobs:
           mkdir -p shots
           # 1. First start, light: the welcome (the app's own output, with the page's console, goes to a file)
           xcrun simctl ui "$UDID" appearance light
-          xcrun simctl launch --terminate-running-process --stdout="$PWD/shots/app-1.txt" --stderr="$PWD/shots/app-1.txt" "$UDID" "$BUNDLE_ID"
+          # (with a terminal attached the app writes each line at once; to a plain file it would keep them until it quits)
+          xcrun simctl launch --console-pty --terminate-running-process "$UDID" "$BUNDLE_ID" > shots/app-1.txt 2>&1 &
           sleep 15
           xcrun simctl io "$UDID" screenshot shots/1-light.png
           # 2. Second start, dark: the check's one task, due in a minute or two
           xcrun simctl ui "$UDID" appearance dark
-          xcrun simctl launch --terminate-running-process --stdout="$PWD/shots/app-2.txt" --stderr="$PWD/shots/app-2.txt" "$UDID" "$BUNDLE_ID"
+          xcrun simctl launch --console-pty --terminate-running-process "$UDID" "$BUNDLE_ID" > shots/app-2.txt 2>&1 &
           sleep 15
           xcrun simctl io "$UDID" screenshot shots/2-dark.png
           # 3. Close the app for good, then watch the home screen until a little after the task is due
@@ -173,22 +174,22 @@ jobs:
       - name: A small copy of picture 1
         run: |
           sips -Z 420 -s format jpeg -s formatOptions 45 shots/1-light.png --out shots/1-small.jpg > /dev/null
-          B=$(base64 -i shots/1-small.jpg | tr -d '\n'); N=$(( (${#B} + 5999) / 6000 )); i=0
-          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot1 $i/$N::${B:0:6000}"; B=${B:6000}; done
+          B=$(base64 -i shots/1-small.jpg | tr -d '\n'); N=$(( (${#B} + 3999) / 4000 )); i=0
+          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot1 $i/$N::${B:0:4000}"; B=${B:4000}; done
 
       - name: A small copy of picture 2
         run: |
           sips -Z 420 -s format jpeg -s formatOptions 45 shots/2-dark.png --out shots/2-small.jpg > /dev/null
-          B=$(base64 -i shots/2-small.jpg | tr -d '\n'); N=$(( (${#B} + 5999) / 6000 )); i=0
-          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot2 $i/$N::${B:0:6000}"; B=${B:6000}; done
+          B=$(base64 -i shots/2-small.jpg | tr -d '\n'); N=$(( (${#B} + 3999) / 4000 )); i=0
+          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot2 $i/$N::${B:0:4000}"; B=${B:4000}; done
 
       - name: A small copy of picture 3
         if: always()
         run: |
           [ -f shots/3-reminder.png ] || exit 0
           sips -Z 420 -s format jpeg -s formatOptions 45 shots/3-reminder.png --out shots/3-small.jpg > /dev/null
-          B=$(base64 -i shots/3-small.jpg | tr -d '\n'); N=$(( (${#B} + 5999) / 6000 )); i=0
-          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot3 $i/$N::${B:0:6000}"; B=${B:6000}; done
+          B=$(base64 -i shots/3-small.jpg | tr -d '\n'); N=$(( (${#B} + 3999) / 4000 )); i=0
+          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot3 $i/$N::${B:0:4000}"; B=${B:4000}; done
 
       - uses: actions/upload-artifact@v6
         if: always()
