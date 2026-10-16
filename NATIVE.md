@@ -17,6 +17,8 @@ You need your paid Apple Developer account and this GitHub repository.
 
 ### 1. Register the app's ID
 
+First, if [developer.apple.com/account](https://developer.apple.com/account) or App Store Connect shows an agreement to accept, accept it: Apple blocks new apps and uploads until you do.
+
 1. Go to [developer.apple.com/account](https://developer.apple.com/account), then **Certificates, IDs & Profiles**, then **Identifiers**.
 2. Tap **+**, choose **App IDs**, then **App**, and continue.
 3. Description: `To-Do`. Bundle ID: **Explicit**, `com.jreynoso867.todo`.
@@ -31,8 +33,8 @@ You need your paid Apple Developer account and this GitHub repository.
 
 ### 3. Make a key for GitHub
 
-1. In App Store Connect: **Users and Access**, then **Integrations**, then **App Store Connect API**, then **Team Keys**. If asked, request access first; it's granted right away for the account holder.
-2. Tap **+** (Generate API Key). Name: `GitHub`. Access: **Admin**. Admin is what lets Apple make the signing certificate for you.
+1. In App Store Connect: **Users and Access**, then **Integrations**, then **App Store Connect API**, then **Team Keys**. If it shows **Request Access**, tap it once (only the account holder can, and that's you).
+2. Tap **+** (Generate API Key). Name: `GitHub`. Access: **Admin**. Only Admin keys may use Apple's cloud signing certificate, which is what lets this work without a Mac.
 3. **Download API Key**. You get a file named like `AuthKey_ABC123XYZ.p8`. Apple lets you download it **only once**, so keep it somewhere safe.
 4. Note the **Key ID** (in the key's row) and the **Issuer ID** (above the list of keys).
 
@@ -62,8 +64,9 @@ It takes about 15 to 30 minutes. A green check means it was sent to Apple. Apple
 ### 7. Put it on your iPhone
 
 1. In App Store Connect, open your app, then **TestFlight**.
-2. Under **Internal Testing**, tap **+** to make a group (for example `Me`), and add yourself as a tester (your Apple ID email).
-3. On your iPhone, install **TestFlight** from the App Store, open the invite email (or TestFlight itself), and tap **Install**.
+2. Next to **Internal Testing**, tap **+** to make a group (for example `Me`). Tick **Enable automatic distribution**, so every new build reaches your iPhone by itself.
+3. Tap **Invite Testers**, tick yourself, and add.
+4. On your iPhone, install **TestFlight** from the App Store, open the invite email on the phone, and tap through to **Accept**, then **Install**.
 
 A TestFlight build works for 90 days. Running step 6 again gives you a fresh one, and TestFlight updates the app in place without touching your list.
 
@@ -81,7 +84,7 @@ The first time there's a reminder to set, your iPhone asks to allow notification
 
 ## After a change to the app
 
-Every change to `index.html` builds a simulator copy by itself, to check it. To get it on your phone, run step 6 again. TestFlight offers the update, and your list stays.
+Every change to `index.html` builds a simulator copy by itself, to check it: it opens the app on a simulated iPhone, adds a task due a minute later, closes the app, and checks that the reminder shows up on the screen. To get the change on your phone, run step 6 again. TestFlight updates the app, and your list stays.
 
 ## Where your list is kept
 
@@ -104,11 +107,14 @@ These can only be confirmed on a real iPhone, so look once:
 
 Open the failed run on GitHub (Actions, then the run, then the red step) and look at the last lines.
 
+The run shows what went wrong as red notes at the top of its page.
+
 - **Missing secrets**: step 5. The names must match exactly.
-- **No profiles for 'com.jreynoso867.todo' were found** or **No Account for Team**: the key needs **Admin** access (step 3), and the Team ID must be the one from step 4.
-- **The bundle identifier cannot be registered** or **No suitable application records were found**: do steps 1 and 2 first, with the same bundle ID.
-- **The bundle version must be higher**: run it again (each run gets a higher build number).
-- Apple's servers sometimes fail for a moment; running it again often fixes a failed upload.
+- **Cloud signing permission error**, **No signing certificate "iOS Distribution" found** or **No Account for Team**: the key needs **Admin** access (step 3, make a new one if needed), and the Team ID must be the one from step 4.
+- **No suitable application records were found** or an error about the bundle identifier: do steps 1 and 2 first, with exactly `com.jreynoso867.todo`.
+- **An agreement** must be accepted: App Store Connect, then Business (or the banner at the top).
+- **Invalid Signature** (rare, reported with cloud signing): there's a second way, with a certificate file you make once on any computer. Ask whoever edits the app to switch the workflow to it.
+- Apple's servers sometimes fail for a moment; running it again often fixes a failed upload (a re-run gets a new build number too).
 
 ## For whoever edits the app
 
@@ -116,4 +122,5 @@ Open the failed run on GitHub (Actions, then the run, then the red step) and loo
 - `ios/` was made by `npx cap add ios` (Capacitor 8, Swift Package Manager) and is kept in git with these changes: the icon, an empty launch picture over the system color, iPhone only, portrait, version 2.0.0, camera and Files keys, export compliance (`ITSAppUsesNonExemptEncryption` false), and a privacy manifest (`PrivacyInfo.xcprivacy`, file timestamps, reason C617.1). Don't run `cap add` again: it would replace those changes. `cap sync` keeps them.
 - The page talks to the iPhone through `window.Capacitor.Plugins` (put there by the app before the page loads; no script files, so the security policy stays as strict as it is). Look for "the iPhone app" in `index.html`.
 - `node --test tests/native.test.cjs` runs the app with a stand-in for the iPhone side.
-- The workflow is `.github/workflows/ios.yml`. Build numbers are 100 plus the run number.
+- The workflow is `.github/workflows/ios.yml`. The build is archived unsigned (`CODE_SIGN_IDENTITY=-`, as Xcode Cloud does) and signed by Apple's cloud certificate on upload (`-exportArchive` with the API key), so no certificate or profile is kept anywhere. Build numbers are `100 + run number` `.` `attempt`.
+- The simulator check builds with `ios.appendUserAgent = TodoCIProof`, which makes the page add one task due a minute later on its second start (see "the build check" in `index.html`). Builds for TestFlight don't have it, so they never do that.

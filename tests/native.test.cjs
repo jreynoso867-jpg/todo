@@ -255,6 +255,33 @@ test('photos show from the phone’s storage, with no service worker in the app'
   await ctx.close();
 });
 
+test('the build check’s proof task appears only with its marker, on the second start of an empty app', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 TodoCIProof' });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.addInitScript(fakeCapacitor, { notify: 'granted' });
+  await page.goto(srv.url + '/index.html');
+  await page.waitForSelector('#welcome:not([hidden])');
+  await page.waitForTimeout(1500);
+  assert.equal((await dump(page)).local['todo.ciProof'], '1');
+  assert.equal(Object.keys((await dump(page)).docs).filter(k => k.startsWith('tasks/')).length, 0, 'the first start leaves the list empty');
+  await page.reload();
+  await waitPending(page, () => window.__cap.pending.size === 1);
+  const [n] = await pending(page);
+  assert.equal(n.title, 'Proof: call the plumber');
+  assert.ok(n.at > Date.now() + 30000 && n.at < Date.now() + 130000, 'due in a minute or two');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+  // Without the marker (every real build), an empty app stays empty.
+  const plain = await app(null, { notify: 'granted' });
+  await plain.page.reload();
+  await plain.page.waitForTimeout(1500);
+  assert.equal(Object.keys((await dump(plain.page)).docs).filter(k => k.startsWith('tasks/')).length, 0);
+  await plain.ctx.close();
+});
+
 test('the website, without the iPhone shell, keeps its offline copy and its own reminders', async () => {
   const ctx = await phoneContext(browser, { sw: true });
   const page = await ctx.newPage();

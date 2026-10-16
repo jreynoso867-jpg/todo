@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-G6qUE8gceCfN2QbQ0dHQtoFZn7+VdBK9404rUcSjDH4=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-G2h9Ny55o8QQ4RkC1NyVBim5Y3UT2NMZRsiM5ME8kwE=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-G6qUE8gceCfN2QbQ0dHQtoFZn7+VdBK9404rUcSjDH4=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-eSqEc/Iavs0Obl9gu/E7+4bvu/g9pSxkwmIAOnZm17I=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7949,6 +7949,25 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     NATIVE.notify.onTap(extra => { notes.open = extra && typeof extra.taskId === 'string' ? extra.taskId : null; openFromNote(); });
     NATIVE.onResume(() => checkDate());
   }
+  // The build check, and only it (its simulator build adds "TodoCIProof" to the app's browser name), proves that a
+  // reminder comes with the app closed: on the second start of an empty app it adds one task due in a minute or two,
+  // then the check closes the app and watches the screen. Builds for TestFlight never carry the marker.
+  const CI_PROOF = !!NATIVE && /\bTodoCIProof\b/.test(navigator.userAgent);
+  let ciProofDone = false;
+  function ciProof() {
+    if (!CI_PROOF || ciProofDone || !S.tasksLoaded || S.status !== 'ready' || S.tasks.size) return;
+    ciProofDone = true;
+    if (local.get('todo.ciProof') !== '1') { local.set('todo.ciProof', '1'); return; } // the first start shows the welcome
+    const at = new Date(Date.now() + 60000);
+    at.setSeconds(0, 0);
+    if (at.getTime() < Date.now() + 40000) at.setMinutes(at.getMinutes() + 1);
+    const data = { title: 'Proof: call the plumber', note: '', priority: 0, done: false, due: ymd(at), time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
+      repeat: null, list: null, checklist: [], createdAt: Date.now(), doneAt: null };
+    const ref = db.collection('tasks').doc();
+    write('tasks/' + ref.id, () => ref.set(data), { create: true });
+    local.set('todo.welcomed', '1');
+    console.info(`[To-Do] proof task due at ${at.toISOString()}`);
+  }
 
   /* ---------- the iPhone app: a safety copy as a file, kept up to date through the day ---------- */
   // In Files › On My iPhone › To-Do › Safety copies: one file a day, the newest 7 kept, apart from the app's own storage so
@@ -8049,7 +8068,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     renderTaskSheet();
     renderListsSheet();
     renderFoot();
-    if (NATIVE) { queueNotes(); queueFileCopy(); openFromNote(); }
+    if (NATIVE) { queueNotes(); queueFileCopy(); openFromNote(); ciProof(); }
   }
 
   let headerDay = '';
