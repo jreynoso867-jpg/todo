@@ -1,0 +1,21 @@
+{
+  "name": "todo-iphone-app",
+  "private": true,
+  "description": "The iPhone app: this same to-do app inside a native shell (Capacitor), built in the cloud. The website needs none of this.",
+  "scripts": {
+    "build": "node tools/build-www.cjs",
+    "sync": "node tools/build-www.cjs && cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

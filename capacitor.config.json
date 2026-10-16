@@ -1,0 +1,10 @@
+{
+  "appId": "com.jreynoso867.todo",
+  "appName": "To-Do",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false,
+    "allowsLinkPreview": false
+  }
+}
