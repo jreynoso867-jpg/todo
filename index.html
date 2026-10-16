@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-JZaR141NM7lV6SEhmlyGxGxTCgEb0wI+8cwfp/DkP3E=' 'sha256-tkgdqeRRSW7yEyNU2QpRrPJsRaPrcj6QebiQbEM/sZE=' 'sha256-TQq74j/raeE8Lef8vlFXefTGHmqW5R1K2sbeR4giaC8=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jM47StOcQrRGMUKCHC4bZVa/UtKORHrVqVFCv14abbY=' 'sha256-lTzGaTjf5H0Awi7VXiuTLj1XTwB0P2M0KyixgmqkBnY=' 'sha256-j+Y52+QSFq7/misHHmTmbKUiBvZZh6MqWc/y3mO4gio=' 'sha256-sb9deyMt1ekQ8UVcbAi99I+An+T/77h6lRzTGeo8IEg='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -235,9 +235,9 @@ img { max-width: 100%; }
     return (metas || []).filter(m => m && typeof m.key === 'string').sort((a, b) => b.takenAt - a.takenAt);
   }
   // docs, when given, is read right away (before anything else can change the list).
-  async function takeSnap(kind, docs) {
+  async function takeSnap(kind, docs, body) {
     if (!docs) { await loaded; docs = allDocs(); }
-    const body = JSON.stringify(docs);
+    body = body || JSON.stringify(docs);
     const takenAt = Date.now();
     const key = `snap:${kind}:${takenAt}`;
     const meta = { key, kind, takenAt, version: APP_VERSION, hash: fnv(body), counts: countsOf(docs), bytes: body.length };
@@ -255,9 +255,10 @@ img { max-width: 100%; }
     if (!upgrade && last && last.day === dayOf(Date.now())) return;
     const docs = allDocs();
     if (!Object.keys(docs).length) { ls.set('todo.version', APP_VERSION); return; } // a new phone: nothing to keep yet
-    const hash = fnv(JSON.stringify(docs));
+    const body = JSON.stringify(docs);
+    const hash = fnv(body);
     if (!upgrade && last && last.hash === hash) { ls.set('todo.snapLast', JSON.stringify({ day: dayOf(Date.now()), hash })); return; }
-    takeSnap(upgrade ? 'upgrade' : 'daily', docs).then(() => { if (upgrade) ls.set('todo.version', APP_VERSION); }, e => console.error('safety copy', e));
+    takeSnap(upgrade ? 'upgrade' : 'daily', docs, body).then(() => { if (upgrade) ls.set('todo.version', APP_VERSION); }, e => console.error('safety copy', e));
   }
   // The list becomes exactly what the copy holds, in one step that either all happens or doesn't happen at all.
   // What's here right before is copied first, so a restore can be undone too.
@@ -2073,9 +2074,9 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 4px; border-radius: 0 4px 4px 0;
   background: var(--stripe, transparent);
 }
-.task[data-prio="3"] { --stripe: var(--prio-3); }
-.task[data-prio="2"] { --stripe: var(--prio-2); }
-.task[data-prio="1"] { --stripe: var(--prio-1); }
+.task[data-stripe="3"] { --stripe: var(--prio-3); }
+.task[data-stripe="2"] { --stripe: var(--prio-2); }
+.task[data-stripe="1"] { --stripe: var(--prio-1); }
 .ring { margin-left: 0; }
 .task-body { padding: 11px 0 11px; border-bottom: 0; }
 .task-title { font-size: calc(16.5px * var(--ts)); font-weight: 600; line-height: 1.32; }
@@ -2401,7 +2402,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   // ---- what you picked: the look, light/dark/system, and an accent ----
   const legacy = ls.get('todo.skin');
   const prefs = {
-    look: byId.has(ls.get('todo.theme')) ? ls.get('todo.theme') : byId.has(legacy) ? legacy : 'classic',
+    look: byId.has(ls.get('todo.theme')) ? ls.get('todo.theme') : byId.has(legacy) ? legacy : 'midnight', // a new phone: the default look
     appearance: ['light', 'dark'].includes(ls.get('todo.appearance')) ? ls.get('todo.appearance') : 'system',
     accent: isHex(ls.get('todo.accent')) ? ls.get('todo.accent') : '',
   };
@@ -7497,7 +7498,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       for (const [id, raw] of S.tasks) {
         const t = taskView(id, raw);
         if (t.done || t.sample || !t.due) continue;
-        if (t.due < S.today && !t.waiting) late++;
+        if (t.due < S.today) late++;
         else if (t.due === S.today) {
           today++;
           if (t.time) { if (!first || t.time < first) first = t.time; mins += t.end ? lengthMin(t.time, t.end) : 0; }
@@ -7524,10 +7525,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     local.set('todo.summarySeen', S.today);
     $('#brief').hidden = true;
   }
-  function moveOverdueToToday() {
+  // all: every overdue task (the kickoff); otherwise the ones in the list being shown (the Overdue section).
+  function moveOverdueToToday(all = false) {
     const entries = [...S.tasks].filter(([tid, raw]) => {
       const t = taskView(tid, raw);
-      return !t.done && t.due && t.due < S.today && inFilter(t);
+      return !t.done && t.due && t.due < S.today && (all ? !t.sample : inFilter(t));
     });
     if (!entries.length || !writable()) return 0;
     const before = entries.map(([tid, raw]) => [tid, { due: raw.due, rank: Number.isFinite(raw.rank) ? raw.rank : null }]);
@@ -7570,6 +7572,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const box = $('#focus');
     box.hidden = false;
     document.documentElement.classList.add('locked');
+    for (const e of [$('#app'), $('#fab'), $('#dock'), $('#selectBar'), $('#focusPill')]) e.inert = true;
     paintFocus();
     box.focus({ preventScroll: true });
   }
@@ -7577,7 +7580,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const box = $('#focus');
     if (box.hidden) return false;
     box.hidden = true;
-    if (!document.querySelector('.sheet.open')) document.documentElement.classList.remove('locked');
+    $('#focusPill').inert = false;
+    if (!document.querySelector('.sheet.open')) {
+      document.documentElement.classList.remove('locked');
+      for (const e of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) e.inert = false;
+    }
     if (focus.back && focus.back.isConnected) { try { focus.back.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
     paintFocus();
     return true;
@@ -9756,7 +9763,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function updateRow(li, t, sec) {
     li.classList.toggle('is-done', t.done);
     li.classList.toggle('is-pinned', t.pinned && !t.done);
-    li.dataset.prio = t.done ? '0' : String(t.priority); // the color stripe on the card's edge
+    li.dataset.stripe = t.done ? '0' : String(t.priority); // the priority color on the card's edge
     setColor(li, colorOf(t.list));
     const title = t.title || 'Untitled task';
     const listName = nameOf(t.list);
@@ -11320,7 +11327,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#scope').addEventListener('click', e => { const b = e.target.closest('[data-scope]'); if (b) setScope(b.dataset.scope); });
   $('#briefClose').addEventListener('click', closeBrief);
   $('#briefOk').addEventListener('click', closeBrief);
-  $('#briefOverdue').addEventListener('click', () => { if (moveOverdueToToday()) closeBrief(); });
+  $('#briefOverdue').addEventListener('click', () => { if (moveOverdueToToday(true)) closeBrief(); });
   $('#heroFocus').addEventListener('click', () => openFocus(S.heroId));
   $('#focusPill').addEventListener('click', () => openFocus(focus.taskId));
   $('#focusLens').addEventListener('click', e => { const b = e.target.closest('[data-focus-min]'); if (b && !focus.on) { focus.min = Number(b.dataset.focusMin); paintFocus(); } });
