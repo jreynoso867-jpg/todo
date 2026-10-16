@@ -98,7 +98,11 @@ jobs:
 
       - name: A tool to allow notifications on the simulated iPhone without tapping (unofficial; optional)
         continue-on-error: true
-        run: brew tap wix/brew && brew install applesimutils
+        run: |
+          brew tap wix/brew
+          brew trust wix/brew || brew trust --formula wix/brew/applesimutils || true
+          brew install wix/brew/applesimutils
+          applesimutils --version || true
 
       - name: Open it on a simulated iPhone, close it, and wait for the reminder
         run: |
