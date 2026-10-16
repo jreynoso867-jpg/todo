@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-XH7szdGKYvs/DSMjLnBpK5GhdEEPvpm6nwit6UFkJoo=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-dxp13SyFfLCUuxkEnhS3Kkvwm6SJJRi6WLZaQIYH3/g=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-G6qUE8gceCfN2QbQ0dHQtoFZn7+VdBK9404rUcSjDH4=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-G2h9Ny55o8QQ4RkC1NyVBim5Y3UT2NMZRsiM5ME8kwE=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -224,8 +224,17 @@ img { max-width: 100%; }
     }
     const LN = () => P('LocalNotifications');
     const COPIES = 'Safety copies';
+    // Test builds (not the ones on TestFlight) say what they found, for the build's report.
+    const debug = on && C.DEBUG === true;
+    if (debug) {
+      addEventListener('load', () => console.info('[To-Do] iPhone app ready ' + JSON.stringify({
+        plugins: ['LocalNotifications', 'Haptics', 'Share', 'Filesystem', 'App', 'SystemBars'].filter(has),
+        secureContext: window.isSecureContext === true, passcodeLock: !!(window.crypto && crypto.subtle), indexedDB: typeof indexedDB,
+      })));
+    }
     return {
       on,
+      debug,
       // A tap you can feel: light, medium, success or warning. False where there's no Taptic Engine to use.
       haptic(kind) {
         if (!has('Haptics')) return false;
@@ -387,6 +396,7 @@ img { max-width: 100%; }
     await takeSnap('restore');
     await run(DOCS, 'readwrite', s => { s.clear(); for (const [k, v] of entries) s.put(v, k); });
     ls.del('todo.outbox'); // changes still waiting to save belonged to the list that was just replaced
+    ls.del('todo.saving');
     location.reload();
   }
   loaded.then(autoSnap).catch(() => { /* no storage: nothing to copy */ });
@@ -4638,6 +4648,31 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   let sentCount = 0;
   let refusedCount = 0;
   const saveOutbox = () => local.set(OUTBOX_KEY, JSON.stringify(outbox));
+  // A change on its way into the phone's storage is noted here first (todo.saving), and the note goes once the storage
+  // has it. If the app closes in between (a phone can close it at any moment), the next start puts the change in again,
+  // ahead of anything else. Saving the same change twice leaves the same thing, so that's safe.
+  const SAVING_KEY = 'todo.saving';
+  const saving = [];
+  try {
+    const left = JSON.parse(local.get(SAVING_KEY) || '[]');
+    const back = Array.isArray(left) ? left.filter(o => o && typeof o.path === 'string' && OUT_KINDS.includes(o.kind)) : [];
+    if (back.length) {
+      outbox = back.map(o => ({ path: o.path, kind: o.kind, data: o.data, init: o.init })).concat(outbox);
+      saveOutbox();
+    }
+  } catch (e) { /* nothing was on its way */ }
+  local.set(SAVING_KEY, '[]');
+  function noteSaving(op) {
+    const n = { path: op.path, kind: op.kind, data: op.data, init: op.init };
+    saving.push(n);
+    local.set(SAVING_KEY, JSON.stringify(saving));
+    return n;
+  }
+  function savedNote(n) {
+    const i = saving.indexOf(n);
+    if (i >= 0) saving.splice(i, 1);
+    local.set(SAVING_KEY, saving.length ? JSON.stringify(saving) : '[]');
+  }
   const copyJson = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   // What an update does to a document: nested objects merge, anything else (arrays too) replaces.
   function mergeDeep(a, b) {
@@ -4682,7 +4717,9 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       enqueue(op);
       return Promise.resolve();
     }
-    return sendChange(op).catch(e => {
+    const note = noteSaving(op);
+    return sendChange(op).then(r => { savedNote(note); return r; }, e => {
+      savedNote(note);
       if (!retryable(e)) throw e;
       wasOffline = true;
       enqueue(op); // no connection right now: it waits here and goes in when it can
@@ -7890,6 +7927,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       if (st !== notes.state) { notes.state = st; renderPrefs(); }
       const sig = JSON.stringify(want.map(n => [n.id, n.at, n.title, n.body]));
       if (st === 'granted' && sig !== notes.sig) { await NATIVE.notify.set(want); notes.sig = sig; }
+      if (NATIVE.debug) console.info(`[To-Do] reminders: ${want.length} to set, notifications ${st}`);
     } catch (e) {
       notes.sig = ''; // tried again on the next change
     } finally {

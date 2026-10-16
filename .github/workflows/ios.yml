@@ -42,9 +42,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -68,7 +68,7 @@ jobs:
           sudo xcode-select -s "$XC"
           xcodebuild -version
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: build/SourcePackages
           key: spm-${{ hashFiles('package-lock.json') }}
@@ -97,25 +97,44 @@ jobs:
                   print(phones[-1]["udid"]); break
           ')
           [ -n "$UDID" ] || { echo "::error::No iPhone simulator found"; xcrun simctl list devices; exit 1; }
-          xcrun simctl list devices | grep "$UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          echo "::notice title=Simulated iPhone::$(xcrun simctl list devices | grep "$UDID" | xargs)"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
           mkdir -p shots
           xcrun simctl ui "$UDID" appearance light
-          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          # The app's own output (the page's console comes through here) goes to a file
+          xcrun simctl launch --terminate-running-process --stdout="$PWD/shots/app-light.txt" --stderr="$PWD/shots/app-light.txt" "$UDID" "$BUNDLE_ID"
           sleep 15
-          xcrun simctl io "$UDID" screenshot shots/1-first-open-light.png
-          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+          xcrun simctl io "$UDID" screenshot shots/1-light.png
           xcrun simctl ui "$UDID" appearance dark
-          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          xcrun simctl launch --terminate-running-process --stdout="$PWD/shots/app-dark.txt" --stderr="$PWD/shots/app-dark.txt" "$UDID" "$BUNDLE_ID"
           sleep 10
-          xcrun simctl io "$UDID" screenshot shots/2-first-open-dark.png
-          # What the page said while it ran (Capacitor passes the page's messages on to the system log)
-          xcrun simctl spawn "$UDID" log show --last 2m --style compact --predicate 'process == "App"' > shots/app-log.txt 2>&1 || true
-          grep -iE "error|exception|refused" shots/app-log.txt | head -40 || true
+          xcrun simctl io "$UDID" screenshot shots/2-dark.png
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
 
-      - uses: actions/upload-artifact@v4
+      - name: Report what the app showed and said
+        run: |
+          for f in shots/1-light.png shots/2-dark.png; do
+            echo "::notice title=On screen ($(basename "$f" .png))::$(swift tools/screen-text.swift "$f" | cut -c1-3000)"
+          done
+          grep -h "\[To-Do\]" shots/app-*.txt | sort -u | head -5 | while IFS= read -r line; do echo "::notice title=App said::${line:0:1000}"; done || true
+          grep -hiE "\[error\]|exception|refused|failed" shots/app-*.txt | sort -u | head -5 | while IFS= read -r line; do echo "::warning title=App error::${line:0:1000}"; done || true
+
+      - name: A small copy of the first picture, for reading in the report
+        run: |
+          sips -Z 420 -s format jpeg -s formatOptions 45 shots/1-light.png --out shots/1-small.jpg > /dev/null
+          B=$(base64 -i shots/1-small.jpg | tr -d '\n'); N=$(( (${#B} + 5999) / 6000 )); i=0
+          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot1 $i/$N::${B:0:6000}"; B=${B:6000}; done
+
+      - name: A small copy of the second picture
+        run: |
+          sips -Z 420 -s format jpeg -s formatOptions 45 shots/2-dark.png --out shots/2-small.jpg > /dev/null
+          B=$(base64 -i shots/2-small.jpg | tr -d '\n'); N=$(( (${#B} + 5999) / 6000 )); i=0
+          while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot2 $i/$N::${B:0:6000}"; B=${B:6000}; done
+
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: iphone-simulator
@@ -144,9 +163,9 @@ jobs:
           [ -n "$KEY_P8" ] || missing="$missing APPSTORE_KEY_P8"
           [ -z "$missing" ] || { echo "::error::Missing secrets:$missing. See NATIVE.md, step 5."; exit 1; }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm

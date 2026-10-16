@@ -13,6 +13,10 @@ A to-do list that runs on your phone and works with no signal.
 - **Extras, all optional** (Settings, then Extras): a daily kickoff, a one-line pep talk, a focus timer, and reminders while the app is open (Off, Gentle, Standard, Intense). With the app closed, reminders come from your phone's calendar: open a task and tap Phone calendar.
 - **Safety copies.** The app copies your whole list on the phone each day you use it and before every update. Settings, then Safety copies, puts one back. (Photos aren't in the copies; they stay where they are. Save everything still makes a file you can keep anywhere.)
 
+## The iPhone app
+
+The same app as a real iPhone app, with reminders that come as notifications even when it's closed. No Mac needed: GitHub builds it and it reaches your iPhone through TestFlight. Setup, step by step: [NATIVE.md](NATIVE.md).
+
 ## For whoever edits the app
 
 - After any change to `index.html`, run `node tools/release.cjs`. The page only runs scripts whose fingerprints are in its security policy; this updates them, and gives the offline copy a new version so phones pick up the change.

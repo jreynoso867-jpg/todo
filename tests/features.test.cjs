@@ -92,13 +92,22 @@ test('a save the phone turns down leaves no ghost task behind', async () => {
 });
 
 test('a task added right before the app closes is still there', async () => {
+  // Closing within milliseconds of a save used to lose it about one time in four (the storage hadn't finished);
+  // each change is now noted first and put in again on the next start. Five tries in a row.
   const { ctx, page } = await phone();
-  await page.fill('#quickInput', 'Saved before closing');
-  await page.press('#quickInput', 'Enter');
-  await page.reload(); // no waiting at all
-  await page.waitForSelector('#board .task');
-  await page.waitForTimeout(300);
-  assert.ok((await titles(page)).includes('Saved before closing'));
+  for (let i = 1; i <= 5; i++) {
+    await page.fill('#quickInput', `Saved before closing ${i}`);
+    await page.press('#quickInput', 'Enter');
+    await page.reload(); // no waiting at all
+    await page.waitForSelector('#board .task');
+    await page.waitForTimeout(300);
+    const shown = await titles(page);
+    for (let k = 1; k <= i; k++) assert.ok(shown.includes(`Saved before closing ${k}`), `try ${i}: task ${k} is there`);
+  }
+  await page.waitForTimeout(2500); // and it ends up in storage, not just on screen
+  const d = await dump(page);
+  for (let k = 1; k <= 5; k++) assert.ok(Object.entries(d.docs).some(([key, v]) => key.startsWith('tasks/') && v.title === `Saved before closing ${k}`), `task ${k} stored`);
+  assert.equal(d.local['todo.saving'], '[]', 'nothing left waiting');
   await ctx.close();
 });
 

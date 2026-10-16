@@ -23,7 +23,7 @@ function checkout(ref) {
 
 // Records the new version may add. Anything else that changes fails the test.
 const ADDED_OK = /^(settings\/theme|settings\/prefs)$/;
-const LOCAL_ADDED_OK = /^todo\.(theme|appearance|accent|prefs|snapLast|version|lastExport|scope|alerted|focus|summarySeen|motivation)/;
+const LOCAL_ADDED_OK = /^todo\.(saving|theme|appearance|accent|prefs|snapLast|version|lastExport|scope|alerted|focus|summarySeen|motivation)/;
 
 async function openApp(page, url) {
   await page.goto(url + '/index.html');
