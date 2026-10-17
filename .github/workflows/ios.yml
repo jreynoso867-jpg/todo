@@ -151,8 +151,9 @@ jobs:
           # 2. Second start, dark: the check's one task, due in a minute or two
           xcrun simctl ui "$UDID" appearance dark
           xcrun simctl launch --console-pty --terminate-running-process "$UDID" "$BUNDLE_ID" > shots/app-2.txt 2>&1 &
-          for i in $(seq 1 60); do grep -q "proof task due" shots/app-2.txt 2>/dev/null && break; sleep 1; done
-          sleep 4
+          # Wait until the reminder has been handed to iOS (the app says so), then a little more
+          for i in $(seq 1 90); do grep -q "reminders: 1 to set" shots/app-2.txt 2>/dev/null && break; sleep 1; done
+          sleep 3
           xcrun simctl io "$UDID" screenshot shots/2-dark.png
           # 3. Close the app for good, then watch the home screen until a little after the task is due
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
@@ -184,6 +185,7 @@ jobs:
           fi
 
       - name: Report what the app showed and said
+        if: always()
         run: |
           for f in shots/1-light.png shots/2-dark.png shots/3-reminder.png; do
             [ -f "$f" ] && echo "::notice title=On screen ($(basename "$f" .png))::$("$RUNNER_TEMP/screen-text" "$f" | cut -c1-3000)"
@@ -192,13 +194,17 @@ jobs:
           grep -hiE "\[error\]|exception|refused|failed" shots/app-*.txt | sort -u | head -5 | while IFS= read -r line; do echo "::warning title=App error::${line:0:1000}"; done || true
 
       - name: A small copy of picture 1
+        if: always()
         run: |
+          [ -f shots/1-light.png ] || exit 0
           sips -Z 420 -s format jpeg -s formatOptions 45 shots/1-light.png --out shots/1-small.jpg > /dev/null
           B=$(base64 -i shots/1-small.jpg | tr -d '\n'); N=$(( (${#B} + 3999) / 4000 )); i=0
           while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot1 $i/$N::${B:0:4000}"; B=${B:4000}; done
 
       - name: A small copy of picture 2
+        if: always()
         run: |
+          [ -f shots/2-dark.png ] || exit 0
           sips -Z 420 -s format jpeg -s formatOptions 45 shots/2-dark.png --out shots/2-small.jpg > /dev/null
           B=$(base64 -i shots/2-small.jpg | tr -d '\n'); N=$(( (${#B} + 3999) / 4000 )); i=0
           while [ -n "$B" ] && [ $i -lt 9 ]; do i=$((i+1)); echo "::notice title=shot2 $i/$N::${B:0:4000}"; B=${B:4000}; done

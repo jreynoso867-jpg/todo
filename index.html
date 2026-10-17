@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-es+89PmXaUJ9Nwg6H+a1oOclt/1aCzCbcgyHeYZuhIY=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-Ut2cF3Abo5v/2kHEVkm1xU+f1Q/RF+oROsZ6AQqfHdY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kb/cGxaDkxA6eooqvM8JvR3JaL5JJItA8I0EPtqmS6A=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-n/Bj5y7l0BdU/aydjVBKTEDcmQZHzhuA8qYzuU0WRVQ=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -323,8 +323,9 @@ img { max-width: 100%; }
         onTap(fn) { tapFn = fn; if (tapped) { const t = tapped; tapped = null; fn(t); } },
         tapDone() { try { sessionStorage.removeItem('todo.tap'); } catch (e) { /* nothing kept */ } },
       },
-      // Back in the app after it was in the background.
+      // Back in the app after it was in the background; and leaving it (iOS pauses the page moments later).
       onResume(fn) { if (has('App')) { try { P('App').addListener('resume', () => fn()); } catch (e) { /* visibilitychange still works */ } } },
+      onPause(fn) { if (has('App')) { try { P('App').addListener('pause', () => fn()); } catch (e) { /* visibilitychange still works */ } } },
     };
   })();
   // Saving a file (a backup, a job report): the phone's share menu, or a plain download.
@@ -7935,7 +7936,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function queueNotes(ms = 1200) {
     if (!NATIVE || !NATIVE.notify.ok()) return;
     clearTimeout(notes.timer);
-    notes.timer = setTimeout(syncNotes, ms);
+    notes.timer = setTimeout(() => { notes.timer = 0; syncNotes(); }, ms);
   }
   async function syncNotes() {
     if (!S.tasksLoaded || S.status !== 'ready') return;
@@ -7974,6 +7975,10 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       if (notes.open) openFromNote(); else NATIVE.notify.tapDone(); // a note for the whole day: the app opening is enough
     });
     NATIVE.onResume(() => checkDate());
+    // Leaving the app right after adding a task: hand the reminders over now, before iOS pauses the page.
+    const handOver = () => { if (notes.timer) { clearTimeout(notes.timer); notes.timer = 0; syncNotes(); } };
+    NATIVE.onPause(handOver);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) handOver(); });
   }
   // The build check, and only it (its simulator build adds "TodoCIProof" to the app's browser name), proves that a
   // reminder comes with the app closed: on the second start of an empty app it adds one task due in a minute or two,

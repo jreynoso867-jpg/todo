@@ -116,6 +116,20 @@ test('checking a task off, or turning reminders off, takes its notifications bac
   await ctx.close();
 });
 
+test('leaving the app right after adding a task hands its reminder to iOS at once', async () => {
+  const a = soon(180);
+  const { ctx, page, errors } = await app(fixture({ 'tasks/t_one': task('First thing', { due: a.due, time: a.time }) }), { notify: 'granted' });
+  await waitPending(page, () => window.__cap.pending.size === 1);
+  await page.fill('#quickInput', 'Dentist tomorrow 3pm');
+  await page.press('#quickInput', 'Enter');
+  // Straight to the home screen: iOS hides the page and pauses it moments later
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(300); // well before the usual 1.2-second wait
+  assert.ok((await pending(page)).some(n => n.title === 'Dentist'), 'the new reminder is already with iOS');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('never more than 60 waiting (iOS keeps 64), the nearest first', async () => {
   const docs = {};
   for (let i = 0; i < 90; i++) { const s = soon(30 + i * 45); docs[`tasks/t${pad(i)}`] = task(`Task ${i}`, { due: s.due, time: s.time }); }
