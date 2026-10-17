@@ -144,12 +144,15 @@ jobs:
           xcrun simctl ui "$UDID" appearance light
           # (with a terminal attached the app writes each line at once; to a plain file it would keep them until it quits)
           xcrun simctl launch --console-pty --terminate-running-process "$UDID" "$BUNDLE_ID" > shots/app-1.txt 2>&1 &
-          sleep 15
+          # A first start on a just-booted simulator can be slow: wait for the page to say it's ready (at most a minute)
+          for i in $(seq 1 60); do grep -q "iPhone app ready" shots/app-1.txt 2>/dev/null && break; sleep 1; done
+          sleep 4
           xcrun simctl io "$UDID" screenshot shots/1-light.png
           # 2. Second start, dark: the check's one task, due in a minute or two
           xcrun simctl ui "$UDID" appearance dark
           xcrun simctl launch --console-pty --terminate-running-process "$UDID" "$BUNDLE_ID" > shots/app-2.txt 2>&1 &
-          sleep 15
+          for i in $(seq 1 60); do grep -q "proof task due" shots/app-2.txt 2>/dev/null && break; sleep 1; done
+          sleep 4
           xcrun simctl io "$UDID" screenshot shots/2-dark.png
           # 3. Close the app for good, then watch the home screen until a little after the task is due
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true

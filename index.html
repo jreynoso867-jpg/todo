@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KxUOZwcWU/ci0yWzDFnPwnoHx2BSXxhwHx34pGuqIik=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-Ut2cF3Abo5v/2kHEVkm1xU+f1Q/RF+oROsZ6AQqfHdY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-es+89PmXaUJ9Nwg6H+a1oOclt/1aCzCbcgyHeYZuhIY=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-Ut2cF3Abo5v/2kHEVkm1xU+f1Q/RF+oROsZ6AQqfHdY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -270,7 +270,7 @@ img { max-width: 100%; }
         try {
           const r = await P('Filesystem').readdir({ path: COPIES, directory: 'DOCUMENTS' });
           names = ((r && r.files) || []).map(f => (typeof f === 'string' ? f : f && f.name)).filter(n => typeof n === 'string');
-        } catch (e) { names = null; } // no folder yet, or it can't be listed
+        } catch (e) { names = /does not exist|no such file|not found/i.test(String((e && (e.message || e.errorMessage)) || e)) ? [] : null; } // no folder yet: nothing in it
         const base = `To-do safety copy ${day}.json`;
         let name = mine && mine.startsWith(`To-do safety copy ${day}`) && OURS.test(mine) ? mine : '';
         if (!name) {

@@ -53,6 +53,7 @@ function fakeCapacitor(opts = {}) {
       writeFile: o => { if (typeof o.data !== 'string') return fail('data must be a string'); cap.files.set(`${o.directory}/${o.path}`, { data: o.data, encoding: o.encoding || null }); return later({ uri: uri(o.directory, o.path) }); },
       readdir: o => {
         const pre = `${o.directory}/${o.path}/`;
+        if (![...cap.files.keys()].some(k => k.startsWith(pre))) return fail(`'readdir' failed because file at '${uri(o.directory, o.path)}/' does not exist.`);
         return later({ files: [...cap.files.keys()].filter(k => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map(k => ({ name: k.slice(pre.length), type: 'file' })) });
       },
       deleteFile: o => { cap.files.delete(`${o.directory}/${o.path}`); return later(undefined); },

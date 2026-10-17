@@ -220,6 +220,16 @@ test('a safety copy is kept in Files, the newest 7, and loads back into an empty
   await fresh.ctx.close();
 });
 
+test('the very first Files copy (no folder yet) gets the plain daily name', async () => {
+  const fx = smallFixture();
+  const { ctx, page, errors } = await app(fx, { notify: 'granted' });
+  const name = `DOCUMENTS/Safety copies/To-do safety copy ${fx.today}.json`;
+  await page.waitForFunction(n => window.__cap.files.has(n), name, { timeout: 20000 });
+  assert.deepEqual(await page.evaluate(() => [...window.__cap.files.keys()].filter(k => k.startsWith('DOCUMENTS/'))), [name]);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('a Files copy made by anything else is never written over (after an erase, or iOS clearing storage)', async () => {
   const fx = smallFixture();
   const good = JSON.stringify({ app: 'jose-todo', marker: 'the copy from before the erase' });
@@ -234,10 +244,9 @@ test('a Files copy made by anything else is never written over (after an erase, 
   assert.match(mine, /To-do safety copy \d{4}-\d\d-\d\d \d{6}\.json$/, 'its own copy gets a name with the time');
   assert.equal(await page.evaluate(b => window.__cap.files.get(b).data, base), good, 'the earlier copy is untouched');
   assert.ok(await page.evaluate(() => window.__cap.files.has('DOCUMENTS/Safety copies/To-do safety copy 2026-01-02 KEEP.json')), 'a renamed copy is never pruned');
+  await page.waitForFunction(() => !!localStorage.getItem('todo.copyFile')); // set once the older copies are cleared away
   const copies = await page.evaluate(() => [...window.__cap.files.keys()].filter(k => /To-do safety copy \d{4}-\d\d-\d\d( \d{6})?\.json$/.test(k)));
   assert.equal(copies.length, 7, 'the newest 7 of the app’s own copies');
-  // Later changes in this storage update its own file, not the earlier one
-  await page.waitForFunction(() => !!localStorage.getItem('todo.copyFile'));
   assert.equal(await page.evaluate(() => localStorage.getItem('todo.copyFile')), mine.split('/').pop());
   assert.deepEqual(errors, []);
   await ctx.close();
