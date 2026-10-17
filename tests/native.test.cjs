@@ -220,12 +220,78 @@ test('a safety copy is kept in Files, the newest 7, and loads back into an empty
   await fresh.ctx.close();
 });
 
+test('a Files copy made by anything else is never written over (after an erase, or iOS clearing storage)', async () => {
+  const fx = smallFixture();
+  const good = JSON.stringify({ app: 'jose-todo', marker: 'the copy from before the erase' });
+  const base = `DOCUMENTS/Safety copies/To-do safety copy ${fx.today}.json`;
+  const files = { [base]: { data: good, encoding: 'utf8' }, 'DOCUMENTS/Safety copies/To-do safety copy 2026-01-02 KEEP.json': { data: 'mine', encoding: 'utf8' } };
+  for (let i = 1; i <= 8; i++) files[`DOCUMENTS/Safety copies/To-do safety copy ${addDays(fx.today, -i)}.json`] = { data: '{}', encoding: 'utf8' };
+  // A storage that never wrote a copy (no todo.copyFile), with a list in it
+  const { ctx, page, errors } = await app(fx, { notify: 'granted', files });
+  const newName = () => page.evaluate(b => [...window.__cap.files.keys()].find(k => k.startsWith(b.replace('.json', ' '))), base);
+  await page.waitForFunction(b => [...window.__cap.files.keys()].some(k => k.startsWith(b.replace('.json', ' '))), base, { timeout: 20000 });
+  const mine = await newName();
+  assert.match(mine, /To-do safety copy \d{4}-\d\d-\d\d \d{6}\.json$/, 'its own copy gets a name with the time');
+  assert.equal(await page.evaluate(b => window.__cap.files.get(b).data, base), good, 'the earlier copy is untouched');
+  assert.ok(await page.evaluate(() => window.__cap.files.has('DOCUMENTS/Safety copies/To-do safety copy 2026-01-02 KEEP.json')), 'a renamed copy is never pruned');
+  const copies = await page.evaluate(() => [...window.__cap.files.keys()].filter(k => /To-do safety copy \d{4}-\d\d-\d\d( \d{6})?\.json$/.test(k)));
+  assert.equal(copies.length, 7, 'the newest 7 of the app’s own copies');
+  // Later changes in this storage update its own file, not the earlier one
+  await page.waitForFunction(() => !!localStorage.getItem('todo.copyFile'));
+  assert.equal(await page.evaluate(() => localStorage.getItem('todo.copyFile')), mine.split('/').pop());
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('no Files copy while the passcode lock is on', async () => {
+  const crypto = require('node:crypto');
+  const fx = smallFixture();
+  const salt = crypto.randomBytes(16), iter = 150000;
+  fx.local['todo.lock'] = JSON.stringify({ v: 1, salt: salt.toString('base64'), iter, hash: crypto.pbkdf2Sync('482913', salt, iter, 32, 'sha256').toString('base64') });
+  const ctx = await phoneContext(browser);
+  const page = await ctx.newPage();
+  await seed(page, srv.url, fx);
+  await page.addInitScript(fakeCapacitor, { notify: 'granted' });
+  await page.goto(srv.url + '/index.html');
+  await page.waitForSelector('.pl');
+  await page.keyboard.type('482913');
+  await page.waitForSelector('#board .task, #heroOpen:not([disabled])', { timeout: 20000 });
+  await page.waitForTimeout(10000); // a copy would be made 8 seconds after opening
+  assert.equal(await page.evaluate(() => [...window.__cap.files.keys()].filter(k => k.startsWith('DOCUMENTS/')).length), 0);
+  await page.click('#colorsBtn');
+  assert.match(await page.textContent('#lockNote'), /no safety copies in Files/);
+  await ctx.close();
+});
+
+test('a reminder about to fire is left alone, and a tap survives the lock’s reload', async () => {
+  const a = soon(120);
+  const { ctx, page, errors } = await app(fixture({ 'tasks/t_call': task('Call the plumber', { due: a.due, time: a.time }) }), { notify: 'granted' });
+  await waitPending(page, () => window.__cap.pending.size >= 1);
+  // One that's due in 3 seconds is already waiting in iOS; a new hand-over must not take it back.
+  const kept = await page.evaluate(async () => {
+    const soonAt = Date.now() + 3000;
+    window.__cap.pending.set(4242, { id: 4242, title: 'x', body: 'y', at: soonAt, extra: {} });
+    await window.claude.native.notify.set([{ id: 4242, title: 'x', body: 'y', at: soonAt }]);
+    return window.__cap.pending.has(4242);
+  });
+  assert.equal(kept, true);
+  // A tap noted before a reload (the lock reloads after a minute away) still opens the task afterwards.
+  await page.evaluate(() => sessionStorage.setItem('todo.tap', JSON.stringify({ taskId: 't_call' })));
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#taskTitle') && document.querySelector('#taskTitle').value === 'Call the plumber', null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('todo.tap')), null, 'used once');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('taps you can feel, the status bar follows the theme, and the welcome says how to move the list', async () => {
   const { ctx, page, errors } = await app(null, { notify: 'prompt' }, { colorScheme: 'dark' });
   assert.equal(await page.evaluate(() => window.claude.where), 'ios-app');
   assert.match(await page.textContent('#welcomeText'), /Save to Files/);
   const bars = await calls(page, 'SystemBars', 'setStyle');
   assert.equal(bars[bars.length - 1].style, 'DARK', 'light text on the dark theme');
+  await page.waitForTimeout(1500);
+  assert.equal((await calls(page, 'LocalNotifications', 'requestPermissions')).length, 0, 'no prompt with nothing to remind');
   await page.click('#welcomeSkip');
   await page.fill('#quickInput', 'Buy gloves');
   await page.press('#quickInput', 'Enter');
@@ -233,7 +299,6 @@ test('taps you can feel, the status bar follows the theme, and the welcome says 
   await page.click('#heroDone');
   await page.waitForTimeout(500);
   assert.ok((await calls(page, 'Haptics')).length > 0, 'the Taptic Engine, not navigator.vibrate');
-  assert.equal((await calls(page, 'LocalNotifications', 'requestPermissions')).length, 0, 'no prompt with nothing to remind');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

@@ -11,6 +11,9 @@ on:
     branches: [main, native-ios]
     paths:
       - index.html
+      - sw.js
+      - manifest.webmanifest
+      - archivo.woff2
       - reminder.wav
       - icons/**
       - ios/**
@@ -18,6 +21,7 @@ on:
       - package-lock.json
       - capacitor.config.json
       - tools/build-www.cjs
+      - tools/screen-text.swift
       - .github/workflows/ios.yml
   workflow_dispatch:
     inputs:
@@ -26,8 +30,9 @@ on:
         type: boolean
         default: true
 
+# Checks of pushes queue among themselves; a TestFlight run has its own queue, so a push never cancels it.
 concurrency:
-  group: iphone-${{ github.ref }}
+  group: iphone-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -39,6 +44,8 @@ env:
 jobs:
   simulator:
     name: Build, then open on a simulated iPhone
+    # On every change. "Run workflow" goes straight to TestFlight, unless "Send this build to TestFlight" is unticked.
+    if: github.event_name == 'push' || !inputs.testflight
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -125,7 +132,9 @@ jobs:
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
+          ALLOWED=""
           if command -v applesimutils > /dev/null && applesimutils --byId "$UDID" --bundle "$BUNDLE_ID" --setPermissions notifications=YES; then
+            ALLOWED=1
             echo "::notice title=Notifications::allowed ahead of time on the simulated iPhone"
           else
             echo "::warning title=Notifications::couldn't allow them ahead of time; the app will ask, and nobody taps Allow here"
@@ -149,22 +158,26 @@ jobs:
           LEFT=$(python3 -c "import datetime,sys; d='$DUE'; print(int((datetime.datetime.fromisoformat(d.replace('Z','+00:00'))-datetime.datetime.now(datetime.timezone.utc)).total_seconds()) if d else 150)")
           echo "Seconds until due: $LEFT"
           SEEN=""
-          END=$(( $(date +%s) + LEFT + 60 ))
+          END=$(( $(date +%s) + LEFT + 180 ))
           while [ "$(date +%s)" -lt "$END" ]; do
             xcrun simctl io "$UDID" screenshot shots/frame.png > /dev/null 2>&1 || true
-            TEXT=$("$RUNNER_TEMP/screen-text" shots/frame.png || true)
+            TEXT=$("$RUNNER_TEMP/screen-text" shots/frame.png fast || true)
             if echo "$TEXT" | grep -qi "plumber"; then
               SEEN="$TEXT"; cp shots/frame.png shots/3-reminder.png
               python3 -c "import datetime; d='$DUE'; print('Seen', int((datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(d.replace('Z','+00:00'))).total_seconds()) if d else '?', 'seconds after it was due')" | tee shots/seen.txt
               break
             fi
-            sleep 2
+            sleep 1
           done
           if [ -n "$SEEN" ]; then
             echo "::notice title=Reminder with the app closed::$(cat shots/seen.txt) | ${SEEN:0:1500}"
           else
             xcrun simctl io "$UDID" screenshot shots/3-reminder.png || true
-            echo "::warning title=Reminder with the app closed::not seen on screen within 60 s of the due time"
+            if [ -n "$ALLOWED" ]; then
+              echo "::error title=Reminder with the app closed::notifications were allowed, but no reminder showed within 3 minutes of the due time"
+              exit 1
+            fi
+            echo "::warning title=Reminder with the app closed::not seen (notifications couldn't be allowed ahead of time here)"
           fi
 
       - name: Report what the app showed and said
@@ -204,7 +217,6 @@ jobs:
 
   testflight:
     name: Sign and send to TestFlight
-    needs: simulator
     if: github.event_name == 'workflow_dispatch' && inputs.testflight
     runs-on: macos-26
     timeout-minutes: 60
@@ -268,7 +280,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- AD_HOC_CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM="$TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" CURRENT_PROJECT_VERSION="$BUILD" \
-            | tail -n 60
+            2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -n 60
 
       - name: Sign with Apple's cloud certificate and send to App Store Connect (TestFlight)
         run: |
@@ -295,12 +307,16 @@ jobs:
             -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/export.log" | tail -n 60
           echo "::notice title=Sent::Apple processes it next (usually minutes; you get an email). Then it's in TestFlight."
 
-      - name: What Apple said, if that failed
+      - name: What went wrong, if something did
         if: failure()
         run: |
-          grep -hiE "error|failed|denied|permission|not found|invalid" "$RUNNER_TEMP/export.log" 2>/dev/null | sort -u | head -8 | while IFS= read -r line; do echo "::error title=Upload::${line:0:900}"; done || true
-          LOGS=$(find "${TMPDIR:-/tmp}" -maxdepth 3 -name "*.xcdistributionlogs" 2>/dev/null | head -1)
-          [ -n "$LOGS" ] && grep -rhiE "error|failed" "$LOGS" 2>/dev/null | sort -u | head -8 | while IFS= read -r line; do echo "::error title=Apple's log::${line:0:900}"; done || true
+          # At most 9 notes (GitHub keeps 10 errors a step): the build's errors, then the upload's, then Apple's own log.
+          {
+            grep -hE "error:|\*\* ARCHIVE FAILED" "$RUNNER_TEMP/archive.log" 2>/dev/null | sort -u | head -3
+            grep -hiE "error|failed|denied|permission|not found|invalid" "$RUNNER_TEMP/export.log" 2>/dev/null | sort -u | head -3
+            LOGS=$(find "${TMPDIR:-/tmp}" -maxdepth 3 -name "*.xcdistributionlogs" 2>/dev/null | head -1)
+            [ -n "$LOGS" ] && grep -rhiE "error|failed" "$LOGS" 2>/dev/null | sort -u | head -3
+          } | head -9 | while IFS= read -r line; do echo "::error title=What went wrong::${line:0:900}"; done || true
 
       - name: Remove the key from this machine
         if: always()

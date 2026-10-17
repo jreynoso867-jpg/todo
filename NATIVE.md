@@ -7,7 +7,7 @@ What the iPhone app adds:
 - **Reminders that come with the app closed.** Tasks with a time become real iPhone notifications, with a sound, following Settings › Extras › Reminders (Off, Gentle, Standard, Intense). Tasks with only a date get one note that morning. Tap a notification to open its task.
 - **Files through the share menu.** Save everything, CSV and PDF reports, and calendar events open the iPhone's share menu (Save to Files, Mail, Messages, AirDrop).
 - **Taps you can feel** (the Taptic Engine), and a status bar that matches your theme.
-- **A daily safety copy in Files**: Files › On My iPhone › To-Do › Safety copies. One file a day, the newest 7 kept. It's apart from the app's own storage, so it outlasts anything that happens there.
+- **A daily safety copy in Files**: Files › On My iPhone › To-Do › Safety copies. One file a day, the newest 7 kept. It's apart from the app's own storage, so it outlasts anything that happens there. (Not while the passcode lock is on: anyone holding the phone could open a file there.)
 
 The website keeps working exactly as before. The iPhone app keeps its own copy of the list (step 8 moves it over).
 
@@ -89,7 +89,7 @@ Every change to `index.html` builds a simulator copy by itself, to check it: it 
 ## Where your list is kept
 
 - In the app's own storage on the iPhone (the same kind of storage as before, now belonging to the app).
-- A safety copy in Files › On My iPhone › To-Do › Safety copies, kept up to date through the day.
+- A safety copy in Files › On My iPhone › To-Do › Safety copies, kept up to date through the day. Settings, then Load a saved file, puts one back (it adds what's missing; nothing is replaced). A copy is never written over by a different list: after Erase and start over, say, the new list's copy gets a name with the time. While the passcode lock is on, no copies are made (the ones there stay).
 - **Deleting the app deletes both.** Keep a Save everything file in iCloud Drive now and then (the app reminds you in Settings).
 - Your iPhone's iCloud or computer backup includes the app and its files.
 

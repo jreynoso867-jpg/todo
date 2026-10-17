@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-G6qUE8gceCfN2QbQ0dHQtoFZn7+VdBK9404rUcSjDH4=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-eSqEc/Iavs0Obl9gu/E7+4bvu/g9pSxkwmIAOnZm17I=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KxUOZwcWU/ci0yWzDFnPwnoHx2BSXxhwHx34pGuqIik=' 'sha256-BQq8m117zJ7zrfjcE0TeKWornswFw0m4r3VsmsZaQLI=' 'sha256-Ut2cF3Abo5v/2kHEVkm1xU+f1Q/RF+oROsZ6AQqfHdY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -211,13 +211,16 @@ img { max-width: 100%; }
       light: H => H.impact({ style: 'LIGHT' }), medium: H => H.impact({ style: 'MEDIUM' }),
       success: H => H.notification({ type: 'SUCCESS' }), warning: H => H.notification({ type: 'WARNING' }),
     };
-    // A notification tap can arrive before the list is ready (it can be what opened the app), so the first one waits here.
+    // A notification tap can arrive before the list is ready (it can be what opened the app), so the first one waits here,
+    // and in this tab's session storage too: with the passcode lock on, coming back after a minute reloads the page.
     let tapped = null, tapFn = null;
+    try { const t = JSON.parse(sessionStorage.getItem('todo.tap') || 'null'); if (t && typeof t === 'object') tapped = t; } catch (e) { /* none waiting */ }
     if (has('LocalNotifications')) {
       try {
         P('LocalNotifications').addListener('localNotificationActionPerformed', ev => {
           if (ev && ev.actionId === 'dismiss') return;
           const extra = (ev && ev.notification && ev.notification.extra) || {};
+          try { sessionStorage.setItem('todo.tap', JSON.stringify(extra)); } catch (e) { /* kept in memory only */ }
           if (tapFn) tapFn(extra); else tapped = extra;
         });
       } catch (e) { /* no taps then; the notifications still come */ }
@@ -255,17 +258,34 @@ img { max-width: 100%; }
         try { await P('Share').share(title ? { title, text } : { text }); return 'saved'; }
         catch (e) { if (cancelled(e)) return 'cancelled'; throw e; }
       },
-      // A safety copy as a file in Files › On My iPhone › To-Do › Safety copies, apart from the app's own storage.
-      // Only the newest `keep` of these copies stay; nothing else in the folder is touched.
-      async keepCopy(name, text, keep) {
+      // A safety copy as a file in Files › On My iPhone › To-Do › Safety copies, apart from the app's own storage: one a day,
+      // brought up to date through the day. `mine` is the file this storage already wrote today ('' if none). A copy made
+      // by anything else (the list before an erase, or before iOS cleared the app's storage) is never written over: this
+      // one then gets a name with the time. Only the newest `keep` of the app's own names stay; nothing else is touched.
+      // Returns the name written, or false.
+      async keepCopy(day, text, keep, mine) {
         if (!has('Filesystem')) return false;
-        await write('DOCUMENTS', `${COPIES}/${fileName(name)}`, new Blob([text], { type: 'application/json' }));
+        const OURS = /^To-do safety copy \d{4}-\d{2}-\d{2}( \d{6})?\.json$/;
+        let names = null;
         try {
           const r = await P('Filesystem').readdir({ path: COPIES, directory: 'DOCUMENTS' });
-          const ours = ((r && r.files) || []).map(f => (typeof f === 'string' ? f : f && f.name)).filter(n => /^To-do safety copy \d{4}-\d{2}-\d{2}\b.*\.json$/.test(n || '')).sort();
-          for (const old of ours.slice(0, Math.max(0, ours.length - keep))) await P('Filesystem').deleteFile({ path: `${COPIES}/${old}`, directory: 'DOCUMENTS' });
-        } catch (e) { /* the older copies stay a while longer */ }
-        return true;
+          names = ((r && r.files) || []).map(f => (typeof f === 'string' ? f : f && f.name)).filter(n => typeof n === 'string');
+        } catch (e) { names = null; } // no folder yet, or it can't be listed
+        const base = `To-do safety copy ${day}.json`;
+        let name = mine && mine.startsWith(`To-do safety copy ${day}`) && OURS.test(mine) ? mine : '';
+        if (!name) {
+          const t = new Date();
+          const stamp = [t.getHours(), t.getMinutes(), t.getSeconds()].map(n => String(n).padStart(2, '0')).join('');
+          name = names && !names.includes(base) ? base : `To-do safety copy ${day} ${stamp}.json`;
+        }
+        await write('DOCUMENTS', `${COPIES}/${name}`, new Blob([text], { type: 'application/json' }));
+        if (names) {
+          try {
+            const ours = [...new Set(names.concat(name))].filter(n => OURS.test(n)).sort();
+            for (const old of ours.slice(0, Math.max(0, ours.length - keep))) if (old !== name) await P('Filesystem').deleteFile({ path: `${COPIES}/${old}`, directory: 'DOCUMENTS' });
+          } catch (e) { /* the older copies stay a while longer */ }
+        }
+        return name;
       },
       // Reminders as the iPhone's own notifications. They're handed to iOS ahead of time, so they come with the app closed.
       notify: {
@@ -283,8 +303,9 @@ img { max-width: 100%; }
         async set(list) {
           if (!has('LocalNotifications')) return false;
           const now = Date.now();
-          const keep = list.filter(n => Number.isInteger(n.id) && n.id > 0 && n.at > now + 5000);
-          const want = new Set(keep.map(n => n.id));
+          const valid = list.filter(n => Number.isInteger(n.id) && n.id > 0 && n.at > now);
+          const want = new Set(valid.map(n => n.id)); // one due in the next few seconds is left to come as it is
+          const keep = valid.filter(n => n.at > now + 5000);
           let pending = [];
           try { const r = await LN().getPending(); pending = (r && r.notifications) || []; } catch (e) { pending = []; }
           const drop = pending.map(n => Number(n && n.id)).filter(id => Number.isInteger(id) && id > 0 && !want.has(id));
@@ -300,6 +321,7 @@ img { max-width: 100%; }
           return true;
         },
         onTap(fn) { tapFn = fn; if (tapped) { const t = tapped; tapped = null; fn(t); } },
+        tapDone() { try { sessionStorage.removeItem('todo.tap'); } catch (e) { /* nothing kept */ } },
       },
       // Back in the app after it was in the background.
       onResume(fn) { if (has('App')) { try { P('App').addListener('resume', () => fn()); } catch (e) { /* visibilitychange still works */ } } },
@@ -7940,13 +7962,17 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const id = notes.open;
     if (!id || !S.tasksLoaded || S.status !== 'ready') return;
     notes.open = null;
+    NATIVE.notify.tapDone();
     if (!S.tasks.has(id)) return;
     const title = clean(taskView(id, S.tasks.get(id)).title, 50) || 'Untitled task';
     if (S.sheet) toast(`Reminder: ${title}`, () => openTaskSheet('edit', id), 'Open', 9000); // never over a task being edited
     else openTaskSheet('edit', id);
   }
   if (NATIVE) {
-    NATIVE.notify.onTap(extra => { notes.open = extra && typeof extra.taskId === 'string' ? extra.taskId : null; openFromNote(); });
+    NATIVE.notify.onTap(extra => {
+      notes.open = extra && typeof extra.taskId === 'string' && extra.taskId ? extra.taskId : null;
+      if (notes.open) openFromNote(); else NATIVE.notify.tapDone(); // a note for the whole day: the app opening is enough
+    });
     NATIVE.onResume(() => checkDate());
   }
   // The build check, and only it (its simulator build adds "TodoCIProof" to the app's browser name), proves that a
@@ -7979,15 +8005,19 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const wait = notes.copyAt ? Math.max(20000, notes.copyAt + 10 * 60000 - Date.now()) : 8000; // soon after opening, then at most every 10 minutes
     notes.copyTimer = setTimeout(keepFileCopy, wait);
   }
+  const lockOn = () => !!(window.claude && window.claude.lock && typeof window.claude.lock.isOn === 'function' && window.claude.lock.isOn());
   async function keepFileCopy() {
     if (!S.tasksLoaded || !S.listsLoaded || S.status !== 'ready') return;
-    if (!S.tasks.size && !S.lists.size) return; // nothing to keep, and an empty list never goes over a good copy
+    if (!S.tasks.size && !S.lists.size) return; // nothing to keep
+    if (lockOn()) return; // a plain file anyone holding the phone could open in Files: not while the passcode lock is on
     const text = JSON.stringify(exportBody({}));
     const sig = `${S.today}|${text.length}|${hashText(text)}`;
     if (sig === notes.copySig) return;
     notes.copyAt = Date.now();
     try {
-      if (await NATIVE.keepCopy(`To-do safety copy ${S.today}.json`, text, 7)) notes.copySig = sig;
+      // The file this storage wrote today, if any: only that one is brought up to date (see keepCopy).
+      const name = await NATIVE.keepCopy(S.today, text, 7, local.get('todo.copyFile') || '');
+      if (name) { local.set('todo.copyFile', name); notes.copySig = sig; }
     } catch (e) { /* tried again after the next change */ }
   }
   const hashText = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
@@ -9536,6 +9566,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     $('#lockSec').hidden = !lk;
     if (!lk) return;
     const on = lk.isOn();
+    if (NATIVE) $('#lockNote').textContent = 'Ask for a 6-digit passcode when the app opens, and again after a minute away. Your list is hidden while you switch apps. While the lock is on, the app makes no safety copies in Files, since anyone holding the phone could open those there (copies already there stay).';
     $('#lockOn').hidden = on;
     $('#lockChange').hidden = !on;
     $('#lockOff').hidden = !on;
