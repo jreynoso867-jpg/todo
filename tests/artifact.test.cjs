@@ -122,7 +122,7 @@ test('opened in Claude: a new task stays after a reload, and Claude\'s dark swit
   await page.waitForSelector('#board .task');
   await page.waitForTimeout(400);
   assert.ok((await shown(page)).includes('Order more gloves'));
-  assert.equal((await dump(page)).local['todo.saving'], '[]');
+  assert.ok([undefined, '[]'].includes((await dump(page)).local['todo.saving']), 'no save notes are kept in Claude');
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   await page.waitForFunction(() => document.documentElement.dataset.mode === 'dark');
   assert.deepEqual(errors, []);
@@ -136,6 +136,19 @@ test('opened in Claude: a look saved by the old version (orange on pink) comes t
   await page.waitForTimeout(2000);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), 'orange-pink');
   assert.deepEqual((await dump(page)).docs['settings/app'], before.docs['settings/app']);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('opened in Claude: a leftover unfinished save is never put back in (another device may have changed the item since)', async () => {
+  const fx = smallFixture();
+  const before = { ...fx.docs['tasks/t_overdue'] };
+  fx.local['todo.saving'] = JSON.stringify([{ path: 'tasks/t_overdue', kind: 'update', data: { priority: 1 }, known: true, before }]);
+  const { ctx, page, errors } = await open(fx);
+  await page.waitForTimeout(2500);
+  const d = await dump(page);
+  assert.equal(d.docs['tasks/t_overdue'].priority, before.priority, 'the item is left as the database has it');
+  assert.equal(d.local['todo.saving'], '[]', 'and the note is dropped');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

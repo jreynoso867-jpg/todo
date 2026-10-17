@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kb/cGxaDkxA6eooqvM8JvR3JaL5JJItA8I0EPtqmS6A=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-SCczQdqn5ip0UnPR8NfqH2K63S/sRZWjYG84JwaFDEE=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mVC0qd7yx4qcTXKH6l04EtQjX0ORYLiCTyuHbclEj88=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-3dxcG7bWaTPFmPyTp6CO+/qKG4p3nA9szVK4OcLaA68=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -359,7 +359,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.0.0';
+  const APP_VERSION = '2.b8b0e96a'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -4713,7 +4713,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (doc && typeof doc === 'object') return mergeDeep(doc, n.data);
     return n.kind === 'merge' ? mergeDeep(n.init || {}, n.data) : undefined;
   }
+  // Only where this phone holds the list (the website and the iPhone app) is it the only writer, so only there can a
+  // leftover save be checked against the item and safely put back in. In Claude the list syncs between devices: an
+  // item can change on another device and change back, which no comparison can tell apart, so nothing is noted there.
+  const JOURNAL = IS_PHONE;
   function noteSaving(op) {
+    if (!JOURNAL) return null;
     // A second change to the same item while the first is still on its way starts from what the first one leaves.
     let prev = null;
     for (let k = saving.length - 1; k >= 0 && !prev; k--) if (saving[k].path === op.path) prev = saving[k];
@@ -4724,6 +4729,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     return n;
   }
   function savedNote(n) {
+    if (!n) return;
     const i = saving.indexOf(n);
     if (i >= 0) saving.splice(i, 1);
     storeNotes();
@@ -4763,6 +4769,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   // While this runs, new changes wait in the queue behind the ones put back in, so they stay in the order they were made.
   let replaying = false;
   async function replayNotes() {
+    if (!JOURNAL && leftover.length) { leftover = []; storeNotes(); return; } // notes from a phone-only build, if any
     if (replaying || !leftover.length || !rawDb || !writable()) return;
     replaying = true;
     const now = new Map(); // what an item will hold once the changes put back in so far are saved
@@ -4824,7 +4831,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     let next = { path: op.path, kind: op.kind, data: op.data, init: op.init };
     if (prev && (op.kind === 'update' || op.kind === 'merge')) {
       if (prev.kind === 'set') next = { path: op.path, kind: 'set', data: mergeDeep(prev.data, op.data) };
-      else if (prev.kind === 'delete') next = op.kind === 'merge' ? { path: op.path, kind: 'set', data: mergeDeep(op.init || {}, op.data) } : null;
+      else if (prev.kind === 'delete') next = op.kind === 'merge' ? { path: op.path, kind: 'set', data: mergeDeep(op.init || {}, op.data) } : prev; // an update can't bring back what's waiting to be deleted
       else next = { path: op.path, kind: prev.kind === 'merge' || op.kind === 'merge' ? 'merge' : 'update', data: mergeDeep(prev.data, op.data), init: prev.init || op.init };
     }
     if (prev) outbox.splice(i, 1);
@@ -5018,12 +5025,16 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
         unrecordDone(id, at);
       });
     } else if (!done && t.spawnedId) {
-      // Unchecking a repeating task takes back the next one it created, unless that one is already done.
+      // Unchecking a repeating task takes back the next one it created, but only if nobody has touched it since (it
+      // goes to Recently deleted, like any delete). A next one that's done, or has notes, ticks or photos added, stays.
       const sid = t.spawnedId;
       write('tasks/' + id, () => taskRef(id).update({ done: false, doneAt: null, spawnedId: null }));
       unrecordDone(id, t.doneAt);
       const next = S.tasks.get(sid);
-      if (next && next.done !== true) write('tasks/' + sid, () => taskRef(sid).delete());
+      if (next && next.done !== true) {
+        if (untouchedCopy(t, next)) deleteMany([sid], `The next one, due ${dayInSentence(next.due)}, is taken back. It’s in Recently deleted.`);
+        else toast('Not done. The next one has your changes, so it stays.');
+      }
     } else {
       write('tasks/' + id, () => taskRef(id).update({ done, doneAt: done ? at : null }));
       if (done) record();
@@ -5049,7 +5060,26 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (anchor) copy.repeatAnchor = anchor;
     if (t.photos.length) copy.photos = t.photos; // the next one keeps the photos (a label to match, a how-to)
     if (t.cats && t.cats.length) copy.cats = t.cats.slice();
+    if (t.client) copy.client = t.client; // the same restaurant next time, so its report and address follow
     return copy;
+  }
+  // The next copy of a repeating task is still exactly what checking it off made (its calendar event and its place in
+  // a dragged order aside), so taking it back loses nothing.
+  function untouchedCopy(t, next) {
+    const want = repeatCopy(t, next.due);
+    const same = (a, b) => sameData(a === undefined ? null : a, b === undefined ? null : b);
+    for (const k of new Set([...Object.keys(want), ...Object.keys(next)])) {
+      if (k === 'createdAt' || k === 'gcal' || k === 'rank') continue;
+      if (!same(want[k], next[k])) return false;
+    }
+    return true;
+  }
+  // A repeating task just finished another way (a PO received): its next copy, so the schedule keeps going.
+  function spawnNext(t) {
+    const nextDue = nextOccurrence(t.due, t.repeat, anchorFor(t));
+    const ref = db.collection('tasks').doc();
+    write('tasks/' + ref.id, () => ref.set(repeatCopy(t, nextDue)), { create: true });
+    return { id: ref.id, nextDue, undo: () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()) };
   }
   // Check off several at once (repeating ones make their next copy). Returns how to take it all back.
   function finishMany(ids) {
@@ -5187,15 +5217,18 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function deleteMany(ids, message) {
     const saved = ids.map(id => [id, S.tasks.get(id)]).filter(([, t]) => t).map(([id, t]) => [id, { ...t }]);
     if (!saved.length || !writable()) return;
-    let undone = false;
     keepInHistory(saved);
     const at = Date.now();
+    const notKept = [];
+    // A task is only deleted once its copy is in Recently deleted; if that copy can't be kept, the task stays.
     runPool(saved.map(([id, data]) => async () => {
       const kept = await write('trash/' + id, () => trashRef(id).set({ task: data, deletedAt: at }), { create: true, quiet: true });
-      if (!kept) releaseLater([[id, data]], () => undone); // no copy in the trash: its photos go once Undo has passed
+      if (!kept) { notKept.push(id); return; }
       await write('tasks/' + id, () => taskRef(id).delete());
-    }));
-    toast(message || `Deleted ${plural(saved.length, 'task', 'tasks')}`, () => { undone = true; restoreMany(saved); });
+    })).then(() => {
+      if (notKept.length) toast(`Couldn’t keep a copy in Recently deleted, so ${notKept.length === 1 ? 'it wasn’t deleted' : `${notKept.length} tasks weren’t deleted`}. Clear done tasks or remove photos to make room, then try again.`, null, 'Undo', 8000);
+    });
+    toast(message || `Deleted ${plural(saved.length, 'task', 'tasks')}`, () => restoreMany(saved.filter(([id]) => !notKept.includes(id))));
   }
   function restoreMany(saved) {
     if (!writable()) return;
@@ -5775,13 +5808,18 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       if ((typeof cur.client === 'string' ? cur.client : null) !== client) changes.client = client;
       if (JSON.stringify(cats) !== JSON.stringify(cleanCats(cur.cats))) changes.cats = cats.length ? cats : null;
       const nowReceived = received && cur.done !== true && !(was && was.status === 'received');
-      if (nowReceived) { changes.done = true; changes.doneAt = Date.now(); changes.waiting = null; changes.spawnedId = null; }
+      let nextUp = null;
+      if (nowReceived) {
+        changes.done = true; changes.doneAt = Date.now(); changes.waiting = null; changes.spawnedId = null;
+        const after = taskView(sh.id, { ...cur, ...changes });
+        if (after.repeat && after.due) { nextUp = spawnNext(after); changes.spawnedId = nextUp.id; } // a standing order goes on
+      }
       if (!Object.keys(changes).length) return;
       if (pinned && changes.pinned) unpinOthers(sh.id);
       if (nowReceived) {
         recordDone([[sh.id, { list, at: changes.doneAt }]]);
         armCheer();
-        toast(`${poLabel(po)} received. It’s checked off.`);
+        toast(nextUp ? `${poLabel(po)} received. The next one is due ${dayInSentence(nextUp.nextDue)}.` : `${poLabel(po)} received. It’s checked off.`);
       }
       const removed = [...sh.removed];
       write('tasks/' + sh.id, () => taskRef(sh.id).update(changes)).then(ok => {
@@ -8740,12 +8778,17 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const t = taskView(id, raw);
     if (!t.po) return;
     const at = Date.now();
-    const before = { po: raw.po, done: raw.done === true, doneAt: raw.doneAt || null, waiting: raw.waiting || null };
-    write('tasks/' + id, () => taskRef(id).update({ po: { ...raw.po, status: 'received' }, done: true, doneAt: at, waiting: null }));
+    const before = { po: raw.po, done: raw.done === true, doneAt: raw.doneAt || null, waiting: raw.waiting || null, spawnedId: raw.spawnedId || null };
+    const next = t.repeat && t.due && !t.done ? spawnNext(t) : null; // a standing order: next time's is ready
+    write('tasks/' + id, () => taskRef(id).update({ po: { ...raw.po, status: 'received' }, done: true, doneAt: at, waiting: null, ...(next ? { spawnedId: next.id } : {}) }));
     if (!t.sample) recordDone([[id, { list: t.list, at }]]);
     armCheer();
     buzz(12);
-    toast(`${poLabel(t.po)} received`, () => { write('tasks/' + id, () => taskRef(id).update(before)); unrecordDone(id, at); });
+    toast(next ? `${poLabel(t.po)} received. The next one is due ${dayInSentence(next.nextDue)}.` : `${poLabel(t.po)} received`, () => {
+      write('tasks/' + id, () => taskRef(id).update(before));
+      unrecordDone(id, at);
+      if (next) next.undo();
+    });
   }
   const pearlListId = () => (sortedLists().find(l => /pearl/i.test(l.name)) || {}).id || null;
   const jarsListId = () => (sortedLists().find(l => /jars/i.test(l.name)) || {}).id || null;
@@ -11166,7 +11209,9 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       return;
     }
     if (e.target.closest('#clearDone')) {
-      const entries = [...S.tasks].filter(([id, t]) => t.done === true && inFilter(taskView(id, t)));
+      const day = searchQuery() ? null : S.day; // in a day view, only that day's done tasks (the ones showing)
+      const entries = [...S.tasks].filter(([id, t]) => t.done === true && inFilter(taskView(id, t)) && (!day || t.due === day));
+      if (!entries.length) return;
       keepInHistory(entries); // cleared tasks still count toward your week
       removeMany(entries, `Cleared ${plural(entries.length, 'done task', 'done tasks')}`);
       return;

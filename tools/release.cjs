@@ -12,6 +12,13 @@ const root = path.resolve(__dirname, '..');
 const htmlPath = path.join(root, 'index.html');
 let html = fs.readFileSync(htmlPath, 'utf8');
 
+// 0. The phone app copies the list before running a new version (todo.version). The version is worked out from the page
+//    itself with its own version left out, so it changes with every release and doesn't depend on itself.
+const verRe = /const APP_VERSION = '[^']*';/;
+if (!verRe.test(html)) throw new Error('No APP_VERSION in index.html');
+const appVersion = '2.' + crypto.createHash('sha256').update(html.replace(verRe, "const APP_VERSION = '';").replace(/(script-src )([^;]+)(;)/, '$1$3'), 'utf8').digest('hex').slice(0, 8);
+html = html.replace(verRe, `const APP_VERSION = '${appVersion}';`);
+
 const hashes = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
   .map(m => `'sha256-${crypto.createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
 const csp = /(script-src )([^;]+)(;)/;
@@ -30,4 +37,4 @@ for (const f of shell) {
 const version = 'todo-' + h.digest('hex').slice(0, 10);
 sw = sw.replace(/const VERSION = '[^']*';/, `const VERSION = '${version}';`);
 fs.writeFileSync(swPath, sw);
-console.log(`${hashes.length} script hashes set; service worker version ${version}`);
+console.log(`app version ${appVersion}; ${hashes.length} script hashes set; service worker version ${version}`);

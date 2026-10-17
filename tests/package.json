@@ -3,7 +3,7 @@
   "private": true,
   "description": "Browser tests and benchmarks for the to-do app. Nothing here ships with the app.",
   "scripts": {
-    "test": "node --test --test-concurrency=1 upgrade.test.cjs features.test.cjs regression.test.cjs native.test.cjs artifact.test.cjs",
+    "test": "node --test --test-concurrency=1 upgrade.test.cjs features.test.cjs regression.test.cjs native.test.cjs artifact.test.cjs fixes.test.cjs",
     "bench": "node bench.cjs .."
   },
   "devDependencies": {
