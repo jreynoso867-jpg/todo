@@ -111,6 +111,48 @@ test('a task added right before the app closes is still there', async () => {
   await ctx.close();
 });
 
+test('a save cut off by closing goes back in only if nothing newer would be written over', async () => {
+  // The list can be open on more than one device, so an unfinished save from last time is checked against the item first.
+  const fx = smallFixture();
+  const D = fx.docs;
+  const now = Date.now();
+  D['settings/view'] = { ...D['settings/view'], textSize: 'large', updatedAt: now };
+  D['tasks/t_walk'] = { ...D['tasks/t_walk'], title: 'Walk the dog A1' }; // the first of two quick edits got in
+  const notes = [
+    // An update whose fields nobody else touched: it goes in, and another device's edit to the note stays.
+    { path: 'tasks/t_overdue', kind: 'update', data: { priority: 1 }, known: true, before: { ...D['tasks/t_overdue'], note: 'an older note' } },
+    // A title edited on another device since: the old save is left out.
+    { path: 'tasks/t_today_timed', kind: 'update', data: { title: 'Stale title' }, known: true, before: { ...D['tasks/t_today_timed'], title: 'What it said before' } },
+    // A new task that never got in.
+    { path: 'tasks/t_brandnew', kind: 'set', data: { title: 'Made right before closing', done: false, priority: 0, list: null, checklist: [], createdAt: now }, known: true },
+    // A delete of an item unchanged since: it goes in. A delete of an item changed since: it doesn't.
+    { path: 'tasks/t_anytime', kind: 'delete', known: true, before: D['tasks/t_anytime'] },
+    { path: 'tasks/t_tomorrow', kind: 'delete', known: true, before: { ...D['tasks/t_tomorrow'], title: 'Before someone renamed it' } },
+    // Two quick edits: the first got in, the second goes in after it.
+    { path: 'tasks/t_walk', kind: 'update', data: { title: 'Walk the dog A1' }, known: true, before: { ...D['tasks/t_walk'], title: 'Walk the dog' } },
+    { path: 'tasks/t_walk', kind: 'update', data: { title: 'Walk the dog A12' }, known: true, before: D['tasks/t_walk'] },
+    // A settings save older than what's stored: left out.
+    { path: 'settings/view', kind: 'set', data: { textSize: 'small', sort: 'smart', gcal: false, updatedAt: now - 60000 }, known: false },
+  ];
+  fx.local['todo.saving'] = JSON.stringify(notes);
+  const { ctx, page, errors } = await phone(fx);
+  await page.waitForTimeout(2500);
+  const d = await dump(page);
+  assert.equal(d.docs['tasks/t_overdue'].priority, 1, 'the untouched save went in');
+  assert.equal(d.docs['tasks/t_overdue'].note, fx.docs['tasks/t_overdue'].note, 'and nothing else changed');
+  assert.equal(d.docs['tasks/t_today_timed'].title, 'Clean Rosa’s Diner', 'the newer title stays');
+  assert.equal(d.docs['tasks/t_brandnew'].title, 'Made right before closing');
+  assert.equal(d.docs['tasks/t_anytime'], undefined, 'the delete of an unchanged item went in');
+  assert.ok(d.docs['tasks/t_tomorrow'], 'an item changed since is not deleted');
+  assert.equal(d.docs['tasks/t_walk'].title, 'Walk the dog A12', 'the second quick edit went in after the first');
+  assert.equal(d.docs['settings/view'].textSize, 'large', 'the newer settings stay');
+  assert.equal(d.local['todo.saving'], '[]', 'every note was looked at');
+  const shown = await titles(page);
+  assert.ok(shown.includes('Made right before closing') && !shown.includes('Stale title'));
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('themes, light/dark and the accent are saved and come back', async () => {
   const { ctx, page, errors } = await phone();
   await page.click('#colorsBtn');
@@ -133,6 +175,28 @@ test('themes, light/dark and the accent are saved and come back', async () => {
   await page.waitForTimeout(300);
   await page.click('[data-look="orange-bg"]');
   assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), 'orange-bg');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('"System" follows the light/dark switch of an app it is opened in', async () => {
+  // Claude marks the page with data-theme when its own switch is set to light or dark, and takes it away for "System".
+  const { ctx, page, errors } = await phone(smallFixture(), { colorScheme: 'light' });
+  const mode = () => page.evaluate(() => document.documentElement.dataset.mode);
+  assert.equal(await mode(), 'light');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.waitForFunction(() => document.documentElement.dataset.mode === 'dark');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  await page.waitForFunction(() => document.documentElement.dataset.mode === 'light' && document.documentElement.dataset.theme === 'light');
+  // A light pick made here beats the other app's dark.
+  await page.click('#colorsBtn');
+  await page.waitForTimeout(300);
+  await page.click('[data-appearance="light"]');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.waitForTimeout(200);
+  assert.equal(await mode(), 'light');
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
   assert.deepEqual(errors, []);
   await ctx.close();

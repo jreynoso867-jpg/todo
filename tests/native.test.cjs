@@ -112,6 +112,7 @@ test('checking a task off, or turning reminders off, takes its notifications bac
   await page.click('#colorsSheet [data-rem="gentle"]');
   await waitPending(page, () => window.__cap.pending.size === 1);
   assert.match(await page.textContent('#remNote'), /even with the app closed/);
+  assert.ok(await page.isHidden('#remClosed'), 'no "use the phone calendar" note: the app reminds by itself');
   assert.deepEqual(errors, []);
   await ctx.close();
 });
