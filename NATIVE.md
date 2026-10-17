@@ -4,7 +4,7 @@ The same to-do app, installed as a real iPhone app instead of a Home Screen icon
 
 What the iPhone app adds:
 
-- **Reminders that come with the app closed.** Tasks with a time become real iPhone notifications, with a sound, following Settings › Extras › Reminders (Off, Gentle, Standard, Intense). Tasks with only a date get one note that morning. Tap a notification to open its task.
+- **Reminders that come with the app closed.** Tasks with a time become real iPhone notifications, with a sound, following Settings › Extras › Reminders (Off, Gentle, Standard, Intense). Tasks with only a date get one note that morning (and the evening before, with Standard or Intense). Tap a notification to open its task.
 - **Files through the share menu.** Save everything, CSV and PDF reports, and calendar events open the iPhone's share menu (Save to Files, Mail, Messages, AirDrop).
 - **Taps you can feel** (the Taptic Engine), and a status bar that matches your theme.
 - **A daily safety copy in Files**: Files › On My iPhone › To-Do › Safety copies. One file a day, the newest 7 kept. It's apart from the app's own storage, so it outlasts anything that happens there. (Not while the passcode lock is on: anyone holding the phone could open a file there.)
@@ -105,9 +105,7 @@ These can only be confirmed on a real iPhone, so look once:
 
 ## If the build fails
 
-Open the failed run on GitHub (Actions, then the run, then the red step) and look at the last lines.
-
-The run shows what went wrong as red notes at the top of its page.
+Open the failed run on GitHub (Actions, then the run). What went wrong shows as red notes at the top of its page; the red step has the full story.
 
 - **Missing secrets**: step 5. The names must match exactly.
 - **Cloud signing permission error**, **No signing certificate "iOS Distribution" found** or **No Account for Team**: the key needs **Admin** access (step 3, make a new one if needed), and the Team ID must be the one from step 4.
