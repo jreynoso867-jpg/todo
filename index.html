@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kb/cGxaDkxA6eooqvM8JvR3JaL5JJItA8I0EPtqmS6A=' 'sha256-ZCjGKx8d11ejo3ha4b2pFwlUmbqqzTxnfn8mtHkvAzE=' 'sha256-iC6FwOSFLBYlCs6nnjzcm73m0t5vpt47FYzTgen2nSY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kb/cGxaDkxA6eooqvM8JvR3JaL5JJItA8I0EPtqmS6A=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-SCczQdqn5ip0UnPR8NfqH2K63S/sRZWjYG84JwaFDEE=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -2596,7 +2596,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (app && app.on) app.statusBar(mode);
     listeners.forEach(fn => { try { fn(state()); } catch (e) { console.error(e); } });
   }
-  const state = () => { const t = byId.get(prefs.look) || byId.get('classic'); return { ...prefs, mode: modeFor(t), modes: modesOf(t), kind: t.kind }; };
+  const state = () => { const t = byId.get(prefs.look) || byId.get('classic'); return { ...prefs, mode: modeFor(t), modes: modesOf(t), kind: t.kind, host: !!host }; };
   function set(p) {
     if (p && byId.has(p.look)) prefs.look = p.look;
     if (p && ['system', 'light', 'dark'].includes(p.appearance)) prefs.appearance = p.appearance;
@@ -6298,7 +6298,9 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     }
     const name = (THEME.themes.find(t => t.id === p.look) || {}).name || 'This look';
     const note = fixed ? `${name} is always ${p.mode}. Pick another theme to switch between light and dark.`
-      : p.appearance === 'system' ? `Following your phone, which is in ${p.mode} mode right now.` : '';
+      : p.appearance !== 'system' ? ''
+      : p.host ? `Following Claude’s appearance setting: ${p.mode} right now.`
+      : `Following your ${IS_PHONE ? 'phone' : 'device'}, which is in ${p.mode} mode right now.`;
     $('#apNote').textContent = note;
     $('#apNote').hidden = !note;
     buildAccentPicks();
@@ -9842,7 +9844,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     foot.textContent = stale
       ? (days < 0 ? 'Your tasks live only on this phone. Save a backup file now and then: Settings, then Save everything.'
         : `Your last backup file is ${days} days old. Settings, then Save everything.`)
-      : 'Your tasks save on this phone as you go. Now and then, tap Save everything in Settings to keep a backup.';
+      : IS_PHONE ? 'Your tasks save on this phone as you go. Now and then, tap Save everything in Settings to keep a backup.'
+      : 'Your tasks save automatically and sync wherever you open this page.';
   }
 
   /* ---------- text size, sorting, the all-done confetti, and the backup ---------- */
