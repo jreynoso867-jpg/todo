@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mVC0qd7yx4qcTXKH6l04EtQjX0ORYLiCTyuHbclEj88=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-3dxcG7bWaTPFmPyTp6CO+/qKG4p3nA9szVK4OcLaA68=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-98F9/RkJBkymEbdfHqFrzsycjj5/OMTtpK0CGNFf4NA=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-T9jEVqdDXAfmZM54CDwKKVPNWVXbGJTsUa5pq3Pqszg=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -359,7 +359,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.b8b0e96a'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.c5338849'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2815,7 +2815,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     </section>
     <div class="list-foot">
       <p class="trash-link" id="trashLink" hidden><button type="button" class="link-btn" id="trashOpen">Recently deleted</button></p>
-      <p class="trash-link" id="backupLink" hidden><button type="button" class="link-btn" id="backupBtn">Back up my list</button></p>
+      <p class="trash-link" id="backupLink" hidden><button type="button" class="link-btn" id="backupBtn">Save as a spreadsheet</button></p>
     </div>
   </div>
 
@@ -3506,7 +3506,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     let s;
     if (!t.due) s = 'No due date';
     else if (t.due < S.today) s = (t.due === addDays(S.today, -1) ? 'Was due yesterday' : `Was due ${dateLabel(t.due)}`) + at;
-    else if (t.due === S.today) s = (t.time && t.time < nowHHMM() ? 'Was due today' : 'Due today') + at;
+    else if (t.due === S.today) s = (t.time && minuteNow() > dueTimes(t).end ? 'Was due today' : 'Due today') + at;
     else if (t.due === addDays(S.today, 1)) s = 'Due tomorrow' + at;
     else s = `Due ${dateLabel(t.due)}` + at;
     if (t.repeat) s += `, repeats ${REPEATS[t.repeat]}`;
@@ -3798,7 +3798,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     scan('time', R(`(?:\\bfrom\\s+|${RX.at})?\\b(\\d{1,2})(?::([0-5]\\d))?\\s*(?:([ap])\\.?m\\.?)?\\s*(?:-|–|—|\\bto\\b|\\btill\\b|\\btil\\b|\\buntil\\b)\\s*(\\d{1,2})(?::([0-5]\\d))?\\s*(?:([ap])\\.?m\\.?)?(?![a-z0-9:/])`), m => {
       const [, h1, m1, a1raw, h2, m2, a2raw] = m;
       const a1 = a1raw && a1raw.toLowerCase(), a2 = a2raw && a2raw.toLowerCase();
-      if (!a1 && !a2 && !/^\s*(?:from|at|@)/i.test(m[0])) return false; // "3-5 boxes" isn't a time
+      if (!a1 && !a2 && !m1 && !m2 && !/^\s*(?:from|at|@)/i.test(m[0])) return false; // "3-5 boxes" isn't a time; "8:30-10" is
       const exact = h => (h.length === 2 && h[0] === '0') || Number(h) === 0 || Number(h) >= 13;
       let start, end;
       if (a1 && a2) { start = toHHMM(h1, m1, a1); end = toHHMM(h2, m2, a2); }
@@ -3814,6 +3814,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
         start = exact(h1) ? (Number(h1) <= 23 ? `${pad(Number(h1))}:${m1 || '00'}` : null) : toHHMM(h1, m1, '');
         end = exact(h2) ? (Number(h2) <= 23 ? `${pad(Number(h2))}:${m2 || '00'}` : null) : toHHMM(h2, m2, '');
         if (start && end && toMin(end) <= toMin(start) && toMin(end) < 720) end = fromMin(toMin(end) + 720); // "from 9 to 5"
+        if (start && end && lengthMin(start, end) > 12 * 60) return false; // too odd to guess: the start alone is read below
       }
       if (!start || !end || start === end || !once('time', start)) return false;
       out.end = end;
@@ -4886,7 +4887,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     } else {
       flushWait = 2000;
       if (refusedCount) toast(refusedCount === 1 ? 'One change couldn’t be saved because that task changed somewhere else.' : `${refusedCount} changes couldn’t be saved because those tasks changed somewhere else.`);
-      else if (wasOffline && sentCount) toast(`Back online. ${plural(sentCount, 'change', 'changes')} saved.`);
+      else if (wasOffline && sentCount) toast(IS_PHONE ? `Saved ${plural(sentCount, 'waiting change', 'waiting changes')}.` : `Back online. ${plural(sentCount, 'change', 'changes')} saved.`);
       wasOffline = false;
       sentCount = 0;
       refusedCount = 0;
@@ -4956,6 +4957,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     el.classList.toggle('is-off', S.offline);
     $('#netText').textContent = S.offline
       ? (n ? `You’re offline. ${plural(n, 'change', 'changes')} will save when you’re back online.` : 'You’re offline. Changes you make will save when you’re back online.')
+      : IS_PHONE && flushWait > 2000 ? `${plural(n || 1, 'change hasn’t', 'changes haven’t')} saved on this phone yet. ${n === 1 ? 'It’s' : 'They’re'} kept here. If this stays, close the app and open it again.`
       : n ? `Saving ${plural(n, 'change', 'changes')}…` : 'Saving…';
   }
   // Claude and photo uploads need the internet; say so instead of failing.
@@ -5144,6 +5146,25 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const item = list.find(i => i.id === itemId);
     if (item && item.done && list.every(i => i.done)) {
       toast('Every item is checked off.', () => toggleDone(id), 'Mark task done');
+    }
+  }
+  // A tick in an open task is kept right away, the same as one on Up next (on a job site, nobody scrolls down to
+  // Save after every item). The rest of the sheet still waits for Save, and the tick doesn't count as unsaved.
+  function keepTick(sh, itemId, done) {
+    if (!sh || sh.mode !== 'edit' || !writable()) return;
+    const cur = S.tasks.get(sh.id);
+    if (!cur || !Array.isArray(cur.checklist)) return;
+    const saved = cleanChecklist(cur.checklist);
+    const k = saved.findIndex(i => i.id === itemId);
+    if (k < 0) return; // an item added in this sheet: it goes in with Save
+    saved[k] = { ...saved[k], done };
+    S.tasks.set(sh.id, { ...cur, checklist: saved });
+    write('tasks/' + sh.id, () => taskRef(sh.id).update({ checklist: saved }));
+    const st = (sh.startCheck || []).find(i => i.id === itemId);
+    if (st && sh.start) { st.done = done; sh.start.checklistKey = checklistKey(sh.startCheck, ''); }
+    if (done && saved.every(i => i.done)) {
+      const id = sh.id;
+      toast('Every item is checked off.', () => { if (S.sheet && S.sheet.id === id && !sheetDirty()) closeTaskSheet(true); toggleDone(id); }, 'Mark task done');
     }
   }
   // Move a task to another day. Its place in a dragged order belonged to the old day, so that goes.
@@ -5512,6 +5533,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     renderChecklistEditor();
     fillPoInputs();
     S.sheet.start = sheetValues();
+    S.sheet.startCheck = S.sheet.checklist.map(i => ({ ...i }));
     disarmCancel();
     $('#taskDate').value = S.sheet.due || '';
     $('#taskTime').value = S.sheet.time || '';
@@ -5739,7 +5761,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const sh = S.sheet;
     if (!sh || !writable()) return;
     if (sh.uploading) { toast('Hold on, a photo is still being added.'); return; }
-    const title = sheetTitle();
+    const poNow = poFromSheet();
+    const title = sheetTitle() || (poNow ? poLabel(poNow) : ''); // a PO's number and vendor are enough to save it
     if (!title) {
       $('#titleError').hidden = false;
       $('#taskTitle').focus();
@@ -5834,7 +5857,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (!sh) return;
     const sheet = $('#taskSheet');
     setColor(sheet, colorOf(sh.list));
-    $('#sheetTitle').textContent = sh.mode === 'new' ? 'New task' : 'Edit task';
+    $('#sheetTitle').textContent = sh.mode === 'new' ? (sh.po ? 'New PO' : 'New task') : 'Edit task';
     $('#sheetSubmit').textContent = sh.uploading ? 'Adding photo…' : sh.mode === 'new' ? 'Add task' : 'Save changes';
     $('#sheetSubmit').disabled = sh.uploading > 0;
     $('#sheetDelete').hidden = sh.mode !== 'edit';
@@ -7218,7 +7241,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       const policy = document.permissionsPolicy || document.featurePolicy;
       if (ok && policy && policy.allowsFeature && !policy.allowsFeature('web-share')) ok = false;
     } catch (e) { /* no policy to ask */ }
-    if (!ok) { renderReportStatus('error', 'Saving files isn’t available in this view. Open this page in the Claude app to send the report.'); return; }
+    if (!ok) { renderReportStatus('error', IS_PHONE ? 'The share menu didn’t open. Try again in a moment.' : 'Saving files isn’t available in this view. Open this page in the Claude app to send the report.'); return; }
     try {
       await navigator.share({ files: [file], title: filename.replace(/\.pdf$/, '') });
       renderReportStatus('done', 'PDF ready. Attach it to an email or a text to the client.');
@@ -7905,6 +7928,10 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       focus.title = raw ? (taskView(id, raw).title || 'Untitled task') : 'Focus';
     }
     focus.back = document.activeElement;
+    // In the iPhone app, with notifications allowed, the end of the session comes as a notification.
+    $('#focusNote').textContent = NATIVE && NATIVE.notify.ok() && notes.state === 'granted'
+      ? 'The timer keeps going if you leave the app. Your iPhone shows a notification when it ends.'
+      : 'The timer keeps going if you leave the app. Your phone won’t ring when it ends unless the app is open.';
     const box = $('#focus');
     box.hidden = false;
     document.documentElement.classList.add('locked');
@@ -8799,6 +8826,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (!sh) return;
     const pg = pearlListId();
     if (pg) { sh.list = pg; sh.base.list = pg; sh.manual.add('list'); }
+    // No due date: a PO waits until it's expected; once it's late it comes back to Today by itself (checkLatePos).
+    sh.due = null;
+    sh.base.due = null;
+    sh.manual.add('due');
+    $('#taskDate').value = '';
     openPoFields();
   }
   // The POs and Clients chips sit next to the lists: one opens the PO list, the other the client book.
@@ -8984,6 +9016,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function newJobFor(cid) {
     if (!writable() || !S.clients.has(cid)) return;
     const c = clientView(cid, S.clients.get(cid));
+    const already = [...S.tasks].find(([, t]) => t && t.client === cid && t.due === S.today && t.done !== true);
+    if (already) { // the job was already planned: open it rather than make a second one
+      closeClients();
+      toast(`${c.name} already has a job today`, () => openTaskSheet('edit', already[0]), 'Open');
+      return;
+    }
     const ref = db.collection('tasks').doc();
     const data = { title: `Clean ${c.name}`, note: c.address, priority: 0, done: false, due: S.today, time: null, repeat: null, list: jarsListId(),
       checklist: c.checklist.map(text => ({ id: rid(), text, done: false })), client: cid, createdAt: Date.now(), doneAt: null };
@@ -9449,7 +9487,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const raw = S.tasks.get(sh.id) || {};
     const po = cleanPo(raw.po);
     const title = sheetTitle() || 'my request';
-    const what = po && po.number ? (nudge.lang === 'es' ? `la orden de compra ${po.number} (${title})` : `PO ${po.number} (${title})`) : `“${title}”`;
+    const what = po && po.number ? (nudge.lang === 'es' ? `la orden de compra ${po.number}` : `PO ${po.number}`) : `“${title}”`; // his own wording stays his
     const me = nudgeSender(sh.list);
     const es = nudge.lang === 'es';
     const again = !!w.nudges;
@@ -9626,7 +9664,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       if (res) { local.set('todo.lastExport', String(Date.now())); renderMoveInfo(); renderFoot(); }
       if (res === null) renderMove(null, '');
       else if (res) renderMove('done', `Saved ${what}. ${IS_PHONE ? 'Keep the file somewhere safe.' : 'In the phone app, open Settings and tap Load a saved file.'}`);
-      else renderMove('error', 'Saving files isn’t available in this view. Open your list in the Claude app and try again.');
+      else renderMove('error', IS_PHONE ? 'The share menu didn’t open. Try again in a moment.' : 'Saving files isn’t available in this view. Open your list in the Claude app and try again.');
     } catch (e) {
       renderMove('error', 'The file couldn’t be made. Try again.');
     } finally {
@@ -10068,7 +10106,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       if (dl) {
         try {
           const res = await dl.save({ filename, data: blob });
-          if (!res || res.status !== 'delivered') toast(`Backup saved: ${plural(n, 'task', 'tasks')}. It opens in Excel or Google Sheets.`);
+          if (!res || res.status !== 'delivered') toast(`Spreadsheet saved: ${plural(n, 'task', 'tasks')}. For a backup you can load back, use Save everything in Settings.`, null, 'Undo', 7000);
           return;
         } catch (e) {
           const code = e && e.code;
@@ -10084,10 +10122,10 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
         const policy = document.permissionsPolicy || document.featurePolicy;
         if (ok && policy && policy.allowsFeature && !policy.allowsFeature('web-share')) ok = false;
       } catch (e) { /* no policy to ask */ }
-      if (!ok) { toast('Saving files isn’t available in this view. Open your list in the Claude app to back it up.'); return; }
+      if (!ok) { toast(IS_PHONE ? 'The share menu didn’t open. Try again in a moment.' : 'Saving files isn’t available in this view. Open your list in the Claude app to back it up.'); return; }
       try {
         await navigator.share({ files: [file], title: filename.replace(/\.csv$/, '') });
-        toast(`Backup ready: ${plural(n, 'task', 'tasks')}.`);
+        toast(`Spreadsheet ready: ${plural(n, 'task', 'tasks')}. For a backup you can load back, use Save everything in Settings.`, null, 'Undo', 7000);
       } catch (e) {
         if (!(e && e.name === 'AbortError')) toast('Sharing isn’t available here.');
       }
@@ -10163,7 +10201,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       $('#heroDoneLabel').textContent = next.done ? 'Done' : 'Mark done';
       laterBtn.hidden = next.done || !(!next.due || next.due <= S.today);
       laterBtn.disabled = !writable();
-      $('#heroNudge').hidden = !(S.sample && writable() && !next.done && next.waiting && next.due && next.due <= S.today);
+      $('#heroNudge').hidden = !(writable() && !next.done && next.waiting && next.due && next.due <= S.today); // without Claude: a ready-made draft
       $('#heroFocus').hidden = !(S.prefs.focus && writable() && !next.done);
       addBtn.hidden = true;
       heroCdFor = !next.done && S.prefs.countdowns && next.due ? next : null;
@@ -10282,8 +10320,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const cd = countdown(t, nowMs);
     const cdKey = cd ? cd.cls + cd.text : '';
     if (t.done || !t.time || sec !== 'today') return cdKey;
-    const over = t.end && toMin(t.end) > toMin(t.time) ? t.end : t.time;
-    return (over < now ? 'L' : 'W') + cdKey;
+    return (nowMs > dueTimes(t).end ? 'L' : 'W') + cdKey;
   }
   function updateRow(li, t, sec) {
     li.classList.toggle('is-done', t.done);
@@ -10346,8 +10383,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       meta.append(s);
     } else if (at && !t.done) {
       const s = document.createElement('span');
-      const over = t.end && toMin(t.end) > toMin(t.time) ? t.end : t.time; // a job that's under way isn't late yet
-      s.className = sec === 'today' && over < nowHHMM() ? 'late' : 'when';
+      s.className = sec === 'today' && minuteNow() > dueTimes(t).end ? 'late' : 'when'; // a job under way isn't late yet
       s.textContent = at;
       meta.append(s);
     }
@@ -10834,6 +10870,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (act.dataset.act === 'check') {
       items[idx] = { ...items[idx], done: !items[idx].done };
       const id = items[idx].id;
+      keepTick(S.sheet, id, items[idx].done);
       renderChecklistEditor();
       const b = document.querySelector(`#checkList [data-item="${id}"] .check-box`);
       if (b) b.focus();
@@ -11601,6 +11638,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   // the dock
   $('#dockToday').addEventListener('click', () => {
     if (S.searchOpen) closeSearch();
+    if (S.scope !== 'all' && S.scope !== 'today') setScope('all'); // out of Done or Upcoming, back to the day
     if (S.day) { S.day = null; render(); }
     window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
   });

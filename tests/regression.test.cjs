@@ -168,7 +168,9 @@ test('quick add reads dates, times and priority', async () => {
 });
 
 test('a client’s new job, and a PO marked received', async () => {
-  const { ctx, page } = await phone();
+  const fx = smallFixture();
+  fx.docs['tasks/t_today_timed'] = { ...fx.docs['tasks/t_today_timed'], due: addDays(T, 1) }; // no job for Rosa today yet
+  const { ctx, page } = await phone(fx);
   await page.click('#clientsBtn');
   await page.click('[data-client="cl_rosa"] [data-client-job]');
   await page.waitForTimeout(400);

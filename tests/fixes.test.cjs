@@ -153,3 +153,119 @@ test('a new version of the app takes a safety copy first, even after the day\'s 
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+const findTask = (d, title) => Object.entries(d.docs).find(([k, v]) => k.startsWith('tasks/') && v && v.title === title);
+const quickAdd = async (page, text) => { await page.fill('#quickInput', text); await page.press('#quickInput', 'Enter'); await page.waitForTimeout(400); };
+
+test('smart add reads a time range with minutes ("8:30-10") and leaves "3-5 boxes" alone', async () => {
+  const { ctx, page, errors } = await phone();
+  await quickAdd(page, 'Inventory 8:30-10');
+  await quickAdd(page, 'Bring 3-5 boxes');
+  const d = await dump(page);
+  const inv = findTask(d, 'Inventory');
+  assert.ok(inv, 'saved as "Inventory"');
+  assert.equal(inv[1].time, '08:30');
+  assert.equal(inv[1].end, '10:00');
+  const boxes = findTask(d, 'Bring 3-5 boxes');
+  assert.ok(boxes && !boxes[1].time, 'no time read from a count');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('a job that is under way isn\'t called late (Up next, and a night job\'s row)', async () => {
+  const fx = smallFixture();
+  const T = fx.today;
+  delete fx.docs['tasks/t_overdue'];
+  fx.docs['tasks/t_today_untimed'] = { ...fx.docs['tasks/t_today_untimed'], pinned: false };
+  fx.docs['tasks/t_night'] = { title: 'Night clean at the grill', note: '', priority: 0, done: false, due: T, time: '23:00', end: '02:00',
+    repeat: null, list: 'l_jars', checklist: [], createdAt: Date.now() - 4e6, doneAt: null };
+  const [y, m, dd] = T.split('-').map(Number);
+  const ctx = await phoneContext(browser);
+  const page = await ctx.newPage();
+  await page.clock.install({ time: new Date(y, m - 1, dd, 16, 0) });
+  await seed(page, srv.url, fx);
+  await page.goto(srv.url + '/index.html');
+  await page.waitForSelector('#board .task');
+  await page.waitForTimeout(400);
+  assert.match(await page.textContent('#heroWhen'), /^Due today/, 'the 3-5 PM job at 4 PM');
+  await page.clock.setFixedTime(new Date(y, m - 1, dd, 23, 30));
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(300);
+  const late = await page.$eval('.task[data-id="t_night"] .task-meta', el => !!el.querySelector('.late'));
+  assert.equal(late, false, 'the 11 PM-2 AM job at 11:30 PM');
+  await ctx.close();
+});
+
+test('a tick in an open task\'s checklist is kept at once, like on Up next', async () => {
+  const { ctx, page, errors } = await phone();
+  await page.click('.task[data-id="t_today_timed"] .task-body');
+  await page.waitForSelector('#taskSheet.open');
+  await page.click('#checkList [data-item="a2"] .check-box');
+  await page.waitForTimeout(400);
+  await page.click('#sheetCancel');
+  await page.waitForTimeout(500);
+  assert.ok(await page.isHidden('#taskSheet'), 'one tap on Cancel closes it (nothing unsaved)');
+  const d = await dump(page);
+  assert.equal(d.docs['tasks/t_today_timed'].checklist.find(i => i.id === 'a2').done, true);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('a new PO saves with just its number and vendor, and isn\'t due today', async () => {
+  const { ctx, page, errors } = await phone();
+  await page.click('#poBtn');
+  await page.click('#poNew');
+  await page.waitForSelector('#taskSheet.open');
+  await page.fill('#poNumber', '5520');
+  await page.fill('#poVendor', 'Sysco');
+  await page.click('#sheetSubmit');
+  await page.waitForTimeout(600);
+  const po = findTask(await dump(page), 'PO 5520 · Sysco');
+  assert.ok(po, 'saved, named after the PO');
+  assert.equal(po[1].due, null, 'no due date: it comes back to Today if it\'s late');
+  assert.equal(po[1].po.number, '5520');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('Up next offers the follow-up without Claude, and the ready-made one to a vendor names just the PO', async () => {
+  const fx = smallFixture();
+  fx.docs['tasks/t_today_untimed'] = { ...fx.docs['tasks/t_today_untimed'], pinned: false };
+  const { ctx, page, errors } = await phone(fx);
+  assert.ok(await page.isVisible('#heroNudge'), 'Write follow-up shows on the website');
+  await page.click('#heroNudge');
+  await page.waitForSelector('#nudgeDraft:not([hidden])');
+  const body = await page.inputValue('#nudgeBody');
+  assert.match(body, /PO 4471/);
+  assert.ok(!body.includes('Call ABC Supply about'), 'not his note to himself');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the spreadsheet link says what it makes, and Today in the dock leaves the Done view', async () => {
+  const fx = smallFixture();
+  fx.local['todo.scope'] = 'done';
+  const { ctx, page, errors } = await phone(fx);
+  assert.equal((await page.textContent('#backupBtn')).trim(), 'Save as a spreadsheet');
+  await page.click('#dockToday');
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => localStorage.getItem('todo.scope')), 'all');
+  assert.ok(await page.isVisible('#hero'), 'Up next is back');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('New job on a client that already has one today opens that job instead of making a second', async () => {
+  const fx = smallFixture();
+  fx.docs['tasks/t_today_timed'] = { ...fx.docs['tasks/t_today_timed'] }; // Rosa's job today, from the fixture
+  const { ctx, page, errors } = await phone(fx);
+  await page.click('#clientsBtn');
+  await page.click('#clientRows [data-client="cl_rosa"] [data-client-job]');
+  await page.waitForTimeout(600);
+  const d = await dump(page);
+  const jobs = Object.entries(d.docs).filter(([k, v]) => k.startsWith('tasks/') && v.client === 'cl_rosa' && v.due === fx.today && !v.done);
+  assert.equal(jobs.length, 1, 'still one job today');
+  assert.match(await page.textContent('#toastMsg'), /already has a job today/);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
