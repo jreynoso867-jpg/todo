@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-98F9/RkJBkymEbdfHqFrzsycjj5/OMTtpK0CGNFf4NA=' 'sha256-JkjfzhehIt+4nfzARPjT5yLaqx+Z5b10XVB3Snoy+hg=' 'sha256-T9jEVqdDXAfmZM54CDwKKVPNWVXbGJTsUa5pq3Pqszg=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Z2FtKBaqdte3Qqunh0LInLt+aa/9nnZQJ7laMaq3dzo=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-Dyt3mXBQ9+XOehNLfRPt1ZtpPpFSfNPE06wFzlgoaAA=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -359,7 +359,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.c5338849'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.134c57f3'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -546,7 +546,7 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
       root.setAttribute('aria-modal', 'true');
       root.setAttribute('aria-labelledby', 'plTitle');
       root.innerHTML = '<div class="pl-box">' + ICON + '<h2 class="pl-title" id="plTitle"></h2><p class="pl-msg" aria-live="polite"></p>' +
-        '<div class="pl-dots" aria-hidden="true"></div><div class="pl-keys"></div><div class="pl-foot"></div></div>';
+        '<div class="pl-dots" role="img" aria-label="0 of 6 digits entered"></div><div class="pl-keys"></div><div class="pl-foot"></div></div>';
       const box = root.querySelector('.pl-box'), title = root.querySelector('.pl-title'), msg = root.querySelector('.pl-msg');
       const dots = root.querySelector('.pl-dots'), keys = root.querySelector('.pl-keys'), foot = root.querySelector('.pl-foot');
       for (let i = 0; i < LEN; i++) { const d = document.createElement('span'); d.className = 'pl-dot'; dots.append(d); }
@@ -564,18 +564,36 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
       }
       let code = '', busy = false, timer = 0;
       const say = (t, m, err) => { title.textContent = t; msg.textContent = m || ''; msg.classList.toggle('err', !!err); };
-      const paint = () => [...dots.children].forEach((d, i) => d.classList.toggle('on', i < code.length));
+      // VoiceOver hears how many digits are in (never the digits), from a quiet line kept off the screen.
+      const sr = document.createElement('span');
+      sr.setAttribute('aria-live', 'polite');
+      Object.assign(sr.style, { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' });
+      root.querySelector('.pl-box').append(sr);
+      let lastSaid = '';
+      const announce = t => { if (t !== lastSaid) { lastSaid = t; sr.textContent = t; } };
+      const paint = () => {
+        [...dots.children].forEach((d, i) => d.classList.toggle('on', i < code.length));
+        dots.setAttribute('aria-label', `${code.length} of ${LEN} digits entered`);
+        if (code.length) announce(`${code.length} of ${LEN}`);
+      };
       const shake = () => { dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake'); };
       const waitLeft = () => (o.throttle ? Math.max(0, tries().until - Date.now()) : 0);
       const tick = () => {
         clearTimeout(timer);
         const ms = waitLeft();
         for (const b of buttons) if (b.dataset.k !== 'cancel') b.disabled = ms > 0;
-        if (ms <= 0) return;
+        if (ms <= 0) {
+          if (msg.getAttribute('aria-live') === 'off') { msg.setAttribute('aria-live', 'polite'); msg.textContent = ''; announce('You can try again now.'); }
+          return;
+        }
         const s = Math.ceil(ms / 1000);
-        msg.textContent = `Too many tries. Try again in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}.`;
+        msg.setAttribute('aria-live', 'off'); // the ticking clock is for the eyes; VoiceOver hears the minutes once
+        const text = `Too many tries. Try again in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}.`;
+        if (msg.textContent !== text) msg.textContent = text;
         msg.classList.add('err');
-        timer = setTimeout(tick, 500);
+        const mins = Math.ceil(s / 60);
+        announce(`Too many tries. Try again in ${mins === 1 ? 'about a minute' : `${mins} minutes`}.`);
+        timer = setTimeout(tick, 1000);
       };
       const onKey = e => {
         if (!root.isConnected) return;
@@ -757,6 +775,7 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
   --toast-bg: #000000;
   --toast-fg: #FFFFFF;
   --toast-action: #9DB2FF;
+  --on-red: #FFFFFF;
   --scrim: rgba(0, 0, 0, .3);
   --shadow: 0 14px 34px rgba(0, 0, 0, .2);
   --empty-bg: #F2F2F4;
@@ -788,6 +807,7 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
     --toast-bg: #2A2A2E;
     --toast-fg: #FFFFFF;
     --toast-action: #9DB2FF;
+    --on-red: #0B0B10;
     --scrim: rgba(0, 0, 0, .6);
     --shadow: 0 14px 34px rgba(0, 0, 0, .6);
     --empty-bg: #151517;
@@ -818,6 +838,7 @@ html.pl-up body > :not(.pl):not(.pl-cover) { visibility: hidden !important; }
   --toast-bg: #2A2A2E;
   --toast-fg: #FFFFFF;
   --toast-action: #9DB2FF;
+  --on-red: #0B0B10;
   --scrim: rgba(0, 0, 0, .6);
   --shadow: 0 14px 34px rgba(0, 0, 0, .6);
   --empty-bg: #151517;
@@ -956,13 +977,13 @@ button:disabled { cursor: default; }
 }
 .hero.is-empty { background: var(--empty-bg); color: var(--empty-fg); }
 .hero.c0 { --on-solid-wash: rgba(255, 255, 255, .2); }
-.hero-inner { display: grid; gap: 14px; }
+.hero-inner { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .hero.enter .hero-inner { animation: heroIn .45s cubic-bezier(.2, .8, .2, 1); }
 @keyframes heroIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-.hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; }
+.hero-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 30px; }
 .hero-kicker { flex: none; font-size: calc(15px * var(--ts)); font-weight: 600; color: var(--hero-soft, var(--on-solid-soft)); }
 .hero.is-empty .hero-kicker { color: var(--soft); }
-.hero-pills { display: flex; justify-content: flex-end; gap: 6px; min-width: 0; }
+.hero-pills { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; min-width: 0; max-width: 100%; }
 .hero-list, .hero-prio {
   padding: 5px 12px; border-radius: 999px; background: var(--hero-wash, var(--on-solid-wash));
   font-size: calc(14px * var(--ts)); font-weight: 700; white-space: nowrap;
@@ -1625,7 +1646,7 @@ button:disabled { cursor: default; }
 .trash-text { flex: 1; min-width: 0; }
 .trash-title { display: block; font-size: calc(16.5px * var(--ts)); font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
 .trash-meta { display: block; margin-top: 2px; font-size: calc(14px * var(--ts)); color: var(--soft); }
-.btn-danger.armed { background: var(--red); color: #FFFFFF; }
+.btn-danger.armed { background: var(--red); color: var(--on-red, #FFFFFF); }
 
 /* ---------- select several tasks: the rings turn into checkboxes ---------- */
 html.selecting .ring::before { border-radius: 8px; border-color: var(--soft); background: none; }
@@ -2005,7 +2026,7 @@ button.wk-head { cursor: pointer; }
   background: var(--head); color: var(--page); font-size: calc(11px * var(--ts)); font-weight: 800; line-height: 18px; text-align: center;
 }
 .dock-badge:empty { display: none; }
-.dock-badge.late { background: var(--red); color: #FFFFFF; }
+.dock-badge.late { background: var(--red); color: var(--on-red, #FFFFFF); }
 /* moving the list: one file out, one file in */
 .move-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .move-row .btn-small { height: 42px; }
@@ -2141,7 +2162,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 }
 .scope-n:empty { display: none; }
 .scope-tab[aria-pressed="true"] .scope-n { background: rgba(255, 255, 255, .25); color: inherit; }
-.scope-tab[data-scope="overdue"] .scope-n { background: var(--red); color: #FFFFFF; }
+.scope-tab[data-scope="overdue"] .scope-n { background: var(--red); color: var(--on-red, #FFFFFF); }
 @media (min-width: 600px) { .scope { margin-inline: 0; padding-inline: 0; } }
 
 /* ---------- the week strip ---------- */
@@ -2157,7 +2178,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 }
 .hero::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .2), transparent 55%);
+  background: radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .08), transparent 55%);
 }
 .hero.is-empty { box-shadow: none; border: 1px solid var(--card-line); }
 .hero.is-empty::after { display: none; }
@@ -2166,13 +2187,14 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 }
 .hero.c0:not(.is-empty) {
   background: var(--hero-bg, var(--grad)); color: var(--hero-ink, var(--on-accent));
-  --on-solid: var(--on-accent); --on-solid-soft: var(--on-accent); --on-solid-wash: rgba(255, 255, 255, .18);
+  --on-solid: var(--on-accent); --on-solid-soft: var(--on-accent); --on-solid-wash: var(--on-accent-wash, rgba(255, 255, 255, .18));
+  --solid: var(--accent); /* Mark done and ticked boxes: the accent, which --on-accent was picked for */
 }
 :root[data-skin] .hero.c0:not(.is-empty) { --on-solid-wash: var(--hero-wash, rgba(255, 255, 255, .2)); }
 .hero-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: calc(12.5px * var(--ts)); font-weight: 800; }
 .hero-title { font-size: calc(42px * var(--tsb)); font-weight: 900; font-stretch: 70%; letter-spacing: -.015em; }
 .hero-cd {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 18px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 12px 14px; border-radius: 18px;
   background: var(--hero-wash, var(--on-solid-wash));
 }
 .hero.is-empty .hero-cd { background: var(--wash); }
@@ -2203,7 +2225,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
   font-size: calc(13px * var(--ts)); font-weight: 800; font-stretch: 100%; line-height: 24px; text-align: center; color: var(--ink);
 }
 .sec-toggle { gap: 10px; }
-.sec[data-sec="overdue"] .count { background: var(--red); color: #FFFFFF; }
+.sec[data-sec="overdue"] .count { background: var(--red); color: var(--on-red, #FFFFFF); }
 .sec[data-sec="overdue"] h2::before { animation: pulseDot 1.6s ease-in-out infinite; }
 @supports (color: color-mix(in srgb, red, blue)) {
   .sec[data-sec="overdue"] {
@@ -2359,7 +2381,7 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .snap-rows { margin-bottom: 10px; }
 .snap-row { padding: 10px 10px 10px 14px; }
 .snap-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.btn-small.armed { background: var(--red); color: #FFFFFF; }
+.btn-small.armed { background: var(--red); color: var(--on-red, #FFFFFF); }
 
 /* ---------- focus ---------- */
 .focus {
@@ -2527,7 +2549,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       '--accent': acc, '--accent-2': acc2, '--on-accent': onAcc, '--accent-ink': accInk, '--accent-soft': rgba(acc, dark ? 0.18 : 0.12),
       '--grad': isHex(accent) || !v.grad ? `linear-gradient(135deg, ${acc} 0%, ${acc2} 100%)` : v.grad,
       '--glow': rgba(acc, dark ? 0.45 : 0.3), '--page-glow': v.glow || 'none',
-      '--on-solid': '#FFFFFF', '--on-solid-wash': 'rgba(255, 255, 255, .2)', '--on-solid-soft': 'rgba(255, 255, 255, .88)',
+      '--on-solid': '#FFFFFF', '--on-solid-wash': 'rgba(0, 0, 0, .22)', '--on-solid-soft': '#FFFFFF',
+      '--on-accent-wash': onAcc === '#FFFFFF' ? 'rgba(0, 0, 0, .22)' : 'rgba(255, 255, 255, .3)',
       '--fab-bg': acc, '--fab-fg': onAcc, '--toast-bg': toastBg, '--toast-fg': dark ? v.ink : v.page,
       '--toast-action': readable(dark ? accInk : mix(acc, '#FFFFFF', 0.45), dark ? v.ink : '#FFFFFF', [toastBg]),
       '--scrim': dark ? 'rgba(0, 0, 0, .62)' : 'rgba(12, 14, 30, .32)',
@@ -2535,7 +2558,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       '--empty-bg': card, '--empty-fg': v.ink,
       '--solid-0': dark ? mix(v.soft, v.page, 0.5) : v.ink, '--tone-0': v.soft,
       '--prio-3': v.red, '--prio-2': dark ? '#FFB547' : '#A15C00', '--prio-1': dark ? '#6AA8FF' : '#1F5FD6',
-      '--ok': dark ? '#3DDC97' : '#0A7A43',
+      '--ok': dark ? '#3DDC97' : '#0A7A43', '--on-red': onFill(v.red),
     };
     for (let i = 1; i < list.length; i++) { out['--solid-' + i] = list[i][0]; out['--tone-' + i] = list[i][1]; }
     return out;
@@ -2547,7 +2570,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const onAcc = onFill(acc);
     return { '--accent': acc, '--accent-2': shift(acc, 38), '--on-accent': onAcc, '--accent-ink': readable(acc, v.ink, [v.page, v.card || v.page]),
       '--accent-soft': rgba(acc, mode === 'dark' ? 0.18 : 0.12), '--grad': `linear-gradient(135deg, ${acc} 0%, ${shift(acc, 38)} 100%)`,
-      '--glow': rgba(acc, mode === 'dark' ? 0.45 : 0.3), '--fab-bg': acc, '--fab-fg': onAcc };
+      '--glow': rgba(acc, mode === 'dark' ? 0.45 : 0.3), '--fab-bg': acc, '--fab-fg': onAcc,
+      '--on-accent-wash': onAcc === '#FFFFFF' ? 'rgba(0, 0, 0, .22)' : 'rgba(255, 255, 255, .3)' };
   }
 
   // ---- what you picked: the look, light/dark/system, and an accent ----
@@ -4972,8 +4996,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   /* ---------- toast ---------- */
   let toastTimer = 0;
   let toastUndo = null;
+  let toastMs = 0;
+  let toastBack = null;
+  let toastHeld = false; // keyboard or VoiceOver focus on the toast (or a mouse over it) holds it until it's let go
   function toast(msg, undo, label = 'Undo', ms = 0) {
     const el = $('#toast');
+    if (!el.contains(document.activeElement)) toastBack = document.activeElement;
     $('#toastMsg').textContent = msg;
     toastUndo = typeof undo === 'function' ? undo : null;
     $('#toastUndo').textContent = label;
@@ -4981,10 +5009,25 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     el.classList.toggle('has-action', !!toastUndo);
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, ms || (toastUndo ? 6000 : 3000));
+    toastMs = ms || (toastUndo ? 6000 : 3000);
+    if (!toastHeld) toastTimer = setTimeout(hideToast, toastMs);
+  }
+  {
+    const el = $('#toast');
+    const hold = () => { toastHeld = true; clearTimeout(toastTimer); };
+    const resume = () => {
+      toastHeld = false;
+      if (el.classList.contains('show')) { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, Math.max(4000, toastMs)); }
+    };
+    el.addEventListener('focusin', hold);
+    el.addEventListener('focusout', () => setTimeout(() => { if (!el.contains(document.activeElement)) resume(); }, 0));
+    el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hold(); });
+    el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') resume(); });
   }
   function hideToast() {
     clearTimeout(toastTimer);
+    const el = $('#toast');
+    if (el.contains(document.activeElement) && toastBack && toastBack.isConnected) { try { toastBack.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
     $('#toast').classList.remove('show');
     $('#toastUndo').hidden = true;
     toastUndo = null;
@@ -5007,7 +5050,18 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     clearTimeout(S.linger.get(id));
     S.linger.delete(id);
     if (done) {
-      S.linger.set(id, setTimeout(() => { S.linger.delete(id); render(); }, reduced() ? 350 : 1000));
+      S.linger.set(id, setTimeout(() => {
+        S.linger.delete(id);
+        const li = rowEls.get(id);
+        const had = !!(li && li.contains(document.activeElement));
+        const near = had ? rowsAround(id) : [];
+        render();
+        // The row just moved into Done: VoiceOver and the keyboard go on to the next task instead of the top of the page.
+        if (had && !(li.isConnected && li.offsetParent && li.contains(document.activeElement))) {
+          const to = near.map(n => rowEls.get(n)).find(x => x && x.isConnected && x.offsetParent);
+          if (to) to.querySelector('.ring').focus({ preventScroll: true });
+        }
+      }, reduced() ? 350 : 1000));
       const li = rowEls.get(id);
       if (li) { li.classList.remove('pop'); void li.offsetWidth; li.classList.add('pop'); }
       buzz(12);
@@ -5043,6 +5097,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       else unrecordDone(id, t.doneAt);
     }
     render();
+  }
+  // The tasks showing on the list after this one, then the ones before it (nearest first): where focus goes when it leaves.
+  function rowsAround(id) {
+    const order = [...document.querySelectorAll('#board .task')].filter(x => x.offsetParent).map(x => x.dataset.id);
+    const i = order.indexOf(id);
+    return i < 0 ? order : [...order.slice(i + 1), ...order.slice(0, i).reverse()];
   }
   // A tap that checks a task off moves it to Done, out of sight, so it says so and offers Undo
   // (a repeating task already says when the next one is due).
@@ -7959,6 +8019,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     saveFocus();
     buzz(10);
     paintFocus();
+    $('#focusPause').focus({ preventScroll: true }); // Start hides itself; Pause takes its place
   }
   function pauseFocus() {
     if (!focus.on) return;
@@ -8311,6 +8372,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       prog.setAttribute('aria-label', `${doneToday} of ${total} done today`);
     }
     $('#todayBadge').textContent = late ? String(late) : '';
+    $('#dockToday').setAttribute('aria-label', late ? `Today, ${plural(late, 'task', 'tasks')} overdue` : 'Today');
     renderTopExtras({ open: today, late, done: doneToday, total });
     if (!today && !late) {
       sum.textContent = doneToday ? 'Everything due today is done.' : 'Nothing due today.';
@@ -10197,7 +10259,10 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       open.disabled = !writable() || next.done;
       open.setAttribute('aria-label', `Edit task: ${text}`);
       doneBtn.hidden = false;
-      doneBtn.disabled = !writable() || next.done;
+      const doneOff = !writable() || next.done;
+      // Disabling the focused button would drop focus to the page, so it only says it's unavailable while focused.
+      if (doneOff && document.activeElement === doneBtn) doneBtn.setAttribute('aria-disabled', 'true');
+      else { doneBtn.removeAttribute('aria-disabled'); doneBtn.disabled = doneOff; }
       $('#heroDoneLabel').textContent = next.done ? 'Done' : 'Mark done';
       laterBtn.hidden = next.done || !(!next.due || next.due <= S.today);
       laterBtn.disabled = !writable();
@@ -10843,7 +10908,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#fab').addEventListener('click', () => openTaskSheet('new'));
   $('#heroAdd').addEventListener('click', () => openTaskSheet('new'));
   $('#heroOpen').addEventListener('click', () => { if (S.heroId) openTaskSheet('edit', S.heroId); });
-  $('#heroDone').addEventListener('click', () => { if (S.heroId) checkOff(S.heroId); });
+  $('#heroDone').addEventListener('click', e => { if (S.heroId && e.currentTarget.getAttribute('aria-disabled') !== 'true') checkOff(S.heroId); });
   $('#heroLater').addEventListener('click', () => { if (S.heroId) moveToTomorrow(S.heroId); });
   $('#hero').addEventListener('animationend', () => $('#hero').classList.remove('enter'));
   $('#heroCheck').addEventListener('click', e => {
@@ -11392,6 +11457,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#sheetDelete').addEventListener('click', () => {
     const sh = S.sheet;
     if (!sh || sh.mode !== 'edit') return;
+    const near = rowsAround(sh.id).map(n => rowEls.get(n)).find(Boolean); // its row goes: focus lands on the next one
+    if (near) lastFocus = near.querySelector('.ring');
     closeTaskSheet();
     deleteTask(sh.id);
   });

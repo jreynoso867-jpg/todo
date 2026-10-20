@@ -269,3 +269,129 @@ test('New job on a client that already has one today opens that job instead of m
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+// Contrast of two computed CSS colors (rgb()/rgba(), alpha laid over white), as WCAG defines it.
+const CONTRAST = `(() => {
+  const parse = c => { const m = c.match(/[\\d.]+/g).map(Number); const a = m.length > 3 ? m[3] : 1; return m.slice(0, 3).map(v => v * a + 255 * (1 - a)); };
+  const lum = c => { const [r, g, b] = parse(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  return (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+})()`;
+
+test('Mark done on an Up next card with no list reads clearly in every look, mode and accent', async () => {
+  const fx = smallFixture();
+  delete fx.docs['tasks/t_overdue'];
+  fx.docs['tasks/t_today_timed'] = { ...fx.docs['tasks/t_today_timed'], due: addDays(fx.today, 1) };
+  fx.docs['tasks/t_today_untimed'] = { ...fx.docs['tasks/t_today_untimed'], list: null, pinned: false };
+  const { ctx, page, errors } = await phone(fx);
+  assert.equal(await page.evaluate(() => document.querySelector('#hero').dataset.id), 't_today_untimed');
+  const bad = await page.evaluate(async src => {
+    const contrast = eval(src);
+    const out = [];
+    for (const t of window.todoTheme.themes.filter(x => x.kind !== 'skin')) {
+      for (const mode of t.modes) {
+        for (const accent of ['', '#FFC53D', '#B8FF3C', '#2563FF']) {
+          window.todoTheme.set({ look: t.id, appearance: mode, accent });
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const cs = getComputedStyle(document.querySelector('#heroDone'));
+          const c = contrast(cs.color, cs.backgroundColor);
+          if (c < 4.5) out.push(`${t.id}/${mode}/${accent || 'own'} ${c.toFixed(2)}`);
+        }
+      }
+    }
+    return out;
+  }, CONTRAST);
+  assert.deepEqual(bad, []);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the red overdue counts read clearly in every look and mode', async () => {
+  const { ctx, page, errors } = await phone();
+  const bad = await page.evaluate(async src => {
+    const contrast = eval(src);
+    const out = [];
+    for (const t of window.todoTheme.themes.filter(x => x.kind !== 'skin')) {
+      for (const mode of t.modes) {
+        window.todoTheme.set({ look: t.id, appearance: mode, accent: '' });
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        for (const sel of ['.sec[data-sec="overdue"] .count', '#todayBadge']) {
+          const el = document.querySelector(sel);
+          if (!el || !el.textContent) continue;
+          const cs = getComputedStyle(el);
+          const c = contrast(cs.color, cs.backgroundColor);
+          if (c < 4.5) out.push(`${t.id}/${mode} ${sel} ${c.toFixed(2)}`);
+        }
+      }
+    }
+    return out;
+  }, CONTRAST);
+  assert.deepEqual(bad, []);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('at Extra large text on a small iPhone, nothing on the Up next card is cut off', async () => {
+  const fx = smallFixture();
+  fx.local['todo.textSize'] = 'xl';
+  fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
+  const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
+  const over = await page.evaluate(() => {
+    const hero = document.querySelector('#hero');
+    const box = hero.getBoundingClientRect();
+    const right = box.right - parseFloat(getComputedStyle(hero).paddingRight) + 0.5;
+    return [...hero.querySelectorAll('*')].filter(el => el.offsetParent && el.getClientRects().length)
+      .filter(el => el.getBoundingClientRect().right > right && !el.closest('.hero-title'))
+      .map(el => `${el.id || el.className}: ${Math.round(el.getBoundingClientRect().right - right)}px`);
+  });
+  assert.deepEqual(over, []);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('VoiceOver and keyboard: focus moves on after a check-off, a toast waits while focused, and the badge says what it counts', async () => {
+  const { ctx, page, errors } = await phone();
+  assert.match(await page.getAttribute('#dockToday', 'aria-label'), /overdue/);
+  const first = await page.$eval('#board .sec:not([hidden]) .task', li => li.dataset.id);
+  await page.focus(`.task[data-id="${first}"] .ring`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1500);
+  const where = await page.evaluate(() => {
+    const a = document.activeElement;
+    return a && a.classList.contains('ring') ? a.closest('.task').dataset.id : (a ? a.tagName : 'none');
+  });
+  assert.ok(where !== 'BODY' && where !== first, `focus went to ${where}`);
+  await page.focus('#toastUndo');
+  await page.waitForTimeout(7000);
+  assert.ok(await page.evaluate(() => document.querySelector('#toast').classList.contains('show')), 'the toast stays while focused');
+  await page.focus('#quickInput');
+  await page.waitForTimeout(6500); // an Undo toast gets its full 6 seconds again once let go
+  assert.ok(await page.evaluate(() => !document.querySelector('#toast').classList.contains('show')), 'and goes once let go');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the passcode keypad says how many digits are in, and a lockout is announced once', async () => {
+  const { ctx, page, errors } = await phone();
+  const keys = async code => { for (const k of code) await page.click(`.pl-key[data-k="${k}"]`); await page.waitForTimeout(250); };
+  await page.click('#colorsBtn');
+  await page.click('#lockOn');
+  await keys('135792');
+  await keys('135792');
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.waitForSelector('.pl-key');
+  await page.click('.pl-key[data-k="1"]');
+  await page.click('.pl-key[data-k="3"]');
+  assert.equal(await page.getAttribute('.pl-dots', 'aria-label'), '2 of 6 digits entered');
+  await page.click('.pl-key[data-k="del"]');
+  await page.click('.pl-key[data-k="del"]');
+  for (let i = 0; i < 5; i++) await keys('000000');
+  await page.waitForTimeout(400);
+  const lock = await page.evaluate(() => ({ msgLive: document.querySelector('.pl-msg').getAttribute('aria-live'), msg: document.querySelector('.pl-msg').textContent,
+    said: [...document.querySelectorAll('.pl-box [aria-live="polite"]')].map(e => e.textContent).join(' | ') }));
+  assert.equal(lock.msgLive, 'off', 'the ticking clock is not read out');
+  assert.match(lock.msg, /Try again in \d+:\d\d/);
+  assert.match(lock.said, /Try again in about a minute|Try again in \d+ minutes/);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
