@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Z2FtKBaqdte3Qqunh0LInLt+aa/9nnZQJ7laMaq3dzo=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-Dyt3mXBQ9+XOehNLfRPt1ZtpPpFSfNPE06wFzlgoaAA=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-gldoEjKB+60Fc6HFY9Q6BvMaUnNjYLMYd/ojKcV2k2U=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-Dyt3mXBQ9+XOehNLfRPt1ZtpPpFSfNPE06wFzlgoaAA=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -235,6 +235,15 @@ img { max-width: 100%; }
         secureContext: window.isSecureContext === true, passcodeLock: !!(window.crypto && crypto.subtle), indexedDB: typeof indexedDB,
       })));
     }
+    // Test builds also say which reminders iOS holds, waiting and already come, so the build's report can tell "never
+    // kept" from "kept, never came" from "came, not seen" (schedule() answers before iOS has taken the reminder).
+    async function holds(when) {
+      const titles = async fn => { try { const r = await fn(); return ((r && r.notifications) || []).map(n => String((n && n.title) || '')); } catch (e) { return ['(could not ask)']; } };
+      const waiting = await titles(() => LN().getPending()), come = await titles(() => LN().getDeliveredNotifications());
+      console.info(`[To-Do] iOS holds ${when} ` + JSON.stringify({ waiting, come }));
+    }
+    // The first look comes before this start sets anything: it shows what was left when the app was closed.
+    const firstLook = debug && has('LocalNotifications') ? holds('at start') : null;
     return {
       on,
       debug,
@@ -302,6 +311,7 @@ img { max-width: 100%; }
         // list: [{ id (a whole number), title, body, at (ms), taskId }]. Whatever is waiting and not in the list is taken back.
         async set(list) {
           if (!has('LocalNotifications')) return false;
+          if (firstLook) await firstLook;
           const now = Date.now();
           const valid = list.filter(n => Number.isInteger(n.id) && n.id > 0 && n.at > now);
           const want = new Set(valid.map(n => n.id)); // one due in the next few seconds is left to come as it is
@@ -318,6 +328,7 @@ img { max-width: 100%; }
               ...(n.foreground === false ? { foreground: false } : {}), // not shown while the app is open
             })) });
           }
+          if (debug) setTimeout(() => holds('after setting'), 1500);
           return true;
         },
         onTap(fn) { tapFn = fn; if (tapped) { const t = tapped; tapped = null; fn(t); } },
@@ -359,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.134c57f3'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.de995db2'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
