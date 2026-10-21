@@ -236,8 +236,8 @@ jobs:
           for f in shots/1-light.png shots/2-dark.png shots/3-reminder.png; do
             [ -f "$f" ] && echo "::notice title=On screen ($(basename "$f" .png))::$("$RUNNER_TEMP/screen-text" "$f" | cut -c1-3000)"
           done
-          # One note, in order (a step keeps only 10 notes, and the pictures above take 3)
-          SAID=$(for n in 1 2 3; do [ -f "shots/app-$n.txt" ] && grep -h "\[To-Do\]" "shots/app-$n.txt" | sed "s/.*\[To-Do\] /start $n: /"; done | awk '!seen[$0]++' | awk 'BEGIN { ORS = "" } { if (NR > 1) print " | "; print }' || true)
+          # One note, in order (a step keeps only 10 notes, and the pictures above take 3); the app's lines end in \r\n
+          SAID=$(for n in 1 2 3; do [ -f "shots/app-$n.txt" ] && grep -h "\[To-Do\]" "shots/app-$n.txt" | tr -d '\r' | sed "s/.*\[To-Do\] /start $n: /"; done | awk '!seen[$0]++' | awk 'BEGIN { ORS = "" } { if (NR > 1) print " | "; print }' || true)
           [ -z "$SAID" ] || echo "::notice title=App said::${SAID:0:4000}"
           grep -hiE "\[error\]|exception|refused|failed" shots/app-*.txt | sort -u | head -5 | while IFS= read -r line; do echo "::warning title=App error::${line:0:1000}"; done || true
 
