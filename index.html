@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Q66jRRHPCqY+4vuF7PbNfoLX+q+aKzvP3xOSYYOmA7M=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-g710l6VL9Aj7bhPlTz6U2tNqcHyxCWdzCGiSx+1gSw4=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1VISosxMDBr0++B+wfrNYqghybZqFzWPBe6O8h1T+9c=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-wFXVCWbB4g68qm+Micv/NiXrHJdbZ7E3qeDD+9F8PfU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.996739df'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.585f20e7'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2603,6 +2603,45 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 #shopInput:placeholder-shown + .shop-add { background: var(--wash); color: var(--soft); }
 .shop-add .ico { width: 22px; height: 22px; stroke-width: 2.4; }
 .app.has-bar { padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+/* The Wish list's card (and Savings goals'), under the shopping lists */
+#listsWish .lcard-head .ico { color: var(--pop); }
+/* The Wish list: back (‹) in a round button over the title, like the screenshot; a chip for each kind; a card per wish
+   with its kind in raspberry (Travel in the quiet ink), its words, its price, a heart at the top and its link below. */
+.wish-back { margin: -6px 0 14px -2px; border: 1px solid var(--card-line); background: var(--card); box-shadow: var(--card-shadow); }
+.wish-chips { margin-top: 20px; }
+.wish-chips .chip { height: 42px; padding: 0 20px; }
+#wishGrid { margin-top: 14px; }
+#wishView .card-empty { margin-top: 16px; }
+.wish-card { position: relative; padding: 0; gap: 0; min-height: 132px; }
+.wish-open {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 14px 14px 14px 16px;
+  border: 0; border-radius: inherit; background: none; color: inherit; text-align: left;
+}
+.wish-cat {
+  display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 26px; padding-right: 30px;
+  font-size: calc(14.5px * var(--ts)); font-weight: 700; line-height: 1.2; color: var(--pop-ink); overflow-wrap: anywhere;
+}
+.wish-cat .ico { width: 20px; height: 20px; stroke-width: 1.9; }
+.wish-card.is-travel .wish-cat { color: var(--soft); font-weight: 600; }
+.wish-name {
+  font-size: calc(16.5px * var(--ts)); font-weight: 650; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+}
+.wish-price { margin-top: auto; padding-top: 4px; font-size: calc(15px * var(--ts)); color: var(--soft); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.wish-card.has-link .wish-price { padding-right: 38px; }
+.wish-card.has-link:not(.has-price) .wish-open { padding-bottom: 48px; }
+.wish-heart { position: absolute; top: 4px; right: 2px; color: var(--soft); }
+.wish-heart .ico { width: 24px; height: 24px; stroke-width: 2; }
+.wish-heart[aria-pressed="true"] { background: none; color: var(--pop); } /* the filled heart says it, no circle behind */
+.wish-heart[aria-pressed="true"] .ico { fill: currentColor; }
+.wish-link { position: absolute; right: 3px; bottom: 3px; color: var(--pop); }
+.wish-link .ico { width: 23px; height: 23px; }
+.wish-got .wish-name { color: var(--soft); }
+.wish-got .shop-done-head { min-height: 44px; }
+#wishGotBox { margin-top: 8px; }
+/* the wish sheet: the note's box grows with it; Got it (or Not yet) under Save */
+.text-input.text-area { height: auto; min-height: 96px; padding: 12px 14px; line-height: 1.4; font-weight: 500; resize: vertical; }
+#wishGotBtn { margin-top: 12px; }
 /* Calendar: the month (or the week) on a card */
 .cal-card {
   margin-top: 18px; padding: 14px 12px 4px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
@@ -3151,7 +3190,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   <div class="pane-head">
     <div class="pane-head-text">
       <h1 class="pane-title" id="listsPaneTitle" tabindex="-1">Lists</h1>
-      <p class="pane-sub">Shopping, your task lists, orders and clients</p>
+      <p class="pane-sub">Shopping, wishes, your task lists, orders and clients</p>
     </div>
   </div>
   <!-- Shopping lists (a card each, two to a row), then the Wish list and Savings goals: filled in by their own parts of
@@ -3159,7 +3198,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   <h2 class="pane-h2" id="shopTitle" hidden>Shopping lists</h2>
   <div class="lcards" id="shopCards" role="group" aria-labelledby="shopTitle" hidden></div>
   <p class="card-empty" id="shopCardsEmpty" hidden>No shopping lists yet. Tap New list to start one.</p>
-  <div class="lcards" id="moreCards" role="group" aria-label="Wish list and savings goals" hidden></div>
+  <h2 class="pane-h2" id="moreTitle" hidden>Wishes</h2>
+  <div class="lcards" id="moreCards" role="group" aria-labelledby="moreTitle" hidden>
+    <button type="button" class="lcard lcard-go" id="listsWish"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg><span class="lcard-name">Wish list</span></span><span class="lcard-sub" id="listsWishSub"></span></button>
+  </div>
   <h2 class="pane-h2" id="taskListsTitle">Task lists</h2>
   <div class="lcards" id="taskListCards" role="group" aria-labelledby="taskListsTitle"></div>
   <p class="card-empty" id="taskListsEmpty" hidden>No lists yet. Lists keep work and home apart.</p>
@@ -3187,6 +3229,28 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
         <button type="button" class="link-btn" id="shopClear">Clear done</button>
       </div>
       <div class="shop-list" id="shopDoneBox" hidden><ul class="shop-rows" id="shopDoneRows" aria-label="Done"></ul></div>
+    </section>
+  </section>
+  <!-- The Wish list, open in place of the cards: a chip for each kind, a card per wish, the ones got folded at the end. -->
+  <section class="wish-view" id="wishView" aria-labelledby="wishPaneTitle" hidden>
+    <button type="button" class="icon-btn wish-back" id="wishBack" aria-label="Back to Lists"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h1 class="pane-title" id="wishPaneTitle" tabindex="-1">Wish list</h1>
+    <p class="pane-sub" id="wishSub">Places, things and plans you want</p>
+    <div class="chips scroll wish-chips" id="wishChips" role="group" aria-label="Show">
+      <button type="button" class="chip" data-wish-cat="all" aria-pressed="true">All</button>
+      <button type="button" class="chip" data-wish-cat="travel" aria-pressed="false">Travel</button>
+      <button type="button" class="chip" data-wish-cat="food" aria-pressed="false">Food</button>
+      <button type="button" class="chip" data-wish-cat="plans" aria-pressed="false">Plans</button>
+      <button type="button" class="chip" data-wish-cat="shopping" aria-pressed="false">Shopping</button>
+      <button type="button" class="chip" data-wish-cat="other" aria-pressed="false">Other</button>
+    </div>
+    <div class="lcards wish-grid" id="wishGrid" role="group" aria-label="Wishes"></div>
+    <p class="card-empty" id="wishEmpty" hidden></p>
+    <section class="shop-done wish-got" id="wishGot" aria-labelledby="wishGotToggle" hidden>
+      <div class="shop-done-head">
+        <h2><button type="button" class="sec-toggle" id="wishGotToggle" aria-expanded="false" aria-controls="wishGotBox">Got it<span class="count" id="wishGotN"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></h2>
+      </div>
+      <div class="lcards wish-grid" id="wishGotBox" role="group" aria-label="Got it" hidden></div>
     </section>
   </section>
   </section>
@@ -3562,6 +3626,50 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   </div>
 </section>
 
+<section class="sheet c0" id="wishSheet" role="dialog" aria-modal="true" aria-labelledby="wishSheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="wishCancel">Cancel</button>
+      <h2 id="wishSheetTitle">New wish</h2>
+      <span></span>
+    </div>
+    <form id="wishForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="field-label" for="wishName">What is it?</label>
+        <input id="wishName" class="text-input" type="text" maxlength="120" placeholder="Like a trip, a dinner out or a lamp" enterkeyhint="done" autocapitalize="sentences" aria-describedby="wishNameError">
+        <p class="field-error" id="wishNameError" hidden>Type what it is first.</p>
+      </div>
+      <div class="field">
+        <span class="field-label" id="wishCatLabel">Category</span>
+        <div class="chips wrap" id="wishCats" role="group" aria-labelledby="wishCatLabel">
+          <button type="button" class="chip" data-wish-pick="travel" aria-pressed="false">Travel</button>
+          <button type="button" class="chip" data-wish-pick="food" aria-pressed="false">Food</button>
+          <button type="button" class="chip" data-wish-pick="plans" aria-pressed="false">Plans</button>
+          <button type="button" class="chip" data-wish-pick="shopping" aria-pressed="false">Shopping</button>
+          <button type="button" class="chip" data-wish-pick="other" aria-pressed="true">Other</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="wishPrice">Price</label>
+        <input id="wishPrice" class="text-input" type="text" inputmode="decimal" maxlength="24" placeholder="$0.00" enterkeyhint="done" autocapitalize="off" spellcheck="false" aria-describedby="wishPriceError">
+        <p class="field-error" id="wishPriceError" hidden>Type a price like 120 or 89.99, or leave it empty.</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="wishLink">Link</label>
+        <input id="wishLink" class="text-input" type="url" inputmode="url" maxlength="2000" placeholder="https://" enterkeyhint="done" autocapitalize="off" spellcheck="false" aria-describedby="wishLinkError">
+        <p class="field-error" id="wishLinkError" hidden>Only a web link that starts with https:// can be kept.</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="wishNote">Note</label>
+        <textarea id="wishNote" class="text-input text-area" rows="3" maxlength="1000" placeholder="Where, when, which one" autocapitalize="sentences"></textarea>
+      </div>
+      <button type="submit" class="btn-primary" id="wishSave">Add wish</button>
+      <button type="button" class="btn-report" id="wishGotBtn" hidden>Got it</button>
+      <button type="button" class="btn-danger" id="wishDelete" hidden>Delete wish</button>
+    </form>
+  </div>
+</section>
+
 <section class="sheet c0" id="colorsSheet" role="dialog" aria-modal="true" aria-labelledby="colorsTitle" tabindex="-1" hidden>
   <div class="sheet-inner">
     <div class="sheet-head">
@@ -3866,9 +3974,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     goalEntriesLoaded: false,
     datesLoaded: false,
     binLoaded: false,
-    sub: null,                  // a list open on the Lists tab, for this visit only: { kind: 'shop', id }
+    sub: null,                  // a list open on the Lists tab, for this visit only: { kind: 'shop', id } or { kind: 'wish' }
     shopOpen: false,            // the sheet for a shopping list's name and color
     itemOpen: false,            // the sheet for one item on it
+    wishOpen: false,            // the sheet for a wish (a new one, or one tapped)
   };
   const DONE_PAGE = 100;
   let db = null;
@@ -6208,6 +6317,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (S.colorsOpen) { S.colorsOpen = false; closeSheet($('#colorsSheet')); }
     closeShopSheet();
     closeItemSheet();
+    closeWishSheet();
     closeTrash();
     closeAsk();
     closeClients();
@@ -8647,13 +8757,14 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     }
   }
   // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a shopping list (Lists; the task lists have
-  // their own Edit lists), or a task on the day being looked at, else today (Calendar). In an open shopping list it's
-  // the add bar instead.
+  // their own Edit lists), a wish (the Wish list), or a task on the day being looked at, else today (Calendar). In an
+  // open shopping list it's the add bar instead.
   const NEW_LABEL = { lists: 'New list', calendar: 'New event' };
   function newHere() {
     if (!writable()) return;
     if (S.tab === 'lists') {
-      if (S.sub) $('#shopInput').focus();
+      if (S.sub && S.sub.kind === 'wish') openWishSheet();
+      else if (S.sub) $('#shopInput').focus();
       else openShopSheet();
       return;
     }
@@ -8663,8 +8774,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const cur = shownTab();
     const can = writable() && !S.selecting;
     $('#fab').hidden = !can || cur !== 'tasks';
-    const label = NEW_LABEL[cur];
-    $('#newBtn').hidden = !can || !label || !S.tasksLoaded || (cur === 'lists' && !!S.sub);
+    const wishing = cur === 'lists' && !!S.sub && S.sub.kind === 'wish';
+    const label = wishing ? 'New wish' : NEW_LABEL[cur];
+    $('#newBtn').hidden = !can || !label || !S.tasksLoaded || (cur === 'lists' && !!S.sub && !wishing);
     if (label && $('#newBtnText').textContent !== label) $('#newBtnText').textContent = label;
   }
 
@@ -8879,15 +8991,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     window.scrollTo(0, 0);
     if (o.focus !== false) $('#shopName').focus({ preventScroll: true });
   }
-  function closeShop(o = {}) {
+  // Back to the Lists cards from whatever is open there (a shopping list, or the Wish list), focus on the card it came from.
+  function closeSub(o = {}) {
     if (!S.sub) return;
-    const id = S.sub.id;
+    const was = S.sub;
     S.sub = null;
     shopAdded = null;
     $('#shopInput').value = '';
     render();
     window.scrollTo(0, listsScroll);
-    if (o.focus !== false) ($(`[data-shop-open="${CSS.escape(id)}"]`) || $('#listsPaneTitle')).focus({ preventScroll: true });
+    if (o.focus === false) return;
+    const from = was.kind === 'wish' ? $('#listsWish') : $(`[data-shop-open="${CSS.escape(was.id)}"]`);
+    (from && from.offsetParent ? from : $('#listsPaneTitle')).focus({ preventScroll: true });
   }
 
   function shopCard(l, items, can) {
@@ -9017,7 +9132,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
   function renderShop() {
     const onLists = shownTab() === 'lists';
-    let sub = S.sub;
+    let sub = S.sub && S.sub.kind === 'shop' ? S.sub : null; // (the Wish list draws itself)
     // A list that's gone (deleted here or on another device) closes; one just made shows while it saves.
     if (sub && onLists && S.shopListsLoaded && !S.shopLists.has(sub.id) && !sub.pending) {
       const had = $('#shopView').contains(document.activeElement) || $('#shopBar').contains(document.activeElement);
@@ -9028,11 +9143,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#shopBar').hidden = !barOn;
     $('#app').classList.toggle('has-bar', barOn);
     if (!onLists) return;
-    $('#listsHome').hidden = !!sub;
+    $('#listsHome').hidden = !!S.sub;
     $('#shopView').hidden = !sub;
     const by = shopItemsByList();
     if (sub) renderShopView(sub, by);
-    else renderShopCards(by);
+    else if (!S.sub) renderShopCards(by);
   }
 
   // What's typed in the add bar: a web link at the end (or alone) becomes the item's link, and only an https one (see
@@ -9048,7 +9163,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
   function addShopItem() {
     const input = $('#shopInput');
-    if (!S.sub || !writable()) return;
+    if (!S.sub || S.sub.kind !== 'shop' || !writable()) return;
     const { text, link } = readShopInput(input.value);
     if (!text) return;
     const id = addRecord('shopItems', { list: S.sub.id, text, link });
@@ -9064,7 +9179,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     buzz(10);
   }
   function clearShopDone() {
-    if (!S.sub || !writable()) return;
+    if (!S.sub || S.sub.kind !== 'shop' || !writable()) return;
     const done = (shopItemsByList().get(S.sub.id) || []).filter(i => i.done);
     if (done.length) binMany(done.map(i => ['shopItems', i.id]), `Cleared ${plural(done.length, 'item', 'items')}`);
   }
@@ -9114,14 +9229,14 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     Promise.resolve(saving).then(ok => {
       if (!S.sub || S.sub.id !== made) return;
       S.sub.pending = false;
-      if (ok === false) closeShop(); else render();
+      if (ok === false) closeSub(); else render();
     });
   }
   function deleteShopList(id) {
     const raw = S.shopLists.get(id);
     if (!raw || !writable()) return;
     closeShopSheet();
-    if (S.sub && S.sub.id === id) closeShop({ focus: false });
+    if (S.sub && S.sub.id === id) closeSub({ focus: false });
     $('#listsPaneTitle').focus({ preventScroll: true });
     binMany([['shopLists', id]], `Deleted “${clean(shopListView(id, raw).name, 60)}”`);
   }
@@ -9210,6 +9325,215 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   function renderShopSheets() {
     if (S.shopOpen && shopEditing && !S.shopLists.has(shopEditing)) closeShopSheet();
     renderItemSheet();
+  }
+
+  /* ---------- the wish list: its card on Lists opens it; a chip for each kind, a card per wish, Got it folded below ---------- */
+  // Their records are under "shopping lists, wishes, savings goals and important dates" above; this is their screen. It
+  // opens in place of the Lists cards (S.sub is { kind: 'wish' }, for this visit only). The chip picked is kept while the
+  // app is open, never saved. Wishes keep their order by rank; the ones got wait under Got it (folded) until Not yet.
+  const WISH_KIND = {
+    travel: ['Travel', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5h18"/><path d="M4.6 13.6l-1.8-3.3 1.6-.4 2.4 1.7 3.6-1-3-4.7 1.9-.5 5.4 4.1 3.8-1a1.7 1.7 0 0 1 .9 3.3L6.3 15.2z"/></svg>'],
+    food: ['Food', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5v17M4.5 3.5V8a2.5 2.5 0 0 0 5 0V3.5"/><path d="M17.5 20.5v-17c-2.2.8-3.5 3.4-3.5 7.5v2.5h3.5"/></svg>'],
+    plans: ['Plans', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1v2.2a2.3 2.3 0 0 0 0 4.6v2.2a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-2.2a2.3 2.3 0 0 0 0-4.6z"/><path d="M14.5 7v1.5M14.5 11.25v1.5M14.5 15.5V17"/></svg>'],
+    shopping: ['Shopping', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4.5h13a1 1 0 0 1 1 1V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V5.5a1 1 0 0 1 1-1z"/><path d="M8.5 8.5a3.5 3.5 0 0 0 7 0"/></svg>'],
+    other: ['Other', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.3 5.2 5.7.6-4.3 3.8 1.2 5.6L12 15.8l-4.9 2.9 1.2-5.6L4 9.3l5.7-.6z"/></svg>'],
+  };
+  const HEART_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>';
+  // A wish as shown: its link and price are checked again (another device, or an older file, could have put anything there).
+  const wishOf = (id, d) => ({ id, title: clean(d.title, 120) || 'Untitled wish', category: WISH_CATS.includes(d.category) ? d.category : 'other',
+    priceCents: isCents(d.priceCents) && d.priceCents >= 0 ? d.priceCents : null, link: cleanLink(d.link), hearted: d.hearted === true,
+    got: d.got === true, rank: finite(d.rank), createdAt: finite(d.createdAt) });
+  const sortedWishes = () => [...S.wishes].filter(([, d]) => isPlain(d)).map(([id, d]) => wishOf(id, d)).sort(shopOrder); // by rank, like items
+  let wishCat = 'all';      // the chip picked: 'all' or one of WISH_CATS
+  let wishGotOpen = false;  // whether Got it is unfolded
+  // From its card on Lists (or from anywhere else, which goes to Lists first). o.focus: false leaves focus be.
+  function openWish(o = {}) {
+    if (S.tab !== 'lists') setTab('lists', { focus: false });
+    if (!S.sub) listsScroll = window.scrollY;
+    S.sub = { kind: 'wish' };
+    wishGotOpen = false;
+    shopAdded = null;
+    $('#shopInput').value = '';
+    render();
+    window.scrollTo(0, 0);
+    if (o.focus !== false) $('#wishPaneTitle').focus({ preventScroll: true });
+  }
+
+  function wishCard(w, can) {
+    const [label, icon] = WISH_KIND[w.category];
+    const price = w.priceCents === null ? '' : money(w.priceCents);
+    const card = el('div', `lcard wish-card is-${w.category}${price ? ' has-price' : ''}${w.link ? ' has-link' : ''}`);
+    card.dataset.wishCard = w.id;
+    const go = el('button', 'wish-open');
+    go.type = 'button';
+    go.dataset.wishOpen = w.id;
+    go.disabled = !can;
+    go.setAttribute('aria-label', `${w.title}, ${label}${price ? ', ' + price : ''}. Edit the wish`);
+    const kind = el('span', 'wish-cat');
+    kind.innerHTML = icon; // (a fixed icon; the words go in as text below)
+    kind.append(el('span', '', label));
+    go.append(kind, el('span', 'wish-name', w.title));
+    if (price) go.append(el('span', 'wish-price', price));
+    const heart = el('button', 'icon-btn wish-heart');
+    heart.type = 'button';
+    heart.dataset.wishHeart = w.id;
+    heart.disabled = !can;
+    heart.setAttribute('aria-pressed', String(w.hearted));
+    heart.setAttribute('aria-label', `Favorite: ${w.title}`);
+    heart.innerHTML = HEART_SVG;
+    card.append(go, heart);
+    if (w.link) {
+      const a = outLink(w.link, 'icon-btn wish-link');
+      a.setAttribute('aria-label', `Open the link for ${w.title}`);
+      a.innerHTML = ACTION_ICON.link;
+      card.append(a);
+    }
+    return card;
+  }
+  function renderWish() {
+    const onLists = shownTab() === 'lists';
+    const open = onLists && !!S.sub && S.sub.kind === 'wish';
+    $('#wishView').hidden = !open;
+    if (!onLists) return;
+    const ready = S.wishesLoaded && S.status !== 'unavailable';
+    const all = ready ? sortedWishes() : [];
+    // Its card on Lists: how many are wanted, and how many got.
+    $('#moreTitle').hidden = $('#moreCards').hidden = !ready;
+    const wanted = all.filter(w => !w.got).length;
+    const gotN = all.length - wanted;
+    const sum = !all.length ? 'None yet' : [wanted ? plural(wanted, 'wish', 'wishes') : '', gotN ? `${gotN} got` : ''].filter(Boolean).join(' · ');
+    if ($('#listsWishSub').textContent !== sum) $('#listsWishSub').textContent = sum;
+    if (!open) return;
+    const can = writable();
+    const shown = w => wishCat === 'all' || w.category === wishCat;
+    const want = all.filter(w => !w.got && shown(w));
+    const got = all.filter(w => w.got && shown(w));
+    for (const b of $('#wishChips').children) b.setAttribute('aria-pressed', String(b.dataset.wishCat === wishCat));
+    $('#wishEmpty').hidden = !ready || want.length > 0;
+    if (ready && !want.length) {
+      $('#wishEmpty').textContent = wishCat !== 'all' ? `No ${WISH_KIND[wishCat][0].toLowerCase()} wishes waiting.`
+        : all.length ? 'You got everything on your wish list.'
+        : can ? 'Nothing on your wish list yet. Tap New wish to add the first.' : 'Nothing on the wish list yet.';
+    }
+    $('#wishGot').hidden = !got.length;
+    $('#wishGotN').textContent = String(got.length);
+    $('#wishGotToggle').setAttribute('aria-expanded', String(wishGotOpen));
+    $('#wishGotBox').hidden = !wishGotOpen;
+    const cardSig = w => [w.id, w.title, w.category, w.priceCents, w.link, w.hearted];
+    const view = $('#wishView');
+    const sig = JSON.stringify([can, want.map(cardSig), got.map(cardSig)]);
+    if (view.dataset.sig === sig) return;
+    // A card that moves (got, or gone) takes focus with it: to its own button if it still shows, else the card now in
+    // its place, else close by.
+    const a = document.activeElement;
+    const card = view.contains(a) ? a.closest('.wish-card') : null;
+    const was = card && { id: card.dataset.wishCard, heart: a.classList.contains('wish-heart'), box: card.parentNode, at: [...card.parentNode.children].indexOf(card) };
+    view.dataset.sig = sig;
+    $('#wishGrid').replaceChildren(...want.map(w => wishCard(w, can)));
+    $('#wishGotBox').replaceChildren(...got.map(w => wishCard(w, can)));
+    if (!was) return;
+    const same = view.querySelector(`.wish-card[data-wish-card="${CSS.escape(was.id)}"]`);
+    let to = same && same.parentNode === was.box ? same.querySelector(was.heart ? '.wish-heart' : '.wish-open') : null;
+    if (!to) { const near = was.box.children[Math.min(was.at, was.box.children.length - 1)]; to = near ? near.querySelector('.wish-open') : null; }
+    if (!to && got.length) to = $('#wishGotToggle');
+    (to || $('#wishPaneTitle')).focus({ preventScroll: true });
+  }
+  // The heart is kept as soon as it's tapped.
+  function heartWish(id) {
+    const d = S.wishes.get(id);
+    if (!isPlain(d) || !writable()) return;
+    editRecord('wishes', id, { hearted: d.hearted !== true });
+    buzz(10);
+  }
+
+  // The sheet for a wish: a new one (+ New wish, or N), or one tapped to change it, mark it got (or not yet), or delete it.
+  let wishEditing = null;   // the wish being changed, or null for a new one
+  let wishPick = 'other';   // the category picked in the sheet
+  function paintWishPicks() {
+    for (const b of $('#wishCats').children) b.setAttribute('aria-pressed', String(b.dataset.wishPick === wishPick));
+  }
+  function openWishSheet(id = null) {
+    if (!writable()) return;
+    const raw = id ? S.wishes.get(id) : null;
+    if (id && !isPlain(raw)) return;
+    const w = raw ? wishOf(id, raw) : null;
+    wishEditing = w ? id : null;
+    wishPick = w ? w.category : wishCat !== 'all' ? wishCat : 'other';
+    S.wishOpen = true;
+    $('#wishSheetTitle').textContent = w ? 'Edit wish' : 'New wish';
+    $('#wishName').value = w ? w.title : '';
+    $('#wishPrice').value = w && w.priceCents !== null ? money(w.priceCents) : '';
+    $('#wishLink').value = w && w.link ? w.link : '';
+    $('#wishNote').value = w ? cleanNote(raw.note).slice(0, 1000) : '';
+    for (const e of ['#wishNameError', '#wishPriceError', '#wishLinkError']) $(e).hidden = true;
+    $('#wishSave').textContent = w ? 'Save' : 'Add wish';
+    $('#wishGotBtn').hidden = !w;
+    $('#wishGotBtn').textContent = w && w.got ? 'Not yet' : 'Got it';
+    $('#wishDelete').hidden = !w;
+    paintWishPicks();
+    const sheet = $('#wishSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#wishName').focus();
+  }
+  function closeWishSheet() {
+    if (!S.wishOpen) return;
+    S.wishOpen = false;
+    wishEditing = null;
+    closeSheet($('#wishSheet'));
+  }
+  // What the sheet says, checked: its words are needed; a price must be an amount (not below zero); a link must be a web
+  // link (see cleanLink). Something wrong gets its message and the cursor, and nothing is saved.
+  function readWishSheet() {
+    const title = clean($('#wishName').value, 120);
+    const typedPrice = $('#wishPrice').value.trim();
+    const priceCents = typedPrice ? parseCents(typedPrice) : null;
+    const priceOk = !typedPrice || (priceCents !== null && priceCents >= 0);
+    const typedLink = $('#wishLink').value.trim();
+    const link = typedLink ? cleanLink(typedLink) : null;
+    $('#wishNameError').hidden = !!title;
+    $('#wishPriceError').hidden = priceOk;
+    $('#wishLinkError').hidden = !typedLink || !!link;
+    const wrong = !title ? '#wishName' : !priceOk ? '#wishPrice' : typedLink && !link ? '#wishLink' : null;
+    if (wrong) { $(wrong).focus(); return null; }
+    return { title, category: wishPick, priceCents, link, note: cleanNote($('#wishNote').value).slice(0, 1000) };
+  }
+  // extra: more to change with it (Got it, Not yet). True once it's on its way to being saved.
+  function saveWishSheet(extra = {}) {
+    const f = readWishSheet();
+    if (!f) return false;
+    const id = wishEditing;
+    if (id) {
+      if (!S.wishes.has(id)) { closeWishSheet(); return false; }
+      editRecord('wishes', id, { ...f, ...extra });
+      closeWishSheet();
+      return true;
+    }
+    if (!addRecord('wishes', f)) return false;
+    if (wishCat !== 'all' && wishCat !== f.category) { wishCat = 'all'; scheduleRender(); } // so the new one shows
+    closeWishSheet();
+    return true;
+  }
+  // Got it (or Not yet): saved with whatever else was changed in the sheet, and the wish moves to Got it (or back).
+  function toggleWishGot() {
+    const id = wishEditing;
+    const d = id ? S.wishes.get(id) : null;
+    if (!isPlain(d)) return;
+    const got = d.got !== true;
+    const name = clean($('#wishName').value, 60) || wishOf(id, d).title;
+    if (!saveWishSheet({ got })) return;
+    buzz(10);
+    toast(got ? `Moved “${name}” to Got it` : `“${name}” is back on the wish list`, () => editRecord('wishes', id, { got: !got }));
+  }
+  function deleteWish(id) {
+    const raw = S.wishes.get(id);
+    if (!isPlain(raw) || !writable()) return;
+    closeWishSheet();
+    binMany([['wishes', id]], `Deleted “${clean(wishOf(id, raw).title, 60)}”`);
+  }
+  // A wish deleted meanwhile (another device) closes its sheet.
+  function renderWishSheet() {
+    if (S.wishOpen && wishEditing && !S.wishes.has(wishEditing)) closeWishSheet();
   }
 
   /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
@@ -9640,6 +9964,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     renderListsPane();
     renderShop();
     renderShopSheets();
+    renderWish();
+    renderWishSheet();
     renderNewBtns();
     $('#dock').hidden = S.status === 'unavailable' || S.status === 'loading' || !S.tasksLoaded || S.selecting;
     $('#dockWeek').hidden = !S.tasksLoaded;
@@ -13073,8 +13399,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (S.day) { S.day = null; render(); }
     window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
   });
-  // Lists tapped again while a list is open there: back to the cards.
-  $('#dockLists').addEventListener('click', () => { if (S.tab === 'lists' && S.sub) closeShop(); else setTab('lists'); });
+  // Lists tapped again while a list (or the Wish list) is open there: back to the cards.
+  $('#dockLists').addEventListener('click', () => { if (S.tab === 'lists' && S.sub) closeSub(); else setTab('lists'); });
   // Calendar opens on the week to plan (the dock's old Week button); Month is one tap away there, or the month button on Tasks.
   $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); setTab('calendar'); });
   $('#newBtn').addEventListener('click', newHere);
@@ -13106,8 +13432,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const go = e.target.closest('[data-shop-open]');
     if (go) openShop(go.dataset.shopOpen);
   });
-  $('#shopBack').addEventListener('click', () => closeShop());
-  $('#shopMenu').addEventListener('click', () => { if (S.sub) openShopSheet(S.sub.id); });
+  $('#shopBack').addEventListener('click', () => closeSub());
+  $('#shopMenu').addEventListener('click', () => { if (S.sub && S.sub.kind === 'shop') openShopSheet(S.sub.id); });
   $('#shopView').addEventListener('click', e => {
     const tick = e.target.closest('[data-shop-tick]');
     if (tick) { tickShopItem(tick.dataset.shopTick); return; }
@@ -13134,6 +13460,33 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   $('#itemUp').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, -1); });
   $('#itemDown').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, 1); });
   $('#itemDelete').addEventListener('click', () => { if (itemEditing) deleteShopItem(itemEditing); });
+  // the wish list: its card on Lists opens it; a chip shows one kind; a card's heart is kept at once, the card opens its sheet
+  $('#listsWish').addEventListener('click', () => openWish());
+  $('#wishBack').addEventListener('click', () => closeSub());
+  $('#wishChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-wish-cat]');
+    if (!b) return;
+    wishCat = WISH_CATS.includes(b.dataset.wishCat) ? b.dataset.wishCat : 'all';
+    render();
+  });
+  $('#wishView').addEventListener('click', e => {
+    const heart = e.target.closest('[data-wish-heart]');
+    if (heart) { heartWish(heart.dataset.wishHeart); return; }
+    const go = e.target.closest('[data-wish-open]');
+    if (go) openWishSheet(go.dataset.wishOpen);
+  });
+  $('#wishGotToggle').addEventListener('click', () => { wishGotOpen = !wishGotOpen; render(); });
+  $('#wishCancel').addEventListener('click', closeWishSheet);
+  $('#wishForm').addEventListener('submit', e => { e.preventDefault(); saveWishSheet(); });
+  $('#wishCats').addEventListener('click', e => {
+    const b = e.target.closest('[data-wish-pick]');
+    if (!b || !WISH_CATS.includes(b.dataset.wishPick)) return;
+    wishPick = b.dataset.wishPick;
+    paintWishPicks();
+  });
+  for (const k of ['Name', 'Price', 'Link']) $('#wish' + k).addEventListener('input', () => { $(`#wish${k}Error`).hidden = true; });
+  $('#wishGotBtn').addEventListener('click', toggleWishGot);
+  $('#wishDelete').addEventListener('click', () => { if (wishEditing) deleteWish(wishEditing); });
   // your list in one file
   $('#exportAll').addEventListener('click', exportAll);
   $('#importAll').addEventListener('click', pickImport);
@@ -13335,7 +13688,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
-    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeTrash(); closeAsk(); closePoSheet(); }
+    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeWishSheet(); closeTrash(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
     if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
@@ -13350,7 +13703,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen) return;
       if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
       else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
@@ -13361,12 +13714,13 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.sheet) requestCloseTaskSheet();
     else if (S.itemOpen) closeItemSheet();
     else if (S.shopOpen) closeShopSheet();
+    else if (S.wishOpen) closeWishSheet();
     else if (S.poOpen) closePoSheet();
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
     else if (S.trashOpen) closeTrash();
     else if (S.askOpen) closeAsk();
-    else if (S.sub && shownTab() === 'lists') closeShop(); // the open list, back to the cards
+    else if (S.sub && shownTab() === 'lists') closeSub(); // the open list (or the Wish list), back to the cards
     else if (S.selecting) exitSelect();
     else if (S.day) { S.day = null; render(); }
   });
