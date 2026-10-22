@@ -25,7 +25,7 @@ Code branches on `IS_PHONE` (website and iPhone app), `NATIVE` (iPhone app only)
 2. Edit `index.html`. Keep data changes additive: new fields and documents are fine; renaming, dropping or reshaping stored fields is not, because older copies of the app (another device, the website, a TestFlight build) still read and write the same records.
 3. Run `node tools/release.cjs` after every edit. The page has a strict Content-Security-Policy with a sha256 hash per inline script; a stale hash makes the page blank and tests time out mysteriously.
 4. Add a test for every fix and feature (Playwright, `tests/*.test.cjs`, fixtures and storage helpers in `tests/lib.cjs`). Prove the bug first when you can: a test that fails before the fix and passes after is worth more than one written afterwards.
-5. Run everything: `cd tests && npm test` (upgrade, features, regression, native, artifact). All must pass. `upgrade.test.cjs` is the data-preservation test: an old version's storage opened by the new code must come through record for record.
+5. Run everything: `cd tests && npm test` (upgrade, features, regression, native, artifact, fixes, sections). All must pass. `upgrade.test.cjs` is the data-preservation test: an old version's storage opened by the new code must come through record for record.
 6. Commit with a message that says what changed for the user and why.
 
 Things that have bitten before: the hero card shows the first task (wait for `#board .task, #heroOpen:not([disabled])`, not just rows); time-of-day prompts differ before 9 AM; `<a download>` does nothing inside Claude or the iPhone app (use the downloads capability / share sheet); the synced Claude database means two devices can write the same record.
@@ -35,7 +35,7 @@ Things that have bitten before: the hero card shows the first task (wait for `#b
 The artifact is private and pinned by the owner; find it with the Artifact tool (`action: "list"`, title "Jose's To-Do List") if its URL isn't in the conversation.
 
 1. Read the live copy first: `Artifact` with `action: "read"` and its URL. Read every line of the saved file (the tool requires it before a publish, and it's the only way to know nothing published would be lost). Its path is in the read result.
-2. Note the data before publishing: `ArtifactData` `list` with `out_dir` for each collection (tasks, lists, trash, templates, clients, categories, history, settings) into a scratch folder.
+2. Note the data before publishing: `ArtifactData` `list` with `out_dir` for each collection (tasks, lists, trash, templates, clients, categories, history, settings, shopLists, shopItems, wishes, goals, goalEntries, dates, bin) into a scratch folder. After the first publish that has shopping lists, wishes, savings goals or important dates, list each of those collections again to confirm the database takes them.
 3. Build: `node tools/build-artifact.cjs --live <saved live copy> --out <scratch>/todo-list.html`. The owner's own words (follow-up signature, example names) are carried over from the live copy; they are deliberately not in this public repository, so never paste them into the repo.
 4. Test the built page: `node --test tests/artifact.test.cjs` (it builds its own copy with made-up words). For extra safety, seed the data you saved in step 2 into the same harness and check that nothing changes and the same tasks show as in the old page.
 5. Publish with the same `url`, omitting `capabilities`, `contract` and `icon` so the stored permissions (db, assets, downloads, sample, Google Calendar) carry forward unchanged.

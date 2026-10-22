@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { serve, smallFixture, launch, phoneContext, seed, dump } = require('./lib.cjs');
+const { serve, smallFixture, withExtras, EXTRA_COLLS, launch, phoneContext, seed, dump } = require('./lib.cjs');
 const { build } = require('../tools/build-artifact.cjs');
 
 const REPO = path.resolve(__dirname, '..');
@@ -85,7 +85,7 @@ test('the build carries the owner\'s words over from the live copy and leaves th
 });
 
 test('opened in Claude: the list loads, nothing in it changes, and the Claude-only parts show', async () => {
-  const fx = smallFixture();
+  const fx = withExtras(smallFixture()); // with shopping lists, wishes, goals, dates and their Recently deleted too
   const { ctx, page, errors, before } = await open(fx);
   await page.waitForTimeout(7000); // past the delayed housekeeping (history prune at 5 s, trash purge at 6 s)
   const titles = await shown(page);
@@ -108,7 +108,13 @@ test('opened in Claude: the list loads, nothing in it changes, and the Claude-on
   await page.waitForFunction(() => window.__saves.length > 0, null, { timeout: 15000 });
   const file = await page.evaluate(() => window.__saves[0]);
   assert.match(file.filename, /\.json$/);
-  assert.ok(JSON.parse(file.data).photos.pphoto000001, 'the photo is in the file');
+  const saved = JSON.parse(file.data);
+  assert.ok(saved.photos.pphoto000001, 'the photo is in the file');
+  for (const [k, v] of Object.entries(fx.docs)) {
+    const c = k.slice(0, k.indexOf('/'));
+    if (EXTRA_COLLS.includes(c)) assert.deepEqual(saved.collections[c][k.slice(c.length + 1)], v, `in the file: ${k}`);
+  }
+  assert.equal(saved.collections.bin, undefined, 'Recently deleted stays out of the file');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

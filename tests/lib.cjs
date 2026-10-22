@@ -131,6 +131,66 @@ function largeFixture(today = ymd(new Date()), n = 2000) {
   return { today: T, docs, blobs: {}, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1' } };
 }
 
+// The newer kinds of record, each in its own flat collection: shopping lists and their items, wishes, savings goals and
+// what went into them, important dates, and Recently deleted for these (bin/<collection>~<id>, never trash/). Unicode
+// and markup in the words, a Feb 29 birthday, a negative amount. Every bin entry is less than 7 days old, so nothing here
+// is due to be cleared when the app opens.
+function extrasFixture(today = ymd(new Date())) {
+  const T = today;
+  const now = Date.now();
+  const t = (ago, d = 0) => ({ createdAt: now - ago, updatedAt: now - ago + d });
+  const day = 864e5;
+  const binned = (coll, id, doc, group, ago) => ({ coll, id, doc, group, deletedAt: now - ago });
+  const party = { name: 'Party supplies', color: 7, order: 3, ...t(9e8, 1e5) };
+  const trip = { name: 'Trip fund', targetCents: 250000, due: addDays(T, 90), closedAt: null, order: 3, ...t(8e8, 2e5) };
+  const docs = {
+    'shopLists/sl_groceries': { name: 'Groceries', color: 3, order: 1, ...t(5e8, 1e6) },
+    'shopLists/sl_hardware': { name: 'Hardware <b>store</b> 🔧', color: 6, order: 2, ...t(4e8) },
+    'shopItems/si_milk': { list: 'sl_groceries', text: 'Milk', link: null, done: false, doneAt: null, rank: 1000, ...t(3e8) },
+    'shopItems/si_eggs': { list: 'sl_groceries', text: 'Eggs ×12 “free range”', link: 'https://example.com/eggs?size=12', done: true,
+      doneAt: now - 2e7, rank: 2000, ...t(2.9e8, 2.7e8) },
+    'shopItems/si_screws': { list: 'sl_hardware', text: 'Wood screws 日本語', link: null, done: false, doneAt: null, rank: 1000, ...t(2.8e8) },
+    'wishes/w_coast': { title: 'Trip to the coast', category: 'travel', priceCents: 3500000, link: 'https://example.com/coast', hearted: true,
+      got: false, gotAt: null, note: 'Spring, maybe\nTwo weeks', rank: 1000, ...t(2.5e8, 1e7) },
+    'wishes/w_ramen': { title: 'Ramen at Example Grill 🍜', category: 'food', priceCents: 1850, link: null, hearted: false, got: true,
+      gotAt: now - 1e8, note: '<b>not html</b>', rank: 2000, ...t(2.4e8, 1.4e8) },
+    'wishes/w_lamp': { title: 'Reading lamp', category: 'shopping', priceCents: null, link: null, hearted: false, got: false, gotAt: null,
+      note: '', rank: 3000, ...t(2.3e8) },
+    'goals/g_car': { name: 'New car', targetCents: 3500000, due: addDays(T, 200), closedAt: null, order: 1, ...t(7e8, 1e6) },
+    'goals/g_laptop': { name: 'Laptop', targetCents: 120000, due: null, closedAt: now - 3e8, order: 2, ...t(6e8, 3e8) },
+    'goalEntries/ge_bonus': { goal: 'g_car', amountCents: 1000000, day: addDays(T, -40), note: 'Bonus', ...t(4e9) },
+    'goalEntries/ge_june': { goal: 'g_car', amountCents: 600000, day: addDays(T, -10), note: '', ...t(9e8) },
+    'goalEntries/ge_out': { goal: 'g_car', amountCents: -25050, day: addDays(T, -3), note: 'Took some out', ...t(2.6e8) },
+    'goalEntries/ge_laptop': { goal: 'g_laptop', amountCents: 120000, day: addDays(T, -60), note: '', ...t(5.2e9) },
+    'dates/d_sam': { title: 'Sam’s birthday', kind: 'birthday', date: '1992-02-29', yearly: true, note: 'Likes tea', ...t(3e9) },
+    'dates/d_dentist': { title: 'Dentist', kind: 'appointment', date: addDays(T, 5), yearly: false, note: '', ...t(2e8) },
+    'dates/d_shop': { title: 'Shop opened', kind: 'anniversary', date: '2015-06-01', yearly: true, note: '', ...t(2.2e9) },
+    // Recently deleted: a wish on its own, a shopping list with its items, a goal with its entries, a date.
+    'bin/wishes~w_kayak': binned('wishes', 'w_kayak', { title: 'Kayak <i>lessons</i>', category: 'plans', priceCents: 12000,
+      link: 'https://example.com/kayak', hearted: true, got: false, gotAt: null, note: '', rank: 4000, ...t(9e8, 1e8) }, null, 2 * day),
+    'bin/shopLists~sl_party': binned('shopLists', 'sl_party', party, 'shopLists~sl_party', day),
+    'bin/shopItems~si_cups': binned('shopItems', 'si_cups', { list: 'sl_party', text: 'Paper cups', link: null, done: false, doneAt: null,
+      rank: 1000, ...t(8.9e8) }, 'shopLists~sl_party', day),
+    'bin/shopItems~si_ice': binned('shopItems', 'si_ice', { list: 'sl_party', text: 'Ice', link: null, done: true, doneAt: now - 9e7,
+      rank: 2000, ...t(8.8e8, 7e8) }, 'shopLists~sl_party', day),
+    'bin/goals~g_trip': binned('goals', 'g_trip', trip, 'goals~g_trip', 3 * day),
+    'bin/goalEntries~ge_t1': binned('goalEntries', 'ge_t1', { goal: 'g_trip', amountCents: 40000, day: addDays(T, -20), note: 'First',
+      ...t(7e8) }, 'goals~g_trip', 3 * day),
+    'bin/goalEntries~ge_t2': binned('goalEntries', 'ge_t2', { goal: 'g_trip', amountCents: 15000, day: addDays(T, -8), note: '',
+      ...t(6e8) }, 'goals~g_trip', 3 * day),
+    'bin/dates~d_party': binned('dates', 'd_party', { title: 'Block party', kind: 'other', date: addDays(T, 30), yearly: false,
+      note: 'Bring chairs', ...t(5e8) }, null, 4 * day),
+  };
+  return { today: T, docs, blobs: {}, local: {} };
+}
+// A fixture with the newer kinds added to it.
+function withExtras(fx) {
+  const x = extrasFixture(fx.today);
+  return { ...fx, docs: { ...fx.docs, ...x.docs }, blobs: { ...fx.blobs }, local: { ...fx.local } };
+}
+// The collections the newer kinds live in (bin is Recently deleted for them; it isn't in a saved file).
+const EXTRA_COLLS = ['shopLists', 'shopItems', 'wishes', 'goals', 'goalEntries', 'dates'];
+
 async function launch(opts = {}) {
   const browser = await playwright.chromium.launch({ args: ['--js-flags=--expose-gc'] });
   return browser;
@@ -190,4 +250,4 @@ async function dump(page) {
   });
 }
 
-module.exports = { serve, smallFixture, largeFixture, launch, phoneContext, seed, dump, ymd, addDays, at, playwright };
+module.exports = { serve, smallFixture, largeFixture, extrasFixture, withExtras, EXTRA_COLLS, launch, phoneContext, seed, dump, ymd, addDays, at, playwright };

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-gldoEjKB+60Fc6HFY9Q6BvMaUnNjYLMYd/ojKcV2k2U=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-Dyt3mXBQ9+XOehNLfRPt1ZtpPpFSfNPE06wFzlgoaAA=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-u9PSON6HQy2NtBBiaFTWp4sXLuHEdjtEW36KKDh1E9M=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-dCVeKmFGj0/5/9/LGHba4LFkbInJX2Dc4f6jWg/n6gg=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.de995db2'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.638138d0'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -3198,7 +3198,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       <p class="field-note gcal-status" id="gcalStatus" role="status" aria-live="polite"></p>
     </div>
     <h3 class="sheet-sub" id="moveTitle">Your list in one file</h3>
-    <p class="sheet-note" id="moveNote">Save everything (tasks, lists, clients, templates and photos) in one file. Keep it as a backup, or load it on a new phone to bring everything along.</p>
+    <p class="sheet-note" id="moveNote">Save everything (tasks, lists, clients, templates, shopping lists, wishes, savings goals, important dates and photos) in one file. Keep it as a backup, or load it on a new phone to bring everything along.</p>
     <div class="move-row"><button type="button" class="btn-small" id="exportAll">Save everything</button><button type="button" class="btn-small quiet" id="importAll">Load a saved file</button></div>
     <input type="file" id="importInput" accept="application/json,.json" hidden>
     <p class="field-note move-status" id="moveStatus" role="status" aria-live="polite" hidden></p>
@@ -3243,9 +3243,9 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       <h2 id="trashTitle">Recently deleted</h2>
       <button type="button" class="link-btn end" id="trashDone">Done</button>
     </div>
-    <p class="sheet-note">Deleted tasks wait here for 7 days. Then they’re gone for good.</p>
+    <p class="sheet-note">Deleted tasks and other things wait here for 7 days. Then they’re gone for good.</p>
     <ul class="trash-rows" id="trashRows"></ul>
-    <p class="sheet-note" id="trashEmpty" hidden>Nothing here. Tasks you delete show up here for a week.</p>
+    <p class="sheet-note" id="trashEmpty" hidden>Nothing here. Things you delete show up here for a week.</p>
     <button type="button" class="btn-danger" id="trashPurge" hidden>Delete all now</button>
   </div>
 </section>
@@ -3461,6 +3461,22 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     downloads: null,            // saving a file to the phone (job reports, backups), or null where this view can't
     offline: false,
     doneShown: 100,             // how many done rows show while Done is open (Show more adds a page)
+    // The newer kinds (see "shopping lists, wishes, savings goals and important dates"): id -> stored body, each with
+    // its own loaded flag. bin is Recently deleted for them: '<collection>~<id>' -> { coll, id, doc, group, deletedAt }.
+    shopLists: new Map(),
+    shopItems: new Map(),
+    wishes: new Map(),
+    goals: new Map(),
+    goalEntries: new Map(),
+    dates: new Map(),
+    bin: new Map(),
+    shopListsLoaded: false,
+    shopItemsLoaded: false,
+    wishesLoaded: false,
+    goalsLoaded: false,
+    goalEntriesLoaded: false,
+    datesLoaded: false,
+    binLoaded: false,
   };
   const DONE_PAGE = 100;
   let db = null;
@@ -3469,6 +3485,13 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   const listRef = id => db.collection('lists').doc(id);
   const tplRef = id => db.collection('templates').doc(id);
   const trashRef = id => db.collection('trash').doc(id);
+  // The newer kinds' collections, each flat (a nested path doesn't survive the phone app's storage). Every one of them is
+  // in Save everything, the Files copy and Load a saved file; bin, their Recently deleted, isn't.
+  const REC_COLLS = ['shopLists', 'shopItems', 'wishes', 'goals', 'goalEntries', 'dates'];
+  const recDown = new Set(); // ones the database couldn't hand over this visit (nothing waits on those forever)
+  const recSettled = () => REC_COLLS.every(c => S[c + 'Loaded'] || recDown.has(c));
+  const recRef = (coll, id) => db.collection(coll).doc(id);
+  const binRef = key => db.collection('bin').doc(key);
 
   /* ---------- looks: the theme engine (it runs before the page shows) paints the colors; this keeps the pick ---------- */
   const THEME = window.todoTheme;
@@ -4739,7 +4762,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function seenDoc(path) {
     const i = path.indexOf('/');
     const id = path.slice(i + 1);
-    const m = { tasks: tasksSaved, lists: listsSaved, trash: trashSaved, templates: templatesSaved, clients: clientsSaved, categories: catsSaved, history: historySaved }[path.slice(0, i)];
+    const m = { tasks: tasksSaved, lists: listsSaved, trash: trashSaved, templates: templatesSaved, clients: clientsSaved, categories: catsSaved, history: historySaved, ...recSaved }[path.slice(0, i)];
     return m && id && !id.includes('/') ? { known: true, doc: m.get(id) } : { known: false };
   }
   // What a change leaves (an update to a missing document is refused, so it leaves nothing).
@@ -4980,6 +5003,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       S.clients = overlay('clients', clientsSaved);
       S.cats = overlay('categories', catsSaved);
       S.history = overlay('history', historySaved);
+      for (const c of [...REC_COLLS, 'bin']) S[c] = overlay(c, recSaved[c]);
       render();
     });
   }
@@ -5263,6 +5287,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   let clientsSaved = new Map();
   let catsSaved = new Map();
   let historySaved = new Map();
+  // The same for the newer kinds and their Recently deleted, by collection.
+  const recSaved = Object.fromEntries([...REC_COLLS, 'bin'].map(c => [c, new Map()]));
   function layTasks() {
     const m = new Map(overlay('tasks', tasksSaved));
     for (const [id, rank] of pendingRanks) if (m.has(id)) m.set(id, { ...m.get(id), rank });
@@ -5389,6 +5415,244 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const cutoff = addDays(S.today, -HISTORY_DAYS);
     const old = [...S.history.keys()].filter(day => isYmd(day) && day < cutoff);
     runPool(old.map(day => () => write('history/' + day, () => histRef(day).delete(), { quiet: true })), 2);
+  }
+
+  /* ---------- shopping lists, wishes, savings goals and important dates: their records ---------- */
+  // Each kind is its own collection (see REC_COLLS), and every record has createdAt and updatedAt (ms):
+  //   shopLists/<id>    { name, color, order }
+  //   shopItems/<id>    { list: <shopLists id>, text, link, done, doneAt, rank }
+  //   wishes/<id>       { title, category, priceCents, link, hearted, got, gotAt, note, rank }
+  //   goals/<id>        { name, targetCents, due, closedAt, order }  (saved and left always come from its entries)
+  //   goalEntries/<id>  { goal: <goals id>, amountCents (below 0 is money taken out), day, note }
+  //   dates/<id>        { title, kind, date, yearly, note }
+  // Money is whole cents. They all start empty: only a tap writes, never opening the app.
+  const PARENT = { shopItems: ['list', 'shopLists'], goalEntries: ['goal', 'goals'] }; // a child names its parent by id
+  const KIND_NAME = { tasks: 'Task', shopLists: 'Shopping list', shopItems: 'Item', wishes: 'Wish', goals: 'Goal', goalEntries: 'Savings entry', dates: 'Date' };
+  const WISH_CATS = ['travel', 'food', 'plans', 'shopping', 'other'];
+  const DATE_KINDS = ['birthday', 'appointment', 'anniversary', 'other'];
+  const finite = (v, dflt = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
+  const tickedAt = (on, at) => (on ? (Number(at) > 0 ? Number(at) : Date.now()) : null); // when something was ticked, kept once set
+
+  // Money: whole cents, shown as dollars ("$35,000.00").
+  const MAX_CENTS = 99999999999;
+  const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const money = cents => USD.format(finite(cents) / 100);
+  const isCents = v => Number.isSafeInteger(v) && Math.abs(v) <= MAX_CENTS;
+  // An amount as someone types it ("35,000", "$12.10", "-40", ".5") in whole cents, worked out from the digits so no
+  // rounding creeps in, or null when it isn't an amount.
+  function parseCents(raw) {
+    const s = String(raw == null ? '' : raw).trim().replace(/^[−–]/, '-').replace(/[\s,$]/g, '');
+    const m = /^(-?)(\d*)(?:\.(\d{0,2}))?$/.exec(s);
+    if (!m || (!m[2] && !m[3])) return null;
+    const cents = Number(m[2] || 0) * 100 + Number((m[3] || '').padEnd(2, '0'));
+    if (!isCents(cents)) return null;
+    return m[1] && cents ? -cents : cents;
+  }
+  // A web link someone pasted, as a safe https address, or null. http is moved up to https; anything else (javascript:,
+  // data:, a file, a link with a name and password in it) is refused.
+  function cleanLink(raw) {
+    const s = typeof raw === 'string' ? raw.trim() : '';
+    if (!/^https?:\/\//i.test(s) || s.length > 2000) return null;
+    let u;
+    try { u = new URL(s); } catch (e) { return null; }
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return u.protocol === 'https:' && u.hostname && !u.username && !u.password ? u.href : null;
+  }
+
+  // Important dates: when one comes round next, and how far off that is.
+  const isLeap = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  // The next day a date falls on, from `from` (today unless given): a one-off date only until it's passed (then null),
+  // a yearly one every year from its first. A Feb 29 falls on Feb 28 in other years.
+  function nextDateOn(d, from = S.today) {
+    if (!d || !isYmd(d.date)) return null;
+    if (d.date >= from) return d.date;
+    if (d.yearly !== true) return null;
+    const m = Number(d.date.slice(5, 7)), day = Number(d.date.slice(8, 10));
+    const on = y => `${y}-${pad(m)}-${pad(m === 2 && day === 29 && !isLeap(y) ? 28 : day)}`;
+    const y = Number(from.slice(0, 4));
+    return on(y) >= from ? on(y) : on(y + 1);
+  }
+  // "Today", "Tomorrow", "In 12 days" up to 60 days, then the date ("Dec 10", with the year once it's that far off).
+  function dateCountdown(day, from = S.today) {
+    if (!isYmd(day)) return '';
+    const n = daysBetween(from, day);
+    if (n === 0) return 'Today';
+    if (n === 1) return 'Tomorrow';
+    if (n === -1) return 'Yesterday';
+    if (n < 0) return `${-n} days ago`;
+    if (n <= 60) return `In ${n} days`;
+    const far = n > 300 && day.slice(0, 4) !== from.slice(0, 4);
+    return parseYmd(day).toLocaleDateString('en-US', far ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
+  }
+  // A goal's progress, from its entries (never stored): saved, what's left, and whether it's reached.
+  function goalTotals(goalId) {
+    const g = S.goals.get(goalId);
+    let saved = 0;
+    for (const e of S.goalEntries.values()) if (e && e.goal === goalId && isCents(e.amountCents)) saved += e.amountCents;
+    const target = g && isCents(g.targetCents) ? g.targetCents : 0;
+    return { saved, target, left: Math.max(0, target - saved), reached: target > 0 && saved >= target };
+  }
+
+  // What each kind keeps, cleaned the same way whether it's new or edited (fields this version doesn't know are left alone).
+  const CLEAN = {
+    shopLists: o => ({ name: clean(o.name, 40), color: clampColor(o.color), order: finite(o.order) }),
+    shopItems: o => ({ list: typeof o.list === 'string' ? o.list : '', text: clean(o.text, 200), link: cleanLink(o.link),
+      done: o.done === true, doneAt: tickedAt(o.done === true, o.doneAt), rank: finite(o.rank) }),
+    wishes: o => ({ title: clean(o.title, 120), category: WISH_CATS.includes(o.category) ? o.category : 'other',
+      priceCents: isCents(o.priceCents) && o.priceCents >= 0 ? o.priceCents : null, link: cleanLink(o.link), hearted: o.hearted === true,
+      got: o.got === true, gotAt: tickedAt(o.got === true, o.gotAt), note: cleanNote(o.note).slice(0, 1000), rank: finite(o.rank) }),
+    goals: o => ({ name: clean(o.name, 80), targetCents: isCents(o.targetCents) && o.targetCents > 0 ? o.targetCents : 0,
+      due: isYmd(o.due) ? o.due : null, closedAt: Number(o.closedAt) > 0 ? Number(o.closedAt) : null, order: finite(o.order) }),
+    goalEntries: o => ({ goal: typeof o.goal === 'string' ? o.goal : '', amountCents: isCents(o.amountCents) ? o.amountCents : 0,
+      day: isYmd(o.day) ? o.day : S.today, note: clean(o.note, 200) }),
+    dates: o => ({ title: clean(o.title, 80), kind: DATE_KINDS.includes(o.kind) ? o.kind : 'other', date: isYmd(o.date) ? o.date : '',
+      yearly: typeof o.yearly === 'boolean' ? o.yearly : o.kind === 'birthday' || o.kind === 'anniversary', note: cleanNote(o.note).slice(0, 500) }),
+  };
+  // What a record needs before it's saved.
+  const VALID = {
+    shopLists: d => !!d.name,
+    shopItems: d => !!d.text && S.shopLists.has(d.list),
+    wishes: d => !!d.title,
+    goals: d => !!d.name && d.targetCents > 0,
+    goalEntries: d => d.amountCents !== 0 && S.goals.has(d.goal),
+    dates: d => !!d.title && isYmd(d.date),
+  };
+  // Ticking something off also notes when.
+  const DERIVED = { done: 'doneAt', got: 'gotAt' };
+  const highest = (m, key, keep = () => true) => [...m.values()].reduce((x, d) => (d && keep(d) ? Math.max(x, finite(d[key])) : x), 0);
+  // A new record: an id from the database, its times, a place at the end of its list. The id, or null if it can't be saved.
+  function addRecord(coll, fields) {
+    if (!writable() || !CLEAN[coll]) return null;
+    const f = { ...fields };
+    if (coll === 'shopLists') {
+      if (f.color === undefined) f.color = freeColor(new Set([...S.shopLists.values()].map(l => l && l.color)));
+      f.order = highest(S.shopLists, 'order') + 1;
+    }
+    if (coll === 'shopItems') f.rank = highest(S.shopItems, 'rank', d => d.list === f.list) + 1000;
+    if (coll === 'wishes') f.rank = highest(S.wishes, 'rank') + 1000;
+    if (coll === 'goals') f.order = highest(S.goals, 'order') + 1;
+    const body = CLEAN[coll](f);
+    if (!VALID[coll](body)) return null;
+    const ref = db.collection(coll).doc();
+    const at = Date.now();
+    write(coll + '/' + ref.id, () => ref.set({ ...body, createdAt: at, updatedAt: at }), { create: true });
+    return ref.id;
+  }
+  // A change to a record: only the fields given (and when something was ticked) are written, with a new updatedAt.
+  function editRecord(coll, id, fields) {
+    const cur = S[coll] && S[coll].get(id);
+    if (!writable() || !CLEAN[coll] || !cur) return Promise.resolve(false);
+    const next = CLEAN[coll]({ ...cur, ...fields });
+    const changes = {};
+    for (const k of Object.keys(fields)) {
+      for (const key of [k, DERIVED[k]]) if (key && key in next && !sameData(next[key], cur[key])) changes[key] = next[key];
+    }
+    if (!Object.keys(changes).length) return Promise.resolve(true);
+    if (!VALID[coll](next)) return Promise.resolve(false); // a name can't be emptied, nor a goal's target taken to nothing
+    return write(coll + '/' + id, () => recRef(coll, id).update({ ...changes, updatedAt: Date.now() }));
+  }
+
+  // Deleted ones wait in Recently deleted for 7 days, as bin/<collection>~<id> = { coll, id, doc, group, deletedAt }.
+  // Never in trash/: that's for tasks, and older copies of the app would put anything there back as a task.
+  const binKey = (coll, id) => coll + '~' + id;
+  const binOk = (key, e) => isPlain(e) && REC_COLLS.includes(e.coll) && safeId(e.id) && key === binKey(e.coll, e.id) && isPlain(e.doc);
+  // A shopping list's items, a goal's entries: [coll, id, body].
+  function childrenOf(coll, id) {
+    const out = [];
+    for (const [c, [field, parent]] of Object.entries(PARENT)) {
+      if (parent === coll) for (const [cid, d] of S[c]) if (d && d[field] === id) out.push([c, cid, d]);
+    }
+    return out;
+  }
+  // As with tasks, each copy goes in first and the record only goes once its copy is kept. A shopping list takes its
+  // items along and a goal its entries, under one group: all of the group's copies are kept or none of it is deleted,
+  // and the items go before their list, so nothing is ever left without its list. Undo puts back what went.
+  // picks: [[coll, id], ...]. Resolves to the entries that went: [[coll, id, body], ...].
+  function binMany(picks, message) {
+    if (!writable()) return Promise.resolve([]);
+    const at = Date.now();
+    const seen = new Set();
+    const groups = [];
+    for (const [coll, id] of picks) {
+      const doc = REC_COLLS.includes(coll) ? S[coll].get(id) : undefined;
+      if (!doc || seen.has(binKey(coll, id))) continue;
+      const group = coll === 'shopLists' || coll === 'goals' ? binKey(coll, id) : null;
+      const members = [[coll, id, copyJson(doc)], ...childrenOf(coll, id).map(([c, cid, d]) => [c, cid, copyJson(d)])]
+        .filter(([c, cid]) => !seen.has(binKey(c, cid)));
+      members.forEach(([c, cid]) => seen.add(binKey(c, cid)));
+      groups.push({ group, members });
+    }
+    if (!groups.length) return Promise.resolve([]);
+    const gone = [];
+    let notKept = 0;
+    const done = runPool(groups.map(({ group, members }) => async () => {
+      const kept = [];
+      await runPool(members.map(([c, cid, d]) => async () => {
+        const key = binKey(c, cid);
+        if (await write('bin/' + key, () => binRef(key).set({ coll: c, id: cid, doc: d, group, deletedAt: at }), { create: true, quiet: true })) kept.push(key);
+      }), 4);
+      if (kept.length < members.length) { // a copy couldn't be kept: nothing in this group is deleted, and its other copies go
+        notKept++;
+        await runPool(kept.map(key => () => write('bin/' + key, () => binRef(key).delete(), { quiet: true })), 4);
+        return;
+      }
+      const [head, ...kids] = members;
+      await runPool(kids.map(([c, cid]) => () => write(c + '/' + cid, () => recRef(c, cid).delete())), 4);
+      await write(head[0] + '/' + head[1], () => recRef(head[0], head[1]).delete());
+      gone.push(...members);
+    }), 2).then(() => {
+      if (notKept) toast(`Couldn’t keep a copy in Recently deleted, so ${notKept === 1 ? 'it wasn’t deleted' : `${notKept} weren’t deleted`}. Clear done tasks or remove photos to make room, then try again.`, null, 'Undo', 8000);
+      return gone;
+    });
+    if (message) toast(message, () => done.then(restoreEntries));
+    return done;
+  }
+  // Put records back where they were and take their copies out of Recently deleted. Lists and goals go first; an item or
+  // entry whose list or goal couldn't come back stays in Recently deleted. entries: [[coll, id, body], ...].
+  async function restoreEntries(entries) {
+    if (!writable() || !entries.length) return false;
+    let ok = true;
+    const one = ([coll, id, doc]) => write(coll + '/' + id, () => recRef(coll, id).set(doc), { create: true }).then(back => {
+      if (!back) { ok = false; return false; }
+      return write('bin/' + binKey(coll, id), () => binRef(binKey(coll, id)).delete(), { quiet: true });
+    });
+    await runPool(entries.filter(e => !PARENT[e[0]]).map(e => () => one(e)), 4);
+    if (!ok) return false;
+    await runPool(entries.filter(e => PARENT[e[0]]).map(e => () => one(e)), 4);
+    return ok;
+  }
+  // Everything a Recently deleted row brings back: its whole group, and the list or goal of an item or entry if that's
+  // in Recently deleted too (so nothing comes back without its list).
+  function binGroupOf(key) {
+    const e = S.bin.get(key);
+    if (!binOk(key, e)) return [];
+    const keys = new Set([...S.bin].filter(([k, x]) => k === key || (e.group && binOk(k, x) && x.group === e.group)).map(([k]) => k));
+    for (const k of [...keys]) {
+      const x = S.bin.get(k);
+      const p = PARENT[x.coll];
+      if (!p || S[p[1]].has(x.doc[p[0]])) continue;
+      const pk = binKey(p[1], x.doc[p[0]]);
+      if (S.bin.has(pk) && !keys.has(pk)) for (const k2 of binGroupOf(pk).map(([c, id]) => binKey(c, id))) keys.add(k2);
+    }
+    return [...keys].map(k => S.bin.get(k)).filter(Boolean).map(x => [x.coll, x.id, x.doc]);
+  }
+  // Older than 7 days (or everything, when asked): gone for good, the same as deleted tasks.
+  let binPurged = false;
+  function purgeBin(all = false) {
+    if (!writable() || !S.binLoaded) return;
+    const cutoff = Date.now() - TRASH_DAYS * 86400000;
+    const old = [...S.bin].filter(([, e]) => all || !(Number(e && e.deletedAt) > cutoff)).map(([k]) => k);
+    runPool(old.map(k => () => write('bin/' + k, () => binRef(k).delete(), { quiet: !all })), 2);
+  }
+  // What a record is called in Recently deleted.
+  function recordTitle(coll, d) {
+    if (coll === 'shopLists') return clean(d.name, 40) || 'Untitled list';
+    if (coll === 'shopItems') return clean(d.text, 200) || 'Untitled item';
+    if (coll === 'wishes') return clean(d.title, 120) || 'Untitled wish';
+    if (coll === 'goals') return clean(d.name, 80) || 'Untitled goal';
+    if (coll === 'goalEntries') return [isCents(d.amountCents) ? money(d.amountCents) : '', clean(d.note, 200)].filter(Boolean).join(' · ') || 'Savings entry';
+    if (coll === 'dates') return clean(d.title, 80) || 'Untitled date';
+    return 'Untitled';
   }
 
   /* ---------- list actions ---------- */
@@ -7338,35 +7602,65 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     b.classList.remove('armed');
     b.textContent = 'Delete all now';
   }
+  // The newer kinds' rows: one for each group (a shopping list with its items, a goal with its entries), shown by its head.
+  function binRows() {
+    const groups = new Map();
+    for (const [key, e] of S.bin) {
+      if (!binOk(key, e)) continue;
+      const g = e.group || key;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push([key, e]);
+    }
+    return [...groups].map(([g, members]) => {
+      const [key, e] = members.find(([k]) => k === g) || members[0];
+      return { key, coll: e.coll, data: e.doc, at: Number(e.deletedAt) || 0, more: members.length - 1 };
+    });
+  }
+  const trashCount = () => trashEntries().length + binRows().length;
+  function trashRow(titleText, metaText, restore, label) {
+    const li = document.createElement('li');
+    li.className = 'trash-row';
+    const text = document.createElement('span');
+    text.className = 'trash-text';
+    const title = document.createElement('span');
+    title.className = 'trash-title';
+    title.textContent = titleText;
+    const meta = document.createElement('span');
+    meta.className = 'trash-meta';
+    meta.textContent = metaText;
+    text.append(title, meta);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-small quiet';
+    Object.assign(b.dataset, restore);
+    b.textContent = 'Restore';
+    b.setAttribute('aria-label', `Restore ${label}`);
+    li.append(text, b);
+    return li;
+  }
   function renderTrash() {
     const entries = trashEntries();
-    $('#trashLink').hidden = !writable() || !entries.length || !!searchQuery() || S.selecting;
-    $('#trashOpen').textContent = `Recently deleted · ${entries.length}`;
+    const rows = binRows();
+    const total = entries.length + rows.length;
+    $('#trashLink').hidden = !writable() || !total || !!searchQuery() || S.selecting;
+    $('#trashOpen').textContent = `Recently deleted · ${total}`;
     if (!S.trashOpen) return;
-    $('#trashRows').replaceChildren(...entries.map(x => {
-      const t = taskView(x.id, x.data);
-      const li = document.createElement('li');
-      li.className = 'trash-row';
-      const text = document.createElement('span');
-      text.className = 'trash-text';
-      const title = document.createElement('span');
-      title.className = 'trash-title';
-      title.textContent = t.title || 'Untitled task';
-      const meta = document.createElement('span');
-      meta.className = 'trash-meta';
-      meta.textContent = [`Deleted ${pastDay(x.at)}`, nameOf(t.list)].filter(Boolean).join(' · ');
-      text.append(title, meta);
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn-small quiet';
-      b.dataset.restore = x.id;
-      b.textContent = 'Restore';
-      b.setAttribute('aria-label', `Restore ${t.title || 'task'}`);
-      li.append(text, b);
-      return li;
+    const all = [...entries, ...rows].sort((a, b) => b.at - a.at);
+    $('#trashRows').replaceChildren(...all.map(x => {
+      if (!x.coll) {
+        const t = taskView(x.id, x.data);
+        return trashRow(t.title || 'Untitled task', [KIND_NAME.tasks, `Deleted ${pastDay(x.at)}`, nameOf(t.list)].filter(Boolean).join(' · '),
+          { restore: x.id }, t.title || 'task');
+      }
+      const title = recordTitle(x.coll, x.data);
+      const p = PARENT[x.coll];
+      const parent = p && S[p[1]].get(x.data[p[0]]);
+      const more = !x.more ? '' : x.coll === 'shopLists' ? plural(x.more, 'item', 'items') : x.coll === 'goals' ? plural(x.more, 'entry', 'entries') : `and ${x.more} more`;
+      const meta = [KIND_NAME[x.coll], more, parent ? recordTitle(p[1], parent) : '', `Deleted ${pastDay(x.at)}`].filter(Boolean).join(' · ');
+      return trashRow(title, meta, { restoreBin: x.key }, title);
     }));
-    $('#trashEmpty').hidden = entries.length > 0;
-    $('#trashPurge').hidden = !entries.length;
+    $('#trashEmpty').hidden = total > 0;
+    $('#trashPurge').hidden = !total;
   }
   function openTrash() {
     if (!writable()) return;
@@ -8250,8 +8544,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   }
   const lockOn = () => !!(window.claude && window.claude.lock && typeof window.claude.lock.isOn === 'function' && window.claude.lock.isOn());
   async function keepFileCopy() {
-    if (!S.tasksLoaded || !S.listsLoaded || S.status !== 'ready') return;
-    if (!S.tasks.size && !S.lists.size) return; // nothing to keep
+    if (!S.tasksLoaded || !S.listsLoaded || !recSettled() || S.status !== 'ready') return;
+    if (!S.tasks.size && !S.lists.size && !REC_COLLS.some(c => S[c].size)) return; // nothing to keep
     if (lockOn()) return; // a plain file anyone holding the phone could open in Files: not while the passcode lock is on
     const text = JSON.stringify(exportBody({}));
     const sig = `${S.today}|${text.length}|${hashText(text)}`;
@@ -9643,7 +9937,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   // A saved file is checked before anything in it is kept: its size, its keys, its ids, and every photo's actual bytes.
   const MAX_IMPORT_BYTES = 250 * 1024 * 1024;
   const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
-  const IMPORT_CAP = { tasks: 20000, lists: 200, categories: 500, clients: 2000, templates: 500, history: 4000, photos: 3000 };
+  const IMPORT_CAP = { tasks: 20000, lists: 200, categories: 500, clients: 2000, templates: 500, history: 4000, photos: 3000,
+    shopLists: 500, shopItems: 20000, wishes: 5000, goals: 500, goalEntries: 20000, dates: 5000 };
+  // How many of each newer kind, in words ("2 shopping lists", "5 wishes"), leaving out the ones there are none of.
+  const REC_WORDS = { shopLists: ['shopping list', 'shopping lists'], shopItems: ['shopping item', 'shopping items'], wishes: ['wish', 'wishes'],
+    goals: ['savings goal', 'savings goals'], goalEntries: ['savings entry', 'savings entries'], dates: ['important date', 'important dates'] };
+  const recCounts = count => REC_COLLS.map(c => { const n = count(c); return n ? plural(n, ...REC_WORDS[c]) : ''; });
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
   const safeId = id => typeof id === 'string' && id.length > 0 && id.length <= 200 && !/[\/\u0000-\u001F\u007F]/.test(id);
   // What the bytes are, whatever the file says: only real pictures get in (JPEG, PNG, WebP, GIF, and iPhone HEIC/AVIF).
@@ -9705,7 +10004,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const keep = d => !(d && d.sample === true);
     return {
       app: EXPORT_APP, version: 1, exportedAt: new Date().toISOString(),
-      collections: { tasks: plainCopy(S.tasks, keep), lists: plainCopy(S.lists), categories: plainCopy(S.cats), history: plainCopy(S.history), templates: plainCopy(S.templates), clients: plainCopy(S.clients) },
+      collections: { tasks: plainCopy(S.tasks, keep), lists: plainCopy(S.lists), categories: plainCopy(S.cats), history: plainCopy(S.history), templates: plainCopy(S.templates), clients: plainCopy(S.clients),
+        ...Object.fromEntries(REC_COLLS.map(c => [c, plainCopy(S[c])])) }, // not Recently deleted (bin), the same as the tasks' trash
       settings: { skin: legacySkin(THEME.get().look), theme: { look: THEME.get().look, appearance: THEME.get().appearance, accent: THEME.get().accent || '' },
         prefs: { ...S.prefs }, textSize: S.textSize, sort: S.sort, streak: { ...S.streak.days }, sign: signoffs() },
       photos,
@@ -9713,7 +10013,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   }
   let moving = false;
   async function exportAll() {
-    if (moving || !S.tasksLoaded) return;
+    if (moving || !S.tasksLoaded || !recSettled()) return;
     moving = true;
     renderMove('busy', 'Gathering your list…');
     try {
@@ -9731,7 +10031,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       }
       const data = exportBody(photos);
       const nt = Object.keys(data.collections.tasks).length;
-      const what = [plural(nt, 'task', 'tasks'), plural(S.lists.size, 'list', 'lists'), S.cats.size ? plural(S.cats.size, 'category', 'categories') : '', S.clients.size ? plural(S.clients.size, 'client', 'clients') : '', n ? plural(n, 'photo', 'photos') : '']
+      const what = [plural(nt, 'task', 'tasks'), plural(S.lists.size, 'list', 'lists'), S.cats.size ? plural(S.cats.size, 'category', 'categories') : '', S.clients.size ? plural(S.clients.size, 'client', 'clients') : '',
+        ...recCounts(c => S[c].size), n ? plural(n, 'photo', 'photos') : '']
         .filter(Boolean).join(', ');
       const res = await saveFileOut(new Blob([JSON.stringify(data)], { type: 'application/json' }), `To-do everything ${S.today}.json`, 'application/json');
       if (res) { local.set('todo.lastExport', String(Date.now())); renderMoveInfo(); renderFoot(); }
@@ -9754,6 +10055,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     moving = true;
     renderMove('busy', 'Reading the file…');
     try {
+      if (!S.tasksLoaded || !recSettled()) { renderMove('error', 'Your list is still opening. Try again in a moment.'); return; }
       if (file.size > MAX_IMPORT_BYTES) { renderMove('error', 'That file is too big to be a saved to-do list.'); return; }
       let data = null;
       try { data = JSON.parse(await file.text(), (k, v) => (UNSAFE_KEYS.has(k) ? undefined : v)); } catch (e) { data = null; }
@@ -9778,12 +10080,23 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
           renderMove('busy', `Loading photos… ${np} of ${photos.length}`);
         }
       }
+      const firsts = []; // what others point at (lists, clients, shopping lists, goals) goes in before what points at them
       const jobs = [];
-      let nt = 0, nl = 0, nc = 0, ncat = 0;
-      for (const [id, d] of entries('lists')) if (!S.lists.has(id)) { nl++; jobs.push(() => write('lists/' + id, () => db.doc('lists/' + id).set(d), { create: true })); }
-      for (const [id, d] of entries('categories')) if (!S.cats.has(id)) { ncat++; jobs.push(() => write('categories/' + id, () => db.doc('categories/' + id).set(d), { create: true })); }
-      for (const [id, d] of entries('clients')) if (!S.clients.has(id)) { nc++; jobs.push(() => write('clients/' + id, () => db.doc('clients/' + id).set(d), { create: true })); }
-      for (const [id, d] of entries('templates')) if (!S.templates.has(id)) jobs.push(() => write('templates/' + id, () => db.doc('templates/' + id).set(d), { create: true }));
+      let nt = 0, nl = 0, nc = 0, ncat = 0, ntp = 0;
+      for (const [id, d] of entries('lists')) if (!S.lists.has(id)) { nl++; firsts.push(() => write('lists/' + id, () => db.doc('lists/' + id).set(d), { create: true })); }
+      for (const [id, d] of entries('categories')) if (!S.cats.has(id)) { ncat++; firsts.push(() => write('categories/' + id, () => db.doc('categories/' + id).set(d), { create: true })); }
+      for (const [id, d] of entries('clients')) if (!S.clients.has(id)) { nc++; firsts.push(() => write('clients/' + id, () => db.doc('clients/' + id).set(d), { create: true })); }
+      for (const [id, d] of entries('templates')) if (!S.templates.has(id)) { ntp++; jobs.push(() => write('templates/' + id, () => db.doc('templates/' + id).set(d), { create: true })); }
+      // The newer kinds: each one this list doesn't have yet, by its id (one it has already is left exactly as it is).
+      const added = Object.fromEntries(REC_COLLS.map(c => [c, 0]));
+      for (const c of REC_COLLS) {
+        if (!S[c + 'Loaded']) continue; // not read this visit, so what's already here can't be told apart: left for another time
+        for (const [id, d] of entries(c)) {
+          if (S[c].has(id)) continue;
+          added[c]++;
+          (PARENT[c] ? jobs : firsts).push(() => write(c + '/' + id, () => recRef(c, id).set(d), { create: true }));
+        }
+      }
       for (const [id, d] of entries('tasks')) {
         if (d.sample === true || S.tasks.has(id)) continue;
         const copy = { ...d };
@@ -9794,6 +10107,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       }
       for (const [day, d] of entries('history')) if (isYmd(day) && isPlain(d.items)) jobs.push(() => write('history/' + day, () => histRef(day).merge({ items: d.items }, { day }), { quiet: true }));
       renderMove('busy', 'Adding your tasks…');
+      await runPool(firsts, 6);
       await runPool(jobs, 6);
       const st = isPlain(data.settings) ? data.settings : {};
       if (isPlain(st.theme) && LOOK_IDS.has(st.theme.look)) pickLook({ look: st.theme.look, appearance: st.theme.appearance, accent: st.theme.accent || '' });
@@ -9807,10 +10121,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       const sign = cleanSignoffs(st.sign);
       if (Object.keys(sign).length) local.set('todo.sign', JSON.stringify(sign));
       local.set('todo.welcomed', '1');
-      const parts = [plural(nt, 'task', 'tasks'), nl ? plural(nl, 'list', 'lists') : '', ncat ? plural(ncat, 'category', 'categories') : '', nc ? plural(nc, 'client', 'clients') : '', np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
+      const parts = [plural(nt, 'task', 'tasks'), nl ? plural(nl, 'list', 'lists') : '', ncat ? plural(ncat, 'category', 'categories') : '', nc ? plural(nc, 'client', 'clients') : '',
+        ntp ? plural(ntp, 'template', 'templates') : '', ...recCounts(c => added[c]), np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
+      const any = nt || nl || nc || ncat || ntp || REC_COLLS.some(c => added[c]);
       const inSafari = phoneWhere() === 'ios-safari' ? ' This copy is in Safari. The Home Screen icon keeps its own, so load the file there too.' : '';
-      renderMove('done', (nt || nl || nc || ncat ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
-      if (nt || nl || nc || ncat) toast(`Loaded ${parts.join(', ')}`);
+      renderMove('done', (any ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
+      if (any) toast(`Loaded ${parts.join(', ')}`);
       render();
     } catch (e) {
       renderMove('error', 'That file couldn’t be loaded. Try again.');
@@ -9850,7 +10166,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     'ios-app': ['Bring your list over', 'In the To‑Do you use now (the Home Screen icon or Safari), open Settings, tap Save everything and pick Save to Files. Then come back here, tap Load a saved file and pick that file. Your list there stays as it is.'],
   };
   function renderWelcome() {
-    const show = IS_PHONE && writable() && S.tasksLoaded && S.listsLoaded && !S.tasks.size && !S.lists.size && local.get('todo.welcomed') !== '1';
+    const show = IS_PHONE && writable() && S.tasksLoaded && S.listsLoaded && !S.tasks.size && !S.lists.size && !REC_COLLS.some(c => S[c].size) && local.get('todo.welcomed') !== '1';
     $('#welcome').hidden = !show;
     $('#hero').classList.toggle('behind-welcome', show);
     if (!show) return;
@@ -11684,6 +12000,16 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#trashOpen').addEventListener('click', openTrash);
   $('#trashDone').addEventListener('click', closeTrash);
   $('#trashRows').addEventListener('click', e => {
+    const nb = e.target.closest('[data-restore-bin]');
+    if (nb) { // a shopping list, wish, goal or date: it goes back with everything that went with it
+      const key = nb.dataset.restoreBin;
+      const x = S.bin.get(key);
+      const back = binGroupOf(key);
+      if (!x || !back.length) return;
+      restoreEntries(back);
+      toast(`Restored “${clean(recordTitle(x.coll, x.doc), 60)}”`);
+      return;
+    }
     const b = e.target.closest('[data-restore]');
     if (!b) return;
     const id = b.dataset.restore;
@@ -11693,20 +12019,23 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     toast(`Restored “${clean(entry.task.title, 60) || 'task'}”`);
   });
   $('#trashPurge').addEventListener('click', () => {
-    const n = trashEntries().length;
+    const tasks = trashEntries().length;
+    const n = trashCount();
     if (!n) return;
+    const what = n === tasks ? plural(n, 'task', 'tasks') : plural(n, 'thing', 'things');
     if (!purgeArmed) {
       purgeArmed = true;
       const b = $('#trashPurge');
       b.classList.add('armed');
-      b.textContent = `Tap again to delete ${plural(n, 'task', 'tasks')} for good`;
+      b.textContent = `Tap again to delete ${what} for good`;
       clearTimeout(purgeTimer);
       purgeTimer = setTimeout(disarmPurge, 4000);
       return;
     }
     disarmPurge();
     purgeTrash(true);
-    toast(`Deleted ${plural(n, 'task', 'tasks')} for good`);
+    purgeBin(true);
+    toast(`Deleted ${what} for good`);
   });
   // select several
   $('#selectBtn').addEventListener('click', () => (S.selecting ? exitSelect() : enterSelect()));
@@ -12158,6 +12487,17 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
         renderStats();
         if (first) setTimeout(pruneHistory, 5000); // once a visit, a moment after opening
       }, () => { /* progress is a nice-to-have; tasks keep working without it */ }),
+      // Shopping lists, wishes, savings goals, important dates, and their Recently deleted (bin).
+      ...[...REC_COLLS, 'bin'].map(c => db.collection(c).onSnapshot(snap => {
+        const m = new Map();
+        for (const d of snap.docs) if (d.exists) m.set(d.id, d.data() || {});
+        recSaved[c] = m;
+        S[c] = overlay(c, m);
+        const first = !S[c + 'Loaded'];
+        S[c + 'Loaded'] = true;
+        scheduleRender();
+        if (c === 'bin' && first && !binPurged) { binPurged = true; setTimeout(() => purgeBin(false), 6000); } // once a visit
+      }, () => { recDown.add(c); scheduleRender(); })), // nice-to-haves: the tasks keep working without them
     ];
   }
   function onSubError(err) {

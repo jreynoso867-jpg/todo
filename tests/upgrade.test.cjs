@@ -8,10 +8,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { serve, smallFixture, largeFixture, launch, phoneContext, seed, dump } = require('./lib.cjs');
+const { serve, smallFixture, largeFixture, withExtras, EXTRA_COLLS, launch, phoneContext, seed, dump } = require('./lib.cjs');
 
 const REPO = path.resolve(__dirname, '..');
 const OLD_REF = process.env.OLD_REF || 'fd3731e';
+// The last version before shopping lists, wishes, savings goals and important dates: another device (or the website)
+// may still run it on the same list, so it must leave those alone.
+const PRE_SECTIONS_REF = process.env.PRE_SECTIONS_REF || '58a3ff2';
 const NEW_DIR = path.resolve(process.env.NEW_DIR || REPO);
 
 function checkout(ref) {
@@ -42,7 +45,7 @@ async function shownTitles(page) {
   });
 }
 
-for (const [name, make] of [['small', smallFixture], ['large', () => largeFixture(undefined, 600)]]) {
+for (const [name, make] of [['small', smallFixture], ['small, with shopping lists, wishes, goals and dates', () => withExtras(smallFixture())], ['large', () => largeFixture(undefined, 600)]]) {
   test(`upgrade keeps every record (${name} list)`, { timeout: 180000 }, async () => {
     const oldDir = checkout(OLD_REF);
     const srv = await serve(oldDir);
@@ -84,7 +87,7 @@ for (const [name, make] of [['small', smallFixture], ['large', () => largeFixtur
       for (const k of Object.keys(after.local)) if (!(k in before.local)) assert.match(k, LOCAL_ADDED_OK, `only additive settings: ${k}`);
 
       // 3. Every task the old app showed is still on screen in the new one.
-      if (name === 'small') {
+      if (name.startsWith('small')) {
         const titles = await shownTitles(page);
         for (const [k, d] of Object.entries(fx.docs)) {
           if (!k.startsWith('tasks/')) continue;
@@ -108,3 +111,38 @@ for (const [name, make] of [['small', smallFixture], ['large', () => largeFixtur
     }
   });
 }
+
+// The other way round: a list that has the newer kinds is opened by the version before them (another device, the website
+// not yet updated). It doesn't know them, so it must leave every one alone, Recently deleted copies too (even one older
+// than 7 days, which that version's own clear-out doesn't look at), and put nothing into the tasks or their trash.
+test('an older version opening the list leaves the shopping lists, wishes, goals and dates alone', { timeout: 180000 }, async () => {
+  const oldDir = checkout(PRE_SECTIONS_REF);
+  const srv = await serve(oldDir);
+  const browser = await launch();
+  try {
+    const ctx = await phoneContext(browser);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push(String(e)));
+    const fx = withExtras(smallFixture());
+    const old = Date.now() - 9 * 864e5;
+    fx.docs['bin/wishes~w_old'] = { coll: 'wishes', id: 'w_old', group: null, deletedAt: old,
+      doc: { title: 'Old wish', category: 'other', priceCents: null, link: null, hearted: false, got: false, gotAt: null, note: '', rank: 1, createdAt: old, updatedAt: old } };
+    await seed(page, srv.url, fx);
+    const seeded = await dump(page);
+    await openApp(page, srv.url); // and 7 s more, past its delayed housekeeping
+    const after = await dump(page);
+    assert.deepEqual(errors, [], 'no script errors');
+    const newer = Object.keys(fx.docs).filter(k => [...EXTRA_COLLS, 'bin'].includes(k.slice(0, k.indexOf('/'))));
+    assert.ok(newer.length >= 20);
+    for (const k of newer) {
+      assert.ok(k in seeded.docs && k in after.docs, `kept: ${k}`);
+      assert.deepEqual(after.docs[k], seeded.docs[k], `left alone: ${k}`);
+    }
+    for (const k of Object.keys(after.docs)) if (!(k in seeded.docs)) assert.ok(!/^(tasks|trash)\//.test(k), `nothing new in the tasks or their trash: ${k}`);
+    await ctx.close();
+  } finally {
+    await browser.close();
+    await srv.close();
+  }
+});
