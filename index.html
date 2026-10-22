@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DzEi1IWlklt3AxJqFnnLlTcPavprE2RxOE68RzQaIX4=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xJ4q6YCK1lQQ3UdSUhJ+s7DthaxB7RoO2+PEEfaGik8=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.ddb565ec'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.c99cacb6'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2322,14 +2322,15 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .dock-inner { height: 64px; }
 .dock-btn { border-radius: 22px; }
 .dock-btn[aria-current="page"] { color: var(--accent-ink); }
+.dock-btn[aria-current="page"] .dock-label { color: var(--head); } /* the icon takes the accent; small words need the ink */
 .dock-badge { background: var(--accent); color: var(--on-accent); }
 /* A pill at the bottom right, over the tab bar: what to add on this tab. */
 .new-pill {
   right: max(16px, calc((100% - 560px) / 2 + 16px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   width: auto; max-width: calc(100% - 32px); height: 54px; display: inline-flex; align-items: center; gap: 8px; padding: 0 22px 0 18px;
-  border-radius: 999px; background: var(--grad); color: var(--on-accent); box-shadow: 0 12px 28px -10px var(--glow);
+  border-radius: 999px; background: var(--accent); color: var(--on-accent); box-shadow: 0 12px 28px -10px var(--glow);
   font-size: calc(16px * var(--ts)); font-weight: 750; white-space: nowrap;
-}
+} /* a solid fill (the look's gradients are too light in places for words) */
 .new-pill .ico { width: 22px; height: 22px; stroke-width: 2.4; }
 .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; }
 .select-bar { border-radius: 26px 26px 0 0; background: var(--raise); border-color: var(--card-line); }
@@ -3084,7 +3085,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       <p class="pane-sub">Your task lists, orders and clients</p>
     </div>
   </div>
-  <!-- (shopping lists, the wish list and savings goals come here, above the task lists) -->
+  <!-- Shopping lists (a card each, two to a row), then the Wish list and Savings goals: filled in by their own parts of
+       the app, and hidden until there's something to show. -->
+  <div class="lcards" id="shopCards" role="group" aria-label="Shopping lists" hidden></div>
+  <div class="lcards" id="moreCards" role="group" aria-label="Wish list and savings goals" hidden></div>
   <h2 class="pane-h2" id="taskListsTitle">Task lists</h2>
   <div class="lcards" id="taskListCards" role="group" aria-labelledby="taskListsTitle"></div>
   <p class="card-empty" id="taskListsEmpty" hidden>No lists yet. Lists keep work and home apart.</p>

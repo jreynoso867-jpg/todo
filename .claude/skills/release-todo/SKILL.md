@@ -25,7 +25,7 @@ Code branches on `IS_PHONE` (website and iPhone app), `NATIVE` (iPhone app only)
 2. Edit `index.html`. Keep data changes additive: new fields and documents are fine; renaming, dropping or reshaping stored fields is not, because older copies of the app (another device, the website, a TestFlight build) still read and write the same records.
 3. Run `node tools/release.cjs` after every edit. The page has a strict Content-Security-Policy with a sha256 hash per inline script; a stale hash makes the page blank and tests time out mysteriously.
 4. Add a test for every fix and feature (Playwright, `tests/*.test.cjs`, fixtures and storage helpers in `tests/lib.cjs`). Prove the bug first when you can: a test that fails before the fix and passes after is worth more than one written afterwards.
-5. Run everything: `cd tests && npm test` (upgrade, features, regression, native, artifact, fixes, sections). All must pass. `upgrade.test.cjs` is the data-preservation test: an old version's storage opened by the new code must come through record for record.
+5. Run everything: `cd tests && npm test` (upgrade, features, regression, native, artifact, fixes, sections, tabs). All must pass. `upgrade.test.cjs` is the data-preservation test: an old version's storage opened by the new code must come through record for record.
 6. Commit with a message that says what changed for the user and why.
 
 Things that have bitten before: the hero card shows the first task (wait for `#board .task, #heroOpen:not([disabled])`, not just rows); time-of-day prompts differ before 9 AM; `<a download>` does nothing inside Claude or the iPhone app (use the downloads capability / share sheet); the synced Claude database means two devices can write the same record.

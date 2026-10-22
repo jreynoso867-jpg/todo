@@ -135,6 +135,36 @@ test('opened in Claude: a new task stays after a reload, and Claude\'s dark swit
   await ctx.close();
 });
 
+test('opened in Claude: the tabs work the same (with no phone welcome), and nothing in the list changes', async () => {
+  const { ctx, page, errors, before } = await open(smallFixture()); // the fixture keeps Tasks as the tab
+  const shownPanels = () => page.$$eval('main .pane', els => els.filter(e => !e.hidden && e.offsetParent).map(e => e.id));
+  assert.deepEqual(await shownPanels(), ['paneTasks']);
+  await page.click('#dockHome');
+  assert.deepEqual(await shownPanels(), ['paneHome']);
+  assert.equal(await page.$$eval('#homeDueRows .home-row', els => els.length), 3);
+  assert.ok(await page.isHidden('#welcome'), 'the welcome is for the phone app only');
+  await page.click('#dockLists');
+  assert.deepEqual(await shownPanels(), ['paneLists']);
+  assert.equal(await page.$$eval('#taskListCards .lcard', els => els.length), 3);
+  await page.click('#dockWeek');
+  assert.deepEqual(await shownPanels(), ['paneCalendar']);
+  assert.ok(await page.isVisible('#weekView .wk-task'));
+  await page.click('[data-cal-mode="month"]');
+  assert.ok(await page.isVisible('#monthGrid [data-day]'));
+  await page.click('#dockToday');
+  assert.deepEqual(await shownPanels(), ['paneTasks']);
+  assert.equal(await page.getAttribute('#dockToday', 'aria-current'), 'page');
+  await page.click('#colorsBtn');
+  await page.waitForSelector('#colorsSheet.open');
+  assert.equal(await page.evaluate(() => document.querySelector('#dock').inert), true);
+  const after = await dump(page);
+  for (const [k, v] of Object.entries(before.docs)) assert.deepEqual(after.docs[k], v, `unchanged: ${k}`);
+  for (const k of Object.keys(after.docs)) if (!(k in before.docs)) assert.match(k, ADDED_OK, `only additive records: ${k}`);
+  assert.equal(after.local['todo.tab'], 'tasks');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('opened in Claude: a look saved by the old version (orange on pink) comes through untouched', async () => {
   const fx = smallFixture();
   fx.docs['settings/app'] = { skin: 'orange-pink', updatedAt: Date.now() - 1e6 };
