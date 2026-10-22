@@ -267,7 +267,8 @@ test('timeline, month and week planner open', async () => {
   await page.waitForSelector('#timeline:not([hidden]) .tl-block');
   await page.click('#tlList');
   await page.click('#monthBtn');
-  await page.waitForSelector('#monthSheet.open');
+  // The month shows (in a sheet in older versions, on the Calendar tab now): its days can be tapped.
+  await page.waitForSelector(`#monthGrid [data-day="${addDays(T, 1)}"]`, { state: 'visible' });
   await page.click(`#monthGrid [data-day="${addDays(T, 1)}"]`);
   await page.waitForTimeout(400);
   assert.ok(await page.isVisible('#dayBar'));

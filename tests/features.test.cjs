@@ -67,7 +67,7 @@ test('a monthly task on the 31st comes back on the 31st after February', async (
 
 test('the first tap on an old checklist item in Up next counts', async () => {
   const T = ymd(new Date());
-  const fx = { today: T, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1' }, blobs: {}, docs: {
+  const fx = { today: T, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1', 'todo.tab': 'tasks' }, blobs: {}, docs: {
     'tasks/old': { title: 'Old checklist', note: '', priority: 0, done: false, due: T, time: null, repeat: null, list: null, pinned: true,
       checklist: [{ text: 'First' }, { text: 'Second' }], createdAt: 1, doneAt: null },
     'tasks/other': { title: 'Another', note: '', priority: 0, done: false, due: T, list: null, checklist: [], createdAt: 2, doneAt: null } } };

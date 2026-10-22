@@ -93,7 +93,8 @@ function smallFixture(today = ymd(new Date())) {
     'settings/streak': { days: { [addDays(T, -2)]: 'done', [addDays(T, -1)]: 'missed' }, updatedAt: now - 1e8 },
   };
   const blobs = { pphoto000001: { type: 'image/png', bytes: [...PNG] } };
-  const local = { 'todo.welcomed': '1', 'todo.filter': '*all', 'todo.showDone': '0', 'todo.swipeTip2': '1' };
+  // 'todo.tab': the app opens on Tasks (the board), the way these tests were written; a phone with nothing saved opens on Home.
+  const local = { 'todo.welcomed': '1', 'todo.filter': '*all', 'todo.showDone': '0', 'todo.swipeTip2': '1', 'todo.tab': 'tasks' };
   return { today: T, docs, blobs, local };
 }
 
@@ -128,7 +129,7 @@ function largeFixture(today = ymd(new Date()), n = 2000) {
     docs['history/' + day] = { day, items };
   }
   docs['settings/app'] = { skin: 'classic', updatedAt: now };
-  return { today: T, docs, blobs: {}, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1' } };
+  return { today: T, docs, blobs: {}, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1', 'todo.tab': 'tasks' } };
 }
 
 // The newer kinds of record, each in its own flat collection: shopping lists and their items, wishes, savings goals and

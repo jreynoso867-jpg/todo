@@ -26,7 +26,7 @@ function soon(min) {
 const task = (title, o = {}) => ({ title, note: '', priority: 0, done: false, due: null, time: null, repeat: null, list: null, checklist: [], createdAt: Date.now() - 1e6, doneAt: null, ...o });
 function fixture(docs, local = {}) {
   return { today: ymd(new Date()), blobs: {}, docs: { 'lists/l_home': { name: 'Home', color: 2, order: 1 }, ...docs },
-    local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1', ...local } };
+    local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1', 'todo.tab': 'tasks', ...local } }; // opens on Tasks, where the rows are
 }
 
 // The app inside the stand-in shell, with `fx` on the phone. Collects script errors.

@@ -32,11 +32,15 @@ const { serve, smallFixture, launch, phoneContext, seed } = require('./lib.cjs')
     const name = `${look}-${mode}-${w}${textSize !== 'default' ? '-' + textSize : ''}${full && full !== 'full' ? '-' + full : ''}`;
     // A full-page capture doesn't scroll, so rows drawn only when on screen are drawn up front.
     if (full === 'full') await page.addStyleTag({ content: '.task{content-visibility:visible!important}' });
-    // Screens other than the list: settings, a task, focus, the calendar.
+    // Screens other than the list: settings, a task, focus, the calendar, the other tabs.
     if (full === 'settings') { await page.click('#colorsBtn'); await page.waitForTimeout(500); }
     if (full === 'task') { await page.click('.task[data-id="t_today_timed"] .task-body'); await page.waitForTimeout(500); }
     if (full === 'focus') { await page.click('#heroFocus'); await page.waitForTimeout(300); }
-    if (full === 'month') { await page.click('#monthBtn'); await page.waitForTimeout(500); }
+    if (full === 'month') { await page.click('#monthBtn'); await page.waitForTimeout(500); } // the Calendar tab, on the month
+    // The other tabs (the list opens on Tasks).
+    if (full === 'home') { await page.click('#dockHome'); await page.waitForTimeout(500); }
+    if (full === 'lists') { await page.click('#dockLists'); await page.waitForTimeout(500); }
+    if (full === 'calendar') { await page.click('#dockWeek'); await page.waitForTimeout(500); }
     if (full === 'overdue') { await page.click('[data-scope="overdue"]'); await page.waitForTimeout(300); }
     await page.screenshot({ path: path.join(out, name + '.png'), fullPage: full === 'full' });
     if (full) {

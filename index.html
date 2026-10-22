@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xW6F2FpyYkii4gThZZNEaBgj2IvOf+VNpSYemK7gKlg=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-v+kqtrePaDY16W0XweT27+S1niN7NJ+jYeroEQfsIKs=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DzEi1IWlklt3AxJqFnnLlTcPavprE2RxOE68RzQaIX4=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.41f1977f'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.ddb565ec'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1691,7 +1691,7 @@ html.selecting .task-body, html.selecting .ring { cursor: pointer; }
 
 /* ---------- the month at a glance ---------- */
 .month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px -8px 8px; }
-.month-nav h3 { margin: 0; font-size: calc(20px * var(--tsb)); font-weight: 800; font-stretch: 85%; color: var(--head); }
+.month-nav h2 { margin: 0; font-size: calc(20px * var(--tsb)); font-weight: 800; font-stretch: 85%; color: var(--head); }
 .month-nav .icon-btn:disabled { opacity: .25; cursor: default; }
 .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .month-wd { padding: 2px 0 4px; font-size: calc(12.5px * var(--ts)); font-weight: 700; color: var(--soft); text-align: center; }
@@ -2016,7 +2016,7 @@ button.wk-head { cursor: pointer; }
 
 .chip-count.late { color: var(--red); opacity: 1; font-weight: 800; }
 
-/* the dock: the places you go and the add button, where a thumb reaches */
+/* the dock: the tab bar, where a thumb reaches */
 .dock {
   position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
   padding: 0 6px env(safe-area-inset-bottom, 0px);
@@ -2025,13 +2025,20 @@ button.wk-head { cursor: pointer; }
 .dock-inner { max-width: 560px; margin-inline: auto; display: flex; align-items: stretch; height: 62px; }
 .dock-btn {
   flex: 1 1 0; min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  padding: 0 2px; border: 0; background: none; color: var(--soft); font-size: calc(11.5px * var(--ts)); font-weight: 700; line-height: 1.1;
+  padding: 0 2px; border: 0; background: none; color: var(--soft); font-weight: 600; line-height: 1.1;
+  /* The labels grow with the text size only so far: five have to fit side by side on the smallest iPhone. */
+  font-size: min(calc(11.5px * var(--ts)), 12.5px);
   transition: transform .12s ease;
 }
+.dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dock-btn .ico { width: 25px; height: 25px; }
-.dock-btn[aria-current="page"] { color: var(--head); }
+/* The place showing: a bold label and a filled icon (its inner lines in the bar's own color). */
+.dock-btn .fo { stroke: none; }
+.dock-btn[aria-current="page"] { color: var(--head); font-weight: 800; }
+.dock-btn[aria-current="page"] .fl, .dock-btn[aria-current="page"] .fo { fill: currentColor; }
+.dock-btn[aria-current="page"] .dt { stroke: var(--raise, var(--page)); }
 .dock-btn:active { transform: scale(.93); }
-.dock .fab { position: relative; inset: auto; flex: none; align-self: flex-start; width: 58px; height: 58px; margin: -20px 8px 0; }
+@media (max-width: 359px) { .dock-btn { font-size: 11px; } }
 .dock-badge {
   position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: var(--head); color: var(--page); font-size: calc(11px * var(--ts)); font-weight: 800; line-height: 18px; text-align: center;
@@ -2305,21 +2312,26 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 }
 .task.swiping, .task.settling, .task.snooze-open { content-visibility: visible; }
 
-/* ---------- the floating dock ---------- */
+/* ---------- the floating tab bar, and "+ New" above it ---------- */
 .dock {
   left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: 540px; margin-inline: auto;
   padding: 0 4px; border: 1px solid var(--card-line); border-radius: 28px; background: var(--raise);
   box-shadow: 0 14px 34px -14px rgba(0, 0, 0, .45);
 }
+@media (max-width: 359px) { .dock { left: 8px; right: 8px; padding: 0 2px; } }
 .dock-inner { height: 64px; }
 .dock-btn { border-radius: 22px; }
 .dock-btn[aria-current="page"] { color: var(--accent-ink); }
-.dock .fab {
-  width: 60px; height: 60px; margin: -24px 6px 0; background: var(--grad); color: var(--on-accent);
-  box-shadow: 0 12px 28px -8px var(--glow), 0 0 0 5px var(--page);
-}
 .dock-badge { background: var(--accent); color: var(--on-accent); }
-.toast { bottom: calc(106px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; }
+/* A pill at the bottom right, over the tab bar: what to add on this tab. */
+.new-pill {
+  right: max(16px, calc((100% - 560px) / 2 + 16px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  width: auto; max-width: calc(100% - 32px); height: 54px; display: inline-flex; align-items: center; gap: 8px; padding: 0 22px 0 18px;
+  border-radius: 999px; background: var(--grad); color: var(--on-accent); box-shadow: 0 12px 28px -10px var(--glow);
+  font-size: calc(16px * var(--ts)); font-weight: 750; white-space: nowrap;
+}
+.new-pill .ico { width: 22px; height: 22px; stroke-width: 2.4; }
+.toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; }
 .select-bar { border-radius: 26px 26px 0 0; background: var(--raise); border-color: var(--card-line); }
 
 /* ---------- buttons, chips and sheets in the look's colors ---------- */
@@ -2439,10 +2451,105 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
   font-size: calc(14.5px * var(--ts)); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .focus-pill .ico { width: 18px; height: 18px; }
-html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); } /* above the running timer */
+html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); } /* above the running timer */
+
+/* ---------- the tabs' panels: a title, then cards ---------- */
+.pane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pane-head-text { flex: 1; min-width: 0; }
+/* On Tasks, the buttons go above the title when both don't fit on one line (a small phone, large text). */
+.pane-head:has(.top-actions) { flex-wrap: wrap-reverse; align-items: flex-end; gap: 4px 12px; }
+.pane-head:has(.top-actions) .pane-head-text { flex: 1 1 auto; }
+.pane-head .top-actions { margin: 0 -10px 0 auto; }
+.pane-title {
+  margin: 0; font-size: calc(34px * var(--tsb)); font-weight: 850; font-stretch: 80%; line-height: 1.08; letter-spacing: -.01em;
+  color: var(--head); overflow-wrap: anywhere;
+}
+.pane-title:focus { outline: none; } /* focus lands here when a tab opens, for screen readers; it isn't something to press */
+.pane-sub { margin: 6px 0 0; font-size: calc(15.5px * var(--ts)); color: var(--soft); }
+.pane-h2 { margin: 30px 0 10px; font-size: calc(19px * var(--tsb)); font-weight: 800; font-stretch: 85%; color: var(--head); }
+.card-empty { margin: 8px 0 4px; font-size: calc(15px * var(--ts)); line-height: 1.4; color: var(--soft); }
+/* Home: the date, a greeting with today's ring, then cards */
+.top .top-kicker { margin: 0 0 6px; min-height: 0; font-size: calc(13px * var(--ts)); color: var(--accent-ink); } /* (over .top p) */
+.hello { text-wrap: balance; }
+.brief .brief-x { position: absolute; top: 4px; right: 4px; }
+.brief .brief-text { margin: 0 34px 12px 0; }
+.home-card {
+  margin-top: 18px; padding: 12px 14px 8px 16px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
+  background: var(--card); box-shadow: var(--card-shadow);
+}
+.card-head { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.card-head > .ico { width: 22px; height: 22px; color: var(--soft); }
+.card-head h2 { margin: 0; min-width: 0; font-size: calc(18px * var(--tsb)); font-weight: 800; font-stretch: 85%; color: var(--head); }
+.card-n { flex: none; font-size: calc(15px * var(--ts)); color: var(--soft); white-space: nowrap; }
+.card-go { margin: 0 -10px 0 auto; color: var(--soft); }
+.home-rows { list-style: none; margin: 0; padding: 0; }
+.home-row { display: flex; align-items: center; }
+.home-row .ring { margin-left: -9px; }
+.hr-body {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0;
+  border: 0; background: none; color: inherit; text-align: left;
+}
+.hr-title { flex: 1; min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hr-when { flex: none; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); white-space: nowrap; }
+.hr-when.late { color: var(--red); }
+.card-more { display: block; padding: 4px 0 8px; }
+/* Tasks: the list picker as the title, and a summary card */
+.list-pick { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; vertical-align: top; }
+.list-pick .pane-title { min-width: 0; font-size: calc(30px * var(--tsb)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-pick.has-pick { padding: 4px 14px 6px 18px; border: 1px solid var(--card-line); border-radius: 999px; background: var(--card); box-shadow: var(--card-shadow); }
+.list-pick .chev-down { width: 22px; height: 22px; color: var(--soft); }
+.list-pick select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; font-size: 16px; cursor: pointer; }
+.list-pick:has(select:focus-visible) { outline: 2.5px solid var(--accent-ink); outline-offset: 2px; }
+.list-pick + .pane-sub { margin-top: 8px; }
+.tsum {
+  margin-top: 18px; padding: 18px 16px 8px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
+  background: var(--sum-bg, var(--card)); box-shadow: var(--card-shadow);
+}
+.tsum h2 { margin: 0; font-size: calc(24px * var(--tsb)); font-weight: 850; font-stretch: 82%; line-height: 1.15; color: var(--head); }
+.tsum-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.tsum-tile { min-width: 0; padding: 10px 10px 9px; border: 1px solid var(--card-line); border-radius: 16px; background: var(--raise); }
+.tsum-tile b { display: block; font-size: calc(22px * var(--tsb)); font-weight: 800; line-height: 1.1; color: var(--head); font-variant-numeric: tabular-nums; }
+.tsum-tile span { display: block; margin-top: 2px; font-size: calc(13.5px * var(--ts)); line-height: 1.2; color: var(--soft); overflow-wrap: anywhere; }
+.tsum-bar { height: 6px; margin-top: 14px; border-radius: 3px; background: var(--card-line); overflow: hidden; }
+.tsum-bar i { display: block; width: 0; height: 100%; border-radius: 3px; background: var(--pop); }
+.tsum-done { display: inline-flex; align-items: center; gap: 2px; padding: 10px 0 8px; }
+.tsum-done .ico { width: 16px; height: 16px; }
+.chip-side .ico { width: 17px; height: 17px; }
+/* Lists: a card per list, two to a row */
+.lcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lcard {
+  min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 14px 12px;
+  border: 1px solid var(--card-line); border-radius: var(--r-card, 20px); background: var(--card); box-shadow: var(--card-shadow);
+  color: var(--ink); text-align: left;
+}
+.lcard-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lcard .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--tone); }
+.lcard-head .ico { width: 20px; height: 20px; color: var(--soft); }
+.lcard-name { flex: 1; min-width: 0; font-size: calc(16.5px * var(--ts)); font-weight: 750; line-height: 1.25; overflow-wrap: anywhere; }
+.lcard-n { flex: none; font-size: calc(14px * var(--ts)); font-weight: 700; color: var(--soft); }
+.lcard-items { display: grid; gap: 4px; }
+.lcard-item {
+  position: relative; padding-left: 22px; font-size: calc(14.5px * var(--ts)); color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lcard-item::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 14px; height: 14px; margin-top: -7px;
+  border: 1.5px solid var(--tone, var(--soft)); border-radius: 50%;
+}
+.lcard-sub, .lcard-more { font-size: calc(14px * var(--ts)); color: var(--soft); }
+.lcard-sub.late { color: var(--red); font-weight: 600; }
+.lcard-more { font-weight: 700; }
+.lcards-edit { margin-top: 12px; }
+/* Calendar: the month (or the week) on a card */
+.cal-card {
+  margin-top: 18px; padding: 14px 12px 4px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
+  background: var(--card); box-shadow: var(--card-shadow);
+}
+.cal-card .wk-list { background: var(--wash); }
 
 /* ---------- headings in the look's heading font (the app's own font, unless a look picks one) ---------- */
-.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title { font-family: var(--font-head); }
+.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
+.pane-title, .pane-h2, .card-head h2, .tsum h2 { font-family: var(--font-head); }
 .sec h2 .count { font-family: var(--font); }
 
 /* ---------- Blush: rounder cards with a soft shadow, serif headings, beige chips, a raspberry ring ---------- */
@@ -2452,10 +2559,16 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 }
 :root[data-look="blush"][data-mode="dark"] { --card-shadow: 0 10px 30px -14px rgba(0, 0, 0, .5); }
 /* The serif has no narrow widths and reads best a little lighter; it's wider, so the big title steps down. */
-:root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title) {
+:root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
+  .pane-title, .pane-h2, .card-head h2, .tsum h2) {
   font-weight: 600; font-stretch: normal; letter-spacing: -.01em;
 }
+/* The date over the greeting is quiet, like the screenshots; the summary on Tasks sits on a soft peach-to-lilac wash. */
+:root[data-look="blush"] .top .top-kicker { color: var(--soft); font-size: calc(15px * var(--ts)); font-weight: 500; letter-spacing: 0; text-transform: none; }
+:root[data-look="blush"] { --sum-bg: linear-gradient(135deg, rgba(255, 218, 196, .55) 0%, rgba(248, 206, 224, .55) 55%, rgba(226, 214, 248, .55) 100%); }
+:root[data-look="blush"][data-mode="dark"] { --sum-bg: linear-gradient(135deg, rgba(255, 150, 110, .14) 0%, rgba(226, 92, 146, .16) 55%, rgba(150, 120, 225, .14) 100%), var(--card-solid); }
 :root[data-look="blush"] .hero-title { font-size: calc(38px * var(--tsb)); }
+:root[data-look="blush"] .hello { font-size: calc(32px * var(--tsb)); line-height: 1.08; }
 :root[data-look="blush"] .scope-tab:not([aria-pressed="true"]) .scope-n { background: var(--card-solid); }
 :root[data-look="blush"] .rp-stop1, :root[data-look="blush"] .rp-stop2 { stop-color: var(--pop); }
 
@@ -2741,19 +2854,15 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 </script>
 
 <main class="app" id="app">
+  <p class="net" id="net" role="status" aria-live="polite" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18.5h9.8a3.7 3.7 0 0 0 .6-7.35A5.6 5.6 0 0 0 7.2 9.4a4.6 4.6 0 0 0 .3 9.1z"/><path class="net-slash" d="M4 4l16 16"/></svg><span id="netText"></span></p>
+
+  <!-- Home: the day at a glance -->
+  <section class="pane" id="paneHome" aria-labelledby="briefTitle" hidden>
   <header class="top">
-    <div class="top-bar">
-    <span class="top-kicker" id="dateKicker" aria-hidden="true"></span>
-    <div class="top-actions">
-      <button type="button" class="icon-btn" id="tlBtn" aria-label="Day timeline" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5v15"/><rect x="7.5" y="4.5" width="12.5" height="5.5" rx="1.8"/><rect x="7.5" y="13" width="8.5" height="6.5" rx="1.8"/></svg></button>
-      <button type="button" class="icon-btn" id="monthBtn" aria-label="Month calendar" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 13.5h.01M12 13.5h.01M16 13.5h.01M8 16.8h.01M12 16.8h.01" stroke-width="2.8"/></svg></button>
-      <button type="button" class="icon-btn" id="searchBtn" aria-label="Search tasks" aria-controls="searchBar" aria-expanded="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
-      <button type="button" class="icon-btn" id="colorsBtn" aria-label="Settings" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8.2-9-8.2z"/><circle cx="7.5" cy="11.5" r="1.3"/><circle cx="10.5" cy="7.5" r="1.3"/><circle cx="15" cy="8" r="1.3"/></svg></button>
-    </div>
-    </div>
+    <p class="top-kicker" id="dateKicker"></p>
     <div class="top-main">
       <div class="top-text">
-        <h1 id="dateTitle"></h1>
+        <h1 class="hello pane-title" id="briefTitle" tabindex="-1"></h1>
         <p id="daySum"></p>
       </div>
       <div class="ring-prog" id="dayProg" role="img" hidden>
@@ -2764,14 +2873,64 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     <p class="motive" id="motive" hidden></p>
     <div class="stat-chips" id="statChips" hidden></div>
   </header>
-  <p class="net" id="net" role="status" aria-live="polite" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18.5h9.8a3.7 3.7 0 0 0 .6-7.35A5.6 5.6 0 0 0 7.2 9.4a4.6 4.6 0 0 0 .3 9.1z"/><path class="net-slash" d="M4 4l16 16"/></svg><span id="netText"></span></p>
-  <section class="brief" id="brief" aria-labelledby="briefTitle" hidden>
-    <div class="brief-head">
-      <h2 id="briefTitle"></h2>
-      <button type="button" class="icon-btn brief-x" id="briefClose" aria-label="Close the daily kickoff"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
-    </div>
+  <section class="brief" id="brief" aria-label="Your day" hidden>
+    <button type="button" class="icon-btn brief-x" id="briefClose" aria-label="Close the daily kickoff"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
     <p class="brief-text" id="briefText"></p>
     <div class="brief-acts"><button type="button" class="btn-small" id="briefOverdue" hidden></button><button type="button" class="btn-small quiet" id="briefOk">Let’s go</button></div>
+  </section>
+  <section class="welcome" id="welcome" aria-labelledby="welcomeTitle" hidden>
+    <h2 id="welcomeTitle">Bring your list over</h2>
+    <p id="welcomeText">In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.</p>
+    <div class="move-row"><button type="button" class="btn-small" id="welcomeLoad">Load a saved file</button><button type="button" class="btn-small quiet" id="welcomeSkip">Start fresh</button></div>
+  </section>
+  <section class="card home-card" id="homeDue" aria-labelledby="homeDueTitle" hidden>
+    <div class="card-head">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.4 2.4 4.6-5"/></svg>
+      <h2 id="homeDueTitle">Tasks due</h2>
+      <span class="card-n" id="homeDueN"></span>
+      <button type="button" class="icon-btn card-go" id="homeDueGo" aria-label="Open Tasks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <ul class="home-rows" id="homeDueRows"></ul>
+    <p class="card-empty" id="homeDueEmpty" hidden>Nothing waiting. Enjoy the day.</p>
+    <button type="button" class="link-btn card-more" id="homeDueMore" hidden></button>
+  </section>
+  <section class="sec stats" id="stats" aria-labelledby="statsTitle" hidden>
+    <div class="sec-head"><h2 id="statsTitle">Your week</h2><span class="stats-sum" id="statsSum"></span></div>
+    <div class="bars" id="bars" role="group" aria-label="Tasks done each day"></div>
+    <div class="bar-tip" id="barTip" aria-hidden="true" hidden></div>
+    <div class="stats-lists" id="statsLists"></div>
+    <p class="stats-note" id="statsNote" hidden></p>
+    <button type="button" class="link-btn stats-table-btn" id="statsTableBtn" aria-expanded="false" aria-controls="statsTable">Show as table</button>
+    <table class="stats-table" id="statsTable" hidden></table>
+  </section>
+  </section>
+
+  <!-- Tasks: the list itself -->
+  <section class="pane" id="paneTasks" aria-labelledby="tasksTitle" hidden>
+  <div class="pane-head">
+    <div class="pane-head-text">
+      <div class="list-pick" id="listPick">
+        <h1 class="pane-title" id="tasksTitle" tabindex="-1">Tasks</h1>
+        <svg class="ico chev-down" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M6 9l6 6 6-6"/></svg>
+        <select id="listPickSel" aria-label="Show tasks from" hidden></select>
+      </div>
+      <p class="pane-sub" id="tasksSub"></p>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="icon-btn" id="tlBtn" aria-label="Day timeline" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5v15"/><rect x="7.5" y="4.5" width="12.5" height="5.5" rx="1.8"/><rect x="7.5" y="13" width="8.5" height="6.5" rx="1.8"/></svg></button>
+      <button type="button" class="icon-btn" id="monthBtn" aria-label="Month calendar" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 13.5h.01M12 13.5h.01M16 13.5h.01M8 16.8h.01M12 16.8h.01" stroke-width="2.8"/></svg></button>
+      <button type="button" class="icon-btn" id="searchBtn" aria-label="Search tasks" aria-controls="searchBar" aria-expanded="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+    </div>
+  </div>
+  <section class="tsum" id="taskSum" aria-labelledby="taskSumTitle" hidden>
+    <h2 id="taskSumTitle"></h2>
+    <div class="tsum-tiles">
+      <div class="tsum-tile"><b id="sumToday"></b><span>Today</span></div>
+      <div class="tsum-tile"><b id="sumWeek"></b><span>This week</span></div>
+      <div class="tsum-tile"><b id="sumLater"></b><span>Later</span></div>
+    </div>
+    <div class="tsum-bar" aria-hidden="true"><i id="sumBar"></i></div>
+    <button type="button" class="link-btn tsum-done" id="sumDone"><span id="sumDoneText"></span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
   </section>
   <div class="ai-row" id="aiRow">
     <button type="button" class="ai-btn plan-btn" id="planBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z"/><path d="M18 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>Plan my day</button>
@@ -2806,11 +2965,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 
   <nav class="week" id="week" aria-label="The next seven days" hidden></nav>
 
-  <section class="welcome" id="welcome" aria-labelledby="welcomeTitle" hidden>
-    <h2 id="welcomeTitle">Bring your list over</h2>
-    <p id="welcomeText">In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.</p>
-    <div class="move-row"><button type="button" class="btn-small" id="welcomeLoad">Load a saved file</button><button type="button" class="btn-small quiet" id="welcomeSkip">Start fresh</button></div>
-  </section>
   <section class="hero c0 is-empty" id="hero" aria-labelledby="heroKicker">
     <div class="hero-inner">
       <div class="hero-top">
@@ -2846,6 +3000,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       <span class="chip-sep" id="catSep" aria-hidden="true" hidden></span>
       <div class="chip-group" id="catChips" role="group" aria-label="Categories" hidden></div>
       <button type="button" class="chip chip-quiet" id="editListsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span id="editListsLabel">Edit lists</span></button>
+      <button type="button" class="chip chip-side" id="poBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg>POs<span class="chip-count" id="poCount"></span></button>
+      <button type="button" class="chip chip-side" id="clientsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5V10l8-6 8 6v10.5z"/><path d="M9.5 20.5v-6h5v6"/></svg>Clients</button>
       <button type="button" class="chip chip-quiet" id="selectBtn" aria-pressed="false" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>Select</button>
       <label class="chip chip-quiet chip-sort" id="sortChip" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3.5 16.5L7 20l3.5-3.5"/><path d="M14 6h7M14 11h5M14 16h3"/></svg><select id="sortSel" aria-label="Sort tasks"><option value="mine">My order</option><option value="time">Time</option><option value="priority">Priority</option><option value="newest">Newest</option><option value="list">List</option></select><svg class="ico chev-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
     </div>
@@ -2917,17 +3073,59 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     </div>
   </div>
 
-  <section class="sec stats" id="stats" aria-labelledby="statsTitle" hidden>
-    <div class="sec-head"><h2 id="statsTitle">Your week</h2><span class="stats-sum" id="statsSum"></span></div>
-    <div class="bars" id="bars" role="group" aria-label="Tasks done each day"></div>
-    <div class="bar-tip" id="barTip" aria-hidden="true" hidden></div>
-    <div class="stats-lists" id="statsLists"></div>
-    <p class="stats-note" id="statsNote" hidden></p>
-    <button type="button" class="link-btn stats-table-btn" id="statsTableBtn" aria-expanded="false" aria-controls="statsTable">Show as table</button>
-    <table class="stats-table" id="statsTable" hidden></table>
+  <p class="foot" id="foot" hidden>Your tasks save on this phone as you go. Now and then, tap Save everything in Settings to keep a backup.</p>
   </section>
 
-  <p class="foot" id="foot" hidden>Your tasks save on this phone as you go. Now and then, tap Save everything in Settings to keep a backup.</p>
+  <!-- Lists: every kind of list, each a card -->
+  <section class="pane" id="paneLists" aria-labelledby="listsPaneTitle" hidden>
+  <div class="pane-head">
+    <div class="pane-head-text">
+      <h1 class="pane-title" id="listsPaneTitle" tabindex="-1">Lists</h1>
+      <p class="pane-sub">Your task lists, orders and clients</p>
+    </div>
+  </div>
+  <!-- (shopping lists, the wish list and savings goals come here, above the task lists) -->
+  <h2 class="pane-h2" id="taskListsTitle">Task lists</h2>
+  <div class="lcards" id="taskListCards" role="group" aria-labelledby="taskListsTitle"></div>
+  <p class="card-empty" id="taskListsEmpty" hidden>No lists yet. Lists keep work and home apart.</p>
+  <button type="button" class="chip chip-quiet lcards-edit" id="listsEdit" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span id="listsEditLabel">Edit lists</span></button>
+  <h2 class="pane-h2" id="workListsTitle" hidden>Orders and clients</h2>
+  <div class="lcards" id="workCards" role="group" aria-labelledby="workListsTitle" hidden>
+    <button type="button" class="lcard lcard-go" id="listsPo"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg><span class="lcard-name">Purchase orders</span></span><span class="lcard-sub" id="listsPoSub"></span></button>
+    <button type="button" class="lcard lcard-go" id="listsClients"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5V10l8-6 8 6v10.5z"/><path d="M9.5 20.5v-6h5v6"/></svg><span class="lcard-name">Clients</span></span><span class="lcard-sub" id="listsClientsSub"></span></button>
+  </div>
+  </section>
+
+  <!-- Calendar: the month (or the week to plan), and what's on each day -->
+  <section class="pane" id="paneCalendar" aria-labelledby="calTitle" hidden>
+  <div class="pane-head">
+    <div class="pane-head-text">
+      <h1 class="pane-title" id="calTitle" tabindex="-1">Calendar</h1>
+      <p class="pane-sub">Your plans and due dates, by day</p>
+    </div>
+  </div>
+  <div class="cal-card">
+    <div class="cal-mode"><div class="seg" role="group" aria-label="Show"><button type="button" data-cal-mode="month" aria-pressed="true">Month</button><button type="button" data-cal-mode="week" aria-pressed="false">Week</button></div></div>
+    <div id="monthView">
+    <div class="month-nav">
+      <button type="button" class="icon-btn" id="monthPrev" aria-label="Previous month"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <h2 id="monthName" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="monthNext" aria-label="Next month"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+    <p class="sheet-note" id="monthNote">Tap a day to see its tasks or add one.</p>
+    </div>
+    <div id="weekView" hidden>
+      <div class="month-nav">
+        <button type="button" class="icon-btn" id="weekPrev" aria-label="Previous week"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <h2 id="weekName" aria-live="polite"></h2>
+        <button type="button" class="icon-btn" id="weekNext" aria-label="Next week"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <p class="sheet-note" id="weekNote">Hold a task, then drag it to another day. Tap a day to open it.</p>
+      <div id="weekDays"></div>
+    </div>
+  </div>
+  </section>
 </main>
 
 <input type="file" id="rcptInput" accept="image/*" hidden>
@@ -2947,15 +3145,19 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     </div>
   </div>
 </div>
+<!-- The tab bar: four places and Settings. The place showing has aria-current and a filled icon. -->
 <nav class="dock" id="dock" aria-label="Places" hidden>
   <div class="dock-inner">
-    <button type="button" class="dock-btn" id="dockToday" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h9M4 12h9M4 17.5h6"/><path d="M14.5 16.2l2.4 2.4 4.1-4.6"/></svg><span>Today</span><span class="dock-badge late" id="todayBadge"></span></button>
-    <button type="button" class="dock-btn" id="dockWeek"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 10v10M14.5 10v10"/></svg><span>Week</span></button>
-    <button type="button" class="fab" id="fab" aria-label="Add a task"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button type="button" class="dock-btn" id="poBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg><span>POs</span><span class="dock-badge" id="poCount"></span></button>
-    <button type="button" class="dock-btn" id="clientsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5V10l8-6 8 6v10.5z"/><path d="M9.5 20.5v-6h5v6"/></svg><span>Clients</span></button>
+    <button type="button" class="dock-btn" id="dockHome" data-tab="home"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path class="fl" d="M4 10.4L12 4l8 6.4V20H4z"/><path class="dt" d="M10 20v-5.5h4V20"/></svg><span class="dock-label">Home</span></button>
+    <button type="button" class="dock-btn" id="dockToday" data-tab="tasks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle class="fl" cx="12" cy="12" r="8.5"/><path class="dt" d="M8.5 12.3l2.4 2.4 4.6-5"/></svg><span class="dock-label">Tasks</span><span class="dock-badge late" id="todayBadge"></span></button>
+    <button type="button" class="dock-btn" id="dockLists" data-tab="lists"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect class="fo" x="3.5" y="4" width="17" height="16" rx="3"/><path class="dt" d="M10 8.5h7M10 12h7M10 15.5h7"/><path class="dt dot" d="M7 8.5h.01M7 12h.01M7 15.5h.01"/></svg><span class="dock-label">Lists</span></button>
+    <button type="button" class="dock-btn" id="dockWeek" data-tab="calendar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect class="fl" x="3.5" y="5" width="17" height="15" rx="2.5"/><path class="dt" d="M3.5 10h17"/><path d="M8 3v4M16 3v4"/></svg><span class="dock-label">Calendar</span></button>
+    <button type="button" class="dock-btn" id="colorsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg><span class="dock-label">Settings</span></button>
   </div>
 </nav>
+<!-- "+ New": what to add where you are (a task on Tasks; a list on Lists; an event on Calendar). -->
+<button type="button" class="fab new-pill" id="fab" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+<button type="button" class="fab new-pill" id="newBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="newBtnText"></span></button>
 
 <div class="scrim" id="scrim" hidden></div>
 
@@ -3373,35 +3575,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       <button type="submit" class="btn-primary" id="clientSave">Save client</button>
       <button type="button" class="btn-danger" id="clientDelete" hidden>Delete client</button>
     </form>
-  </div>
-</section>
-
-<section class="sheet c0" id="monthSheet" role="dialog" aria-modal="true" aria-labelledby="monthTitle" tabindex="-1" hidden>
-  <div class="sheet-inner">
-    <div class="sheet-head">
-      <span></span>
-      <h2 id="monthTitle">Calendar</h2>
-      <button type="button" class="link-btn end" id="monthDone">Done</button>
-    </div>
-    <div class="cal-mode"><div class="seg" role="group" aria-label="Show"><button type="button" data-cal-mode="month" aria-pressed="true">Month</button><button type="button" data-cal-mode="week" aria-pressed="false">Week</button></div></div>
-    <div id="monthView">
-    <div class="month-nav">
-      <button type="button" class="icon-btn" id="monthPrev" aria-label="Previous month"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-      <h3 id="monthName" aria-live="polite"></h3>
-      <button type="button" class="icon-btn" id="monthNext" aria-label="Next month"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-    </div>
-    <div class="month-grid" id="monthGrid"></div>
-    <p class="sheet-note" id="monthNote">Tap a day to see its tasks or add one.</p>
-    </div>
-    <div id="weekView" hidden>
-      <div class="month-nav">
-        <button type="button" class="icon-btn" id="weekPrev" aria-label="Previous week"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <h3 id="weekName" aria-live="polite"></h3>
-        <button type="button" class="icon-btn" id="weekNext" aria-label="Next week"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      </div>
-      <p class="sheet-note" id="weekNote">Hold a task, then drag it to another day. Tap a day to open it.</p>
-      <div id="weekDays"></div>
-    </div>
   </div>
 </section>
 
@@ -5839,7 +6012,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     scrim.hidden = false;
     el.hidden = false;
     document.documentElement.classList.add('locked');
-    for (const el of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) el.inert = true;
+    for (const el of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) el.inert = true;
     void el.offsetWidth;
     scrim.classList.add('open');
     el.classList.add('open');
@@ -5851,7 +6024,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (!others.length) {
       $('#scrim').classList.remove('open');
       document.documentElement.classList.remove('locked');
-      for (const el of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) el.inert = false;
+      for (const el of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) el.inert = false;
     }
     setTimeout(() => {
       if (!el.classList.contains('open')) el.hidden = true;
@@ -5867,7 +6040,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     if (S.listsOpen) { S.listsOpen = false; closeSheet($('#listsSheet')); }
     if (S.colorsOpen) { S.colorsOpen = false; closeSheet($('#colorsSheet')); }
     closeTrash();
-    closeMonth();
     closeAsk();
     closeClients();
     closePoSheet();
@@ -7799,25 +7971,22 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     else toast(`Already ${action === 'list' ? 'in' : 'on'} ${where}.`);
   }
 
-  /* ---------- the month at a glance ---------- */
+  /* ---------- the month at a glance (the Calendar tab) ---------- */
   let monthCursor = '';
   const monthKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-  function openMonth() {
-    if (!S.tasksLoaded) return;
-    S.monthOpen = true;
+  // The calendar draws only while its tab is showing (it reads every task).
+  const calShown = () => S.tab === 'calendar' && S.tasksLoaded && S.status !== 'unavailable';
+  // Coming to the Calendar tab starts at the day being looked at (or today), as the old calendar sheet did.
+  function aimCalendar() {
     monthCursor = (S.day || S.today).slice(0, 7);
     weekCursor = mondayOf(S.day || S.today);
-    renderCalMode();
-    const sheet = $('#monthSheet');
-    openSheet(sheet);
-    sheet.scrollTop = 0;
-    sheet.focus({ preventScroll: true });
   }
-  function closeMonth() {
-    if (!S.monthOpen) return;
-    if (wkDrag) endWkDrag(false);
-    S.monthOpen = false;
-    closeSheet($('#monthSheet'));
+  // A day picked in the calendar: Tasks shows just that day (today is simply the whole list).
+  function openDay(d) {
+    S.day = d === S.today ? null : d;
+    setTab('tasks', { focus: false });
+    const target = S.day ? $('#dayBar') : $('#week');
+    if (target && !target.hidden) setTimeout(() => target.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }), 60);
   }
   function shiftMonth(n) {
     const [y, m] = monthCursor.split('-').map(Number);
@@ -7825,7 +7994,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     renderMonth();
   }
   function renderMonth() {
-    if (!S.monthOpen) return;
+    if (!calShown() || S.calMode !== 'month') return;
+    if (!monthCursor || monthCursor < S.today.slice(0, 7)) monthCursor = S.today.slice(0, 7);
     const [y, m] = monthCursor.split('-').map(Number);
     const first = new Date(y, m - 1, 1);
     const days = new Date(y, m, 0).getDate();
@@ -8273,6 +8443,218 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     }
   }
 
+  /* ---------- tabs: Home, Tasks, Lists and Calendar (Settings, the fifth button, opens its sheet) ---------- */
+  // Each tab is a panel of the page; the tab bar is the dock. The tab showing is kept on this device only, and only when
+  // one is picked, so opening the app writes nothing. Panels that aren't showing still draw (their rows are kept and
+  // reused), except the parts that read every task just for themselves, which wait until their tab shows.
+  const TABS = { home: ['#paneHome', '#dockHome'], tasks: ['#paneTasks', '#dockToday'], lists: ['#paneLists', '#dockLists'], calendar: ['#paneCalendar', '#dockWeek'] };
+  const isTab = v => Object.prototype.hasOwnProperty.call(TABS, v);
+  S.tab = isTab(local.get('todo.tab')) ? local.get('todo.tab') : 'home';
+  const tabScroll = {}; // how far down each tab was, for coming back to it
+  // What shows: the tab picked, except that a list that can't load shows Tasks, where Up next says why.
+  const shownTab = () => (S.status === 'unavailable' ? 'tasks' : S.tab);
+  // o.focus: false leaves focus where it is (the caller moves it); o.top: start at the top of the tab.
+  function setTab(v, o = {}) {
+    const tab = isTab(v) ? v : 'home';
+    const from = S.tab;
+    if (tab !== from) {
+      tabScroll[from] = window.scrollY;
+      if (from === 'tasks') { if (S.searchOpen) closeSearch(); if (S.selecting) exitSelect(); }
+      if (from === 'calendar' && wkDrag) endWkDrag(false);
+      if (tab === 'calendar') aimCalendar();
+      S.tab = tab;
+    }
+    local.set('todo.tab', tab);
+    render();
+    if (tab !== from || o.top) window.scrollTo(0, o.top ? 0 : tabScroll[tab] || 0);
+    if (o.focus !== false) { const h = $(TABS[tab][0] + ' .pane-title'); if (h) h.focus({ preventScroll: true }); }
+  }
+  function renderTabs() {
+    const cur = shownTab();
+    for (const [k, [pane, btn]] of Object.entries(TABS)) {
+      $(pane).hidden = k !== cur;
+      if (k === cur) $(btn).setAttribute('aria-current', 'page'); else $(btn).removeAttribute('aria-current');
+    }
+  }
+  // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a list (Lists), or a task on the day being
+  // looked at, else today (Calendar).
+  const NEW_LABEL = { lists: 'New list', calendar: 'New event' };
+  function newHere() {
+    if (!writable()) return;
+    if (S.tab === 'lists') { openListsSheet(); $('#newListName').focus(); return; }
+    openTaskSheet('new');
+  }
+  function renderNewBtns() {
+    const cur = shownTab();
+    const can = writable() && !S.selecting;
+    $('#fab').hidden = !can || cur !== 'tasks';
+    const label = NEW_LABEL[cur];
+    $('#newBtn').hidden = !can || !label || !S.tasksLoaded;
+    if (label && $('#newBtnText').textContent !== label) $('#newBtnText').textContent = label;
+  }
+
+  // Home's "Tasks due": the open tasks, most urgent first (late, today, the days ahead, then the ones with no date),
+  // three of them with a circle to tick, and how many more.
+  const DUE_RANK = { overdue: 0, today: 1, tomorrow: 2, later: 2, anytime: 3 };
+  function dueShort(t) {
+    if (!t.due) return { text: '', late: false };
+    if (t.due < S.today) return { text: shortDay(t.due), late: true };
+    if (t.due === S.today) return { text: t.time ? timeLabel(t.time) : 'Today', late: !!t.time && minuteNow() >= dueTimes(t).end };
+    if (t.due === addDays(S.today, 1)) return { text: 'Tomorrow', late: false };
+    return { text: shortDay(t.due), late: false };
+  }
+  function homeRow(t, can) {
+    const title = t.title || 'Untitled task';
+    const when = dueShort(t);
+    const li = el('li', 'home-row c' + colorOf(t.list));
+    const ring = el('button', 'ring');
+    ring.type = 'button';
+    ring.dataset.homeDone = t.id;
+    ring.disabled = !can;
+    ring.innerHTML = CHECK_SVG;
+    ring.setAttribute('aria-label', `Mark as done: ${title}`);
+    const body = el('button', 'hr-body');
+    body.type = 'button';
+    body.dataset.homeOpen = t.id;
+    body.disabled = !can;
+    body.setAttribute('aria-label', `${title}, ${whenText(t)}`);
+    body.append(el('span', 'hr-title', title));
+    if (when.text) body.append(el('span', 'hr-when' + (when.late ? ' late' : ''), when.text));
+    li.append(ring, body);
+    return li;
+  }
+  function renderHomeDue() {
+    const box = $('#homeDue');
+    const show = shownTab() === 'home' && S.tasksLoaded && (S.status === 'ready' || S.status === 'readonly');
+    box.hidden = !show;
+    if (!show) return;
+    const open = [];
+    for (const [id, raw] of S.tasks) {
+      const t = taskView(id, raw);
+      if (t.done || t.sample) continue;
+      const rank = DUE_RANK[sectionOf(t)];
+      if (rank !== undefined) open.push({ rank, t });
+    }
+    open.sort((a, b) => a.rank - b.rank || (a.t.due || '').localeCompare(b.t.due || '') || byTime(a.t, b.t) || b.t.priority - a.t.priority || byCreated(a.t, b.t));
+    const top = open.slice(0, 3).map(x => x.t);
+    const can = writable();
+    $('#homeDueN').textContent = `${open.length} open`;
+    const rows = $('#homeDueRows');
+    const sig = JSON.stringify([can, S.today, top.map(t => [t.id, t.title, t.due, t.time, colorOf(t.list), dueShort(t)])]);
+    if (rows.dataset.sig !== sig) {
+      const had = rows.contains(document.activeElement); // a ticked row goes: focus stays in the card
+      rows.dataset.sig = sig;
+      rows.replaceChildren(...top.map(t => homeRow(t, can)));
+      if (had) (rows.querySelector('.ring:not(:disabled)') || $('#homeDueGo')).focus({ preventScroll: true });
+    }
+    $('#homeDueEmpty').hidden = open.length > 0;
+    const more = open.length - top.length;
+    $('#homeDueMore').hidden = more <= 0;
+    if (more > 0) $('#homeDueMore').textContent = `and ${more} more`;
+  }
+
+  // The summary at the top of Tasks, for the list being shown: what's open, when it's due (today, the rest of the
+  // week, later or no date), and what got done in the last 7 days next to what's left.
+  function renderTaskSum() {
+    const box = $('#taskSum');
+    const show = shownTab() === 'tasks' && S.tasksLoaded && (S.status === 'ready' || S.status === 'readonly') && !searchQuery() && !S.selecting;
+    box.hidden = !show;
+    if (!show) return;
+    const weekEnd = addDays(S.today, 6);
+    let active = 0, today = 0, week = 0, later = 0;
+    for (const [id, raw] of S.tasks) {
+      const t = taskView(id, raw);
+      if (t.done || !inFilter(t)) continue;
+      active++;
+      if (t.due && t.due <= S.today) today++;
+      else if (t.due && t.due <= weekEnd) week++;
+      else later++;
+    }
+    const from = addDays(S.today, -6);
+    let done = 0;
+    for (const [, c] of completions()) {
+      if (S.filter !== ALL && c.list !== S.filter) continue;
+      const d = ymd(new Date(c.at));
+      if (d >= from && d <= S.today) done++;
+    }
+    $('#taskSumTitle').textContent = plural(active, 'active task', 'active tasks');
+    $('#sumToday').textContent = String(today);
+    $('#sumWeek').textContent = String(week);
+    $('#sumLater').textContent = String(later);
+    $('#sumBar').style.width = (done + active ? Math.round(done / (done + active) * 100) : 0) + '%';
+    $('#sumDoneText').textContent = `${done} done this week`;
+  }
+  // The Tasks title: the list being shown, which is also a picker for the lists (the same as the list chips).
+  function renderListPick(lists) {
+    const sel = $('#listPickSel');
+    const has = lists.length > 0 && S.status !== 'unavailable';
+    sel.hidden = !has;
+    $('#listPick .chev-down').toggleAttribute('hidden', !has); // (an svg has no .hidden)
+    $('#listPick').classList.toggle('has-pick', has);
+    const name = has && S.filter !== ALL ? nameOf(S.filter) : '';
+    const title = !has ? 'Tasks' : name || 'All tasks';
+    if ($('#tasksTitle').textContent !== title) $('#tasksTitle').textContent = title;
+    if (!has) return;
+    const sig = lists.map(l => l.id + '\u0001' + l.name).join('\u0002');
+    if (sel.dataset.sig !== sig) {
+      sel.dataset.sig = sig;
+      const opt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+      sel.replaceChildren(opt(ALL, 'All tasks'), ...lists.map(l => opt(l.id, l.name)));
+    }
+    sel.value = name ? S.filter : ALL;
+  }
+
+  // The Lists tab: a card for each task list (a tap shows that list in Tasks) with its first few open tasks, then
+  // purchase orders and clients, which open their sheets.
+  function listCard(l, items) {
+    const b = el('button', 'lcard c' + l.color);
+    b.type = 'button';
+    b.dataset.listCard = l.id;
+    b.setAttribute('aria-label', `${l.name}, ${plural(items.length, 'open task', 'open tasks')}. Show it in Tasks`);
+    const head = el('span', 'lcard-head');
+    const dot = el('i', 'dot');
+    dot.setAttribute('aria-hidden', 'true');
+    head.append(dot, el('span', 'lcard-name', l.name), el('span', 'lcard-n', String(items.length)));
+    b.append(head);
+    const ul = el('span', 'lcard-items');
+    ul.setAttribute('aria-hidden', 'true');
+    for (const t of items.slice(0, 3)) ul.append(el('span', 'lcard-item', t.title || 'Untitled task'));
+    if (items.length) b.append(ul);
+    else b.append(el('span', 'lcard-sub', 'Nothing open'));
+    if (items.length > 3) b.append(el('span', 'lcard-more', `+${items.length - 3}`));
+    return b;
+  }
+  function renderListsPane() {
+    if (shownTab() !== 'lists') return;
+    const ready = S.tasksLoaded && S.status !== 'unavailable';
+    const lists = ready ? sortedLists() : [];
+    const by = new Map(lists.map(l => [l.id, []]));
+    if (ready) {
+      for (const [id, raw] of S.tasks) {
+        if (!raw || raw.done === true || !by.has(raw.list)) continue;
+        by.get(raw.list).push(taskView(id, raw));
+      }
+    }
+    const order = (a, b) => (a.due ? 0 : 1) - (b.due ? 0 : 1) || (a.due || '').localeCompare(b.due || '') || byTime(a, b) || byCreated(a, b);
+    for (const items of by.values()) items.sort(order);
+    const box = $('#taskListCards');
+    const sig = JSON.stringify(lists.map(l => [l.id, l.name, l.color, by.get(l.id).length, by.get(l.id).slice(0, 3).map(t => t.title)]));
+    if (box.dataset.sig !== sig) {
+      box.dataset.sig = sig;
+      box.replaceChildren(...lists.map(l => listCard(l, by.get(l.id))));
+    }
+    $('#taskListsEmpty').hidden = !ready || lists.length > 0;
+    $('#listsEdit').hidden = !writable();
+    $('#listsEditLabel').textContent = lists.length ? 'Edit lists' : 'Add a list';
+    $('#workListsTitle').hidden = $('#workCards').hidden = !ready;
+    if (!ready) return;
+    const pos = allPos().filter(t => !t.done && t.po.status !== 'received');
+    const late = pos.filter(poLate).length;
+    $('#listsPoSub').textContent = pos.length ? `${pos.length} open${late ? ` · ${late} late` : ''}` : 'None open';
+    $('#listsPoSub').classList.toggle('late', late > 0);
+    $('#listsClientsSub').textContent = S.clients.size ? plural(S.clients.size, 'client', 'clients') : 'None yet';
+  }
+
   /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
   function renderBrief(show) {
     const box = $('#brief');
@@ -8291,9 +8673,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     }
     box.hidden = !want || !(today || late);
     if (box.hidden) return;
-    const h = new Date().getHours();
-    // The name has its own style (the look's serif in italics, in its greeting color); the words read the same.
-    $('#briefTitle').replaceChildren(h < 12 ? 'Good morning, ' : h < 17 ? 'Good afternoon, ' : 'Good evening, ', el('em', 'greet-name', 'Jose'));
     const parts = [today ? `${plural(today, 'task', 'tasks')} due today` : 'Nothing new due today'];
     if (first) parts.push(`first one at ${timeLabel(first)}`);
     if (mins >= 30) parts.push(`${minLabel(mins)} of jobs on the clock`);
@@ -8309,6 +8688,16 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function closeBrief() {
     local.set('todo.summarySeen', S.today);
     $('#brief').hidden = true;
+  }
+  // Home's heading: a greeting for the time of day. The name has its own style (the look's serif in italics, in its
+  // greeting color); the words read the same.
+  let helloWord = '';
+  function renderHello() {
+    const h = new Date().getHours();
+    const word = h < 12 ? 'Good morning, ' : h < 17 ? 'Good afternoon, ' : 'Good evening, ';
+    if (word === helloWord) return;
+    helloWord = word;
+    $('#briefTitle').replaceChildren(word, el('em', 'greet-name', 'Jose'));
   }
   // all: every overdue task (the kickoff); otherwise the ones in the list being shown (the Overdue section).
   function moveOverdueToToday(all = false) {
@@ -8364,7 +8753,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const box = $('#focus');
     box.hidden = false;
     document.documentElement.classList.add('locked');
-    for (const e of [$('#app'), $('#fab'), $('#dock'), $('#selectBar'), $('#focusPill')]) e.inert = true;
+    for (const e of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar'), $('#focusPill')]) e.inert = true;
     paintFocus();
     box.focus({ preventScroll: true });
   }
@@ -8375,7 +8764,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     $('#focusPill').inert = false;
     if (!document.querySelector('.sheet.open')) {
       document.documentElement.classList.remove('locked');
-      for (const e of [$('#app'), $('#fab'), $('#dock'), $('#selectBar')]) e.inert = false;
+      for (const e of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) e.inert = false;
     }
     if (focus.back && focus.back.isConnected) { try { focus.back.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
     paintFocus();
@@ -8667,7 +9056,10 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     queueMicrotask(() => { renderQueued = false; render(); maybeSwipeTip(); });
   }
   function render() {
+    renderTabs();
     renderHeader();
+    renderHello();
+    renderBrief(S.tasksLoaded && writable());
     renderWeek();
     renderFilters();
     renderTip();
@@ -8679,15 +9071,17 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     renderTrash();
     renderBackupLink();
     renderSelectBar();
-    renderMonth();
+    renderCalMode();
     renderNet();
     checkCheer();
     checkLatePos();
     reviewStreak();
-    renderWeekPlan();
     renderPoSheet();
     renderGcal();
-    $('#fab').hidden = !writable() || S.selecting;
+    renderHomeDue();
+    renderTaskSum();
+    renderListsPane();
+    renderNewBtns();
     $('#dock').hidden = S.status === 'unavailable' || S.status === 'loading' || !S.tasksLoaded || S.selecting;
     $('#dockWeek').hidden = !S.tasksLoaded;
     renderWelcome();
@@ -8705,11 +9099,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   let headerDay = '';
   function renderHeader() {
     const d = parseYmd(S.today);
-    if (headerDay !== S.today) { // the weekday on top, the date big, and the whole thing for screen readers
+    if (headerDay !== S.today) { // the date over Home's greeting, and under the Tasks title
       headerDay = S.today;
-      const wd = d.toLocaleDateString('en-US', { weekday: 'long' });
-      $('#dateKicker').textContent = wd;
-      $('#dateTitle').replaceChildren(el('span', 'sr-only', wd + ', '), d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }));
+      const long = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      $('#dateKicker').textContent = long;
+      $('#tasksSub').textContent = long;
     }
     const sum = $('#daySum');
     const prog = $('#dayProg');
@@ -8741,7 +9135,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       prog.setAttribute('aria-label', `${doneToday} of ${total} done today`);
     }
     $('#todayBadge').textContent = late ? String(late) : '';
-    $('#dockToday').setAttribute('aria-label', late ? `Today, ${plural(late, 'task', 'tasks')} overdue` : 'Today');
+    $('#dockToday').setAttribute('aria-label', late ? `Tasks, ${plural(late, 'task', 'tasks')} overdue` : 'Tasks');
     renderTopExtras({ open: today, late, done: doneToday, total });
     if (!today && !late) {
       sum.textContent = doneToday ? 'Everything due today is done.' : 'Nothing due today.';
@@ -8898,10 +9292,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     }
     return out;
   }
-  // Your week: how many tasks got done on each of the last 7 days, in their lists' colors.
+  // Your week (on Home): how many tasks got done on each of the last 7 days, in their lists' colors. Home shows every
+  // list, whatever Tasks is filtered to.
   function renderStats() {
     const box = $('#stats');
-    const show = (S.status === 'ready' || S.status === 'readonly') && S.tasksLoaded && !searchQuery() && !S.day && S.scope === 'all';
+    const show = (S.status === 'ready' || S.status === 'readonly') && S.tasksLoaded;
     if (!show) { box.hidden = true; return; }
     const days = Array.from({ length: 7 }, (_, i) => addDays(S.today, i - 6));
     const weekBefore = addDays(days[0], -7);
@@ -8911,7 +9306,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     let total = 0;
     let before = 0;
     for (const [, c] of completions()) {
-      if (S.filter !== ALL && c.list !== S.filter) continue;
       const d = ymd(new Date(c.at));
       active.add(d);
       const key = c.list && S.lists.has(c.list) ? c.list : '';
@@ -8928,7 +9322,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     for (let d = active.has(S.today) ? S.today : addDays(S.today, -1); active.has(d); d = addDays(d, -1)) streak++;
     const lists = sortedLists();
     const order = [...lists.map(l => l.id), ''];
-    const sig = JSON.stringify([S.today, S.filter, days.map(d => [...perDay.get(d)]), before, streak, streakCount(), bestStreak(), lists.map(l => [l.id, l.name, l.color])]);
+    const sig = JSON.stringify([S.today, days.map(d => [...perDay.get(d)]), before, streak, streakCount(), bestStreak(), lists.map(l => [l.id, l.name, l.color])]);
     if (box.dataset.sig === sig) return;
     box.dataset.sig = sig;
 
@@ -8972,7 +9366,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 
     const legend = $('#statsLists');
     const keys = order.filter(k => perList.get(k)).sort((a, b) => perList.get(b) - perList.get(a));
-    legend.hidden = S.filter !== ALL || !keys.length; // one list showing: its name is already on the filter chip
+    legend.hidden = !keys.length;
     legend.replaceChildren(...keys.map(k => {
       const s = document.createElement('span');
       s.className = 'stat-list c' + colorOf(k || null);
@@ -9029,6 +9423,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     $('#selectBtn').hidden = !writable() || !S.tasksLoaded;
     $('#sortChip').hidden = !S.tasksLoaded;
     renderSideChips();
+    renderListPick(lists);
     if ($('#sortSel').value !== S.sort) $('#sortSel').value = S.sort;
     $('#sortChip').classList.toggle('is-on', S.sort !== 'mine');
     $('#editListsLabel').textContent = lists.length ? 'Edit lists' : 'Add a list';
@@ -9264,7 +9659,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     $('#taskDate').value = '';
     openPoFields();
   }
-  // The POs and Clients chips sit next to the lists: one opens the PO list, the other the client book.
+  // The POs and Clients chips sit next to the lists on Tasks (and as cards on Lists): one opens the PO list, the other
+  // the client book.
   function renderSideChips() {
     const ready = S.tasksLoaded && S.status !== 'unavailable';
     const pos = ready ? allPos() : [];
@@ -9532,7 +9928,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     renderWeekPlan();
   }
   function renderWeekPlan() {
-    if (!S.monthOpen || S.calMode !== 'week' || wkDrag) return;
+    if (!calShown() || S.calMode !== 'week' || wkDrag) return;
     const thisWeek = mondayOf(S.today);
     if (!weekCursor || weekCursor < thisWeek) weekCursor = thisWeek;
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekCursor, i));
@@ -9644,10 +10040,13 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       d.target = sec;
       if (sec) sec.classList.add('is-target');
     }
-    const sheet = $('#monthSheet');
+    // Near the top or bottom of the screen the page scrolls, so a task can go to any day of the week.
+    // (The bottom edge is the tab bar's top, since the bar covers the page there.)
     const edge = 72;
-    if (y < edge) sheet.scrollTop -= Math.ceil((edge - y) / 4);
-    else if (y > window.innerHeight - edge) sheet.scrollTop += Math.ceil((y - (window.innerHeight - edge)) / 4);
+    const dock = $('#dock');
+    const bottom = dock.hidden ? window.innerHeight : Math.min(window.innerHeight, dock.getBoundingClientRect().top);
+    if (y < edge) window.scrollBy(0, -Math.ceil((edge - y) / 4));
+    else if (y > bottom - edge) window.scrollBy(0, Math.ceil((y - (bottom - edge)) / 4));
   }
   function endWkDrag(commit) {
     const d = wkDrag;
@@ -10940,7 +11339,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const scoped = !q && !dayMode && S.scope !== 'all' ? SCOPES[S.scope] : null;
     const inView = sec => !scoped || scoped.includes(sec);
     renderScope(groups, S.tasksLoaded && !q && !dayMode && !S.selecting && (S.status === 'ready' || S.status === 'readonly'));
-    renderBrief(S.tasksLoaded && writable() && !q && !dayMode && !S.selecting);
 
     // Up next: the first open task, in the order the sections run (in All and Today).
     let next = null;
@@ -11675,7 +12073,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   // Once per device, on a touch screen: say what a row can do.
   let swipeTipChecked = false;
   function maybeSwipeTip() {
-    if (swipeTipChecked || !writable() || !rowEls.size) return;
+    if (swipeTipChecked || !writable() || !rowEls.size || shownTab() !== 'tasks') return; // the tip is about the rows on Tasks
     swipeTipChecked = true;
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     if (!coarse || local.get('todo.swipeTip2') === '1') return;
@@ -12106,14 +12504,41 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#sortSel').addEventListener('change', e => chooseSort(e.target.value));
   $('#textSizes').addEventListener('click', e => { const b = e.target.closest('[data-text-size]'); if (b) chooseTextSize(b.dataset.textSize); });
   $('#backupBtn').addEventListener('click', backupList);
-  // the dock
+  // the tab bar
+  $('#dockHome').addEventListener('click', () => setTab('home'));
   $('#dockToday').addEventListener('click', () => {
+    if (S.tab !== 'tasks') { setTab('tasks'); return; }
+    // Tapped again while on Tasks: back to the day's list, at the top.
     if (S.searchOpen) closeSearch();
     if (S.scope !== 'all' && S.scope !== 'today') setScope('all'); // out of Done or Upcoming, back to the day
     if (S.day) { S.day = null; render(); }
     window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
   });
-  $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); openMonth(); });
+  $('#dockLists').addEventListener('click', () => setTab('lists'));
+  // Calendar opens on the week to plan (the dock's old Week button); Month is one tap away there, or the month button on Tasks.
+  $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); setTab('calendar'); });
+  $('#newBtn').addEventListener('click', newHere);
+  // Home's cards
+  $('#homeDue').addEventListener('click', e => {
+    const done = e.target.closest('[data-home-done]');
+    if (done) { checkOff(done.dataset.homeDone); return; }
+    const open = e.target.closest('[data-home-open]');
+    if (open) { openTaskSheet('edit', open.dataset.homeOpen); return; }
+    if (e.target.closest('#homeDueGo, #homeDueMore')) setTab('tasks');
+  });
+  // the Tasks title's list picker, and the week's done count
+  $('#listPickSel').addEventListener('change', e => setFilter(e.target.value));
+  $('#sumDone').addEventListener('click', () => setScope('done'));
+  // the Lists tab
+  $('#taskListCards').addEventListener('click', e => {
+    const b = e.target.closest('[data-list-card]');
+    if (!b) return;
+    setFilter(b.dataset.listCard);
+    setTab('tasks', { top: true });
+  });
+  $('#listsEdit').addEventListener('click', openListsSheet);
+  $('#listsPo').addEventListener('click', openPoSheet);
+  $('#listsClients').addEventListener('click', () => openClients());
   // your list in one file
   $('#exportAll').addEventListener('click', exportAll);
   $('#importAll').addEventListener('click', pickImport);
@@ -12121,10 +12546,12 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#lockOn').addEventListener('click', () => lockAction('turnOn'));
   $('#lockChange').addEventListener('click', () => lockAction('change'));
   $('#lockOff').addEventListener('click', () => lockAction('turnOff'));
-  $('#welcomeSkip').addEventListener('click', () => { local.set('todo.welcomed', '1'); renderWelcome(); });
+  // Starting fresh, or bringing a list over from the welcome, goes on to Tasks.
+  $('#welcomeSkip').addEventListener('click', () => { local.set('todo.welcomed', '1'); setTab('tasks'); });
   $('#importInput').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
+    if (!$('#welcome').hidden && S.tab === 'home') setTab('tasks', { focus: false });
     if (!S.colorsOpen) openColorsSheet(); // the progress shows in Settings
     importAll(f);
   });
@@ -12176,8 +12603,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   $('#clientJob').addEventListener('click', () => { if (cb.editing && cb.editing !== 'new') newJobFor(cb.editing); });
   $('#clientReport').addEventListener('click', () => { if (cb.editing && cb.editing !== 'new') reportForClient(cb.editing); });
   $('#clientName').addEventListener('input', () => { $('#clientNameError').hidden = true; });
-  // the week planner, inside the calendar sheet
-  document.querySelector('#monthSheet .cal-mode').addEventListener('click', e => { const b = e.target.closest('[data-cal-mode]'); if (b) setCalMode(b.dataset.calMode); });
+  // the week planner, on the Calendar tab
+  document.querySelector('#paneCalendar .cal-mode').addEventListener('click', e => { const b = e.target.closest('[data-cal-mode]'); if (b) setCalMode(b.dataset.calMode); });
   $('#weekPrev').addEventListener('click', () => shiftWeek(-1));
   $('#weekNext').addEventListener('click', () => shiftWeek(1));
   const weekDays = $('#weekDays');
@@ -12210,15 +12637,9 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   weekDays.addEventListener('click', e => {
     if (Date.now() < wkSwallow) return;
     const t = e.target.closest('.wk-task');
-    if (t) { const id = t.dataset.id; closeMonth(); openTaskSheet('edit', id); return; }
+    if (t) { openTaskSheet('edit', t.dataset.id); return; }
     const h = e.target.closest('[data-wk-open]');
-    if (!h) return;
-    const d = h.dataset.wkOpen;
-    S.day = d === S.today ? null : d;
-    closeMonth();
-    render();
-    const target = S.day ? $('#dayBar') : $('#week');
-    if (target && !target.hidden) setTimeout(() => target.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }), 60);
+    if (h) openDay(h.dataset.wkOpen);
   });
   // Google Calendar
   $('#gcalToggle').addEventListener('click', () => (S.gcalOn ? turnOffGcal() : turnOnGcal()));
@@ -12238,20 +12659,13 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   });
   $('#selDate').addEventListener('change', e => { const v = e.target.value; e.target.blur(); if (isYmd(v)) runBulk('date', v); });
   $('#selList').addEventListener('change', e => { const v = e.target.value; e.target.blur(); if (v) runBulk('list', v); });
-  // the month
-  $('#monthBtn').addEventListener('click', openMonth);
-  $('#monthDone').addEventListener('click', closeMonth);
+  // the month: the button on Tasks goes to the Calendar tab, showing the month
+  $('#monthBtn').addEventListener('click', () => { if (S.calMode !== 'month') setCalMode('month'); setTab('calendar'); });
   $('#monthPrev').addEventListener('click', () => shiftMonth(-1));
   $('#monthNext').addEventListener('click', () => shiftMonth(1));
   $('#monthGrid').addEventListener('click', e => {
     const b = e.target.closest('[data-day]');
-    if (!b || b.disabled) return;
-    const d = b.dataset.day;
-    S.day = d === S.today ? null : d;
-    closeMonth();
-    render();
-    const target = S.day ? $('#dayBar') : $('#week');
-    if (target && !target.hidden) setTimeout(() => target.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }), 60);
+    if (b && !b.disabled) openDay(b.dataset.day);
   });
   // ask Claude
   $('#askBtn').addEventListener('click', openAsk);
@@ -12326,7 +12740,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
-    else { closeListsSheet(); closeColorsSheet(); closeTrash(); closeMonth(); closeAsk(); closePoSheet(); }
+    else { closeListsSheet(); closeColorsSheet(); closeTrash(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
     if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
@@ -12337,12 +12751,13 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       return;
     }
     if (e.key !== 'Escape') {
-      // On a keyboard, N starts a task and / searches, as long as nothing else is using the keys.
+      // On a keyboard, N adds what fits the tab (a task, a list) and / searches the tasks, as long as nothing else is
+      // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.monthOpen || S.askOpen || S.poOpen || cb.open) return;
-      if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); openTaskSheet('new'); }
-      else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); openSearch(); }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open) return;
+      if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
+      else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
     }
     if (report.open) closeReport();
@@ -12353,7 +12768,6 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
     else if (S.trashOpen) closeTrash();
-    else if (S.monthOpen) closeMonth();
     else if (S.askOpen) closeAsk();
     else if (S.selecting) exitSelect();
     else if (S.day) { S.day = null; render(); }
