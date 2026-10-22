@@ -8,7 +8,7 @@ const { serve, smallFixture, launch, phoneContext, seed } = require('./lib.cjs')
 (async () => {
   const dir = path.resolve(process.argv[2] || '.');
   const out = path.resolve(process.argv[3] || 'shots');
-  const looks = (process.argv[4] || 'classic:light,midnight:dark').split(',');
+  const looks = (process.argv[4] || 'classic:light,midnight:dark,blush:light,blush:dark').split(',');
   const [w, h] = (process.argv[5] || '390x844').split('x').map(Number);
   const textSize = process.argv[6] || 'default';
   fs.mkdirSync(out, { recursive: true });

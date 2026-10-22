@@ -5,9 +5,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { serve, smallFixture, launch, phoneContext, seed, dump, addDays, ymd } = require('./lib.cjs');
 
 const APP = path.resolve(process.env.NEW_DIR || path.join(__dirname, '..'));
+const REPO = path.resolve(__dirname, '..');
+// The last version before the Blush look: the other looks must come out of the engine exactly as they did there,
+// and that version (on another device, or the website) must treat a Blush pick safely.
+const PRE_BLUSH_REF = process.env.PRE_BLUSH_REF || 'f0d6b34';
+function checkout(ref) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-old-'));
+  execFileSync('tar', ['-x', '-C', dir], { input: execFileSync('git', ['-C', REPO, 'archive', ref], { maxBuffer: 1 << 28 }) });
+  return dir;
+}
 let srv, browser;
 test.before(async () => { srv = await serve(APP); browser = await launch(); });
 test.after(async () => { await browser.close(); await srv.close(); });
@@ -180,6 +190,149 @@ test('themes, light/dark and the accent are saved and come back', async () => {
   await ctx.close();
 });
 
+test('Blush is picked in Settings, saved with the list and comes back; older copies still see Classic', async () => {
+  const { ctx, page, errors } = await phone(smallFixture(), { colorScheme: 'light' });
+  await page.click('#colorsBtn');
+  await page.waitForTimeout(400);
+  await page.click('[data-look="blush"]');
+  await page.waitForTimeout(200);
+  const read = () => page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    return { look: document.documentElement.dataset.look, mode: document.documentElement.dataset.mode,
+      page: cs.getPropertyValue('--page').trim(), head: cs.getPropertyValue('--font-head').trim() };
+  });
+  let r = await read();
+  assert.equal(r.look, 'blush');
+  assert.equal(r.mode, 'light');
+  assert.equal(r.page, '#FFF8F4');
+  assert.match(r.head, /^ui-serif/, 'serif headings');
+  await page.reload();
+  await page.waitForSelector('#board .task');
+  await page.waitForTimeout(300);
+  r = await read();
+  assert.equal(r.look, 'blush', 'still Blush after a reload');
+  const d = await dump(page);
+  assert.equal(d.docs['settings/theme'].look, 'blush');
+  assert.equal(d.docs['settings/app'].skin, 'classic', 'an older copy reads Classic');
+  assert.equal(d.local['todo.skin'], 'classic');
+  // The greeting's name is in the serif, in the greeting color, and it is plain text.
+  const greet = await page.evaluate(() => {
+    const em = document.querySelector('#briefTitle .greet-name');
+    if (!em) return null;
+    const hex = c => '#' + c.match(/\d+/g).slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join('').toUpperCase();
+    const cs = getComputedStyle(em);
+    return { text: em.textContent, title: document.querySelector('#briefTitle').textContent, style: cs.fontStyle, family: cs.fontFamily,
+      color: hex(cs.color), want: getComputedStyle(document.documentElement).getPropertyValue('--greet').trim().toUpperCase() };
+  });
+  assert.ok(greet, 'the greeting shows');
+  assert.equal(greet.text, 'Jose');
+  assert.match(greet.title, /^Good (morning|afternoon|evening), Jose$/);
+  assert.equal(greet.style, 'italic');
+  assert.match(greet.family, /^ui-serif/);
+  assert.equal(greet.color, greet.want);
+  // Cards are see-through, but a row being swiped is solid, so the swipe color can't show through it.
+  const solid = await page.evaluate(() => {
+    const li = document.querySelector('#board .task');
+    const inner = li.querySelector('.task-inner');
+    const glass = getComputedStyle(inner).backgroundColor;
+    li.classList.add('swiping');
+    const swiping = getComputedStyle(inner).backgroundColor;
+    li.classList.remove('swiping');
+    return { glass, swiping, radius: getComputedStyle(inner).borderTopLeftRadius };
+  });
+  assert.match(solid.glass, /^rgba\(.*, 0\.\d+\)$/, 'a glass card');
+  assert.match(solid.swiping, /^rgb\(/, 'solid while swiping');
+  assert.equal(solid.radius, '26px');
+  // In the iPhone app, the strip under the clock carries the page's gradient (a plain page color would leave an edge).
+  const strip = await page.evaluate(() => {
+    document.documentElement.classList.add('ios-app');
+    const bg = getComputedStyle(document.body, '::after').backgroundImage;
+    document.documentElement.classList.remove('ios-app');
+    return bg;
+  });
+  assert.match(strip, /radial-gradient/);
+  // Claude's own light/dark switch moves Blush too.
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.waitForFunction(() => document.documentElement.dataset.mode === 'dark');
+  assert.equal((await read()).page, '#181012');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the other looks come out of the engine exactly as before Blush', async () => {
+  const html = execFileSync('git', ['-C', REPO, 'show', `${PRE_BLUSH_REF}:index.html`], { maxBuffer: 1 << 28 }).toString();
+  const engine = src => src.match(/<script>\n(\/\* Looks:[\s\S]*?)<\/script>/)[1];
+  const take = async src => {
+    const ctx = await phoneContext(browser);
+    const page = await ctx.newPage();
+    await page.goto(srv.url + '/__blank');
+    await page.addScriptTag({ content: engine(src) });
+    const got = await page.evaluate(() => {
+      const T = window.todoTheme;
+      const out = { themes: T.themes, tokens: {}, previews: {} };
+      for (const t of T.themes) {
+        for (const mode of ['light', 'dark']) {
+          out.previews[`${t.id}/${mode}`] = T.preview(t.id, mode);
+          for (const accent of ['', '#FFC53D', '#2563FF', '#B8FF3C', '#7C3AED', '#FF3B30']) out.tokens[`${t.id}/${mode}/${accent}`] = T.tokens(t.id, mode, accent);
+        }
+      }
+      return out;
+    });
+    await ctx.close();
+    return got;
+  };
+  const before = await take(html);
+  const now = await take(fs.readFileSync(path.join(APP, 'index.html'), 'utf8'));
+  assert.deepEqual(now.themes.filter(t => before.themes.some(b => b.id === t.id)), before.themes, 'the same looks, in the same order');
+  assert.ok(now.themes.some(t => t.id === 'blush' && t.kind === 'tokens' && t.modes.join() === 'dark,light'), 'Blush is a look with light and dark');
+  for (const [k, v] of Object.entries(before.tokens)) assert.deepEqual(now.tokens[k], v, `colors unchanged: ${k}`);
+  for (const [k, v] of Object.entries(before.previews)) assert.deepEqual(now.previews[k], v, `preview unchanged: ${k}`);
+});
+
+test('the Blush preview in Settings shows its gradient', async () => {
+  const { ctx, page, errors } = await phone();
+  await page.click('#colorsBtn');
+  await page.waitForTimeout(400);
+  const bg = await page.evaluate(() => [...document.querySelectorAll('#skinGrid [data-look="blush"] .skin-half, #skinGrid [data-look="midnight"] .skin-half')]
+    .map(h => `${h.closest('[data-look]').dataset.look}: ${h.style.backgroundImage}`));
+  assert.equal(bg.length, 4, 'a light and a dark half each');
+  for (const b of bg) {
+    if (b.startsWith('blush')) assert.match(b, /radial-gradient/, b);
+    else assert.doesNotMatch(b, /gradient/, 'Midnight previews as before');
+  }
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the version before Blush opens a list that picked Blush in Classic, and writes nothing', async () => {
+  const oldDir = checkout(PRE_BLUSH_REF);
+  const old = await serve(oldDir);
+  const ctx = await phoneContext(browser);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  const fx = smallFixture();
+  fx.docs['settings/theme'] = { look: 'blush', appearance: 'dark', accent: '', updatedAt: Date.now() - 60000 };
+  fx.docs['settings/app'] = { skin: 'classic', updatedAt: Date.now() - 60000 };
+  fx.local['todo.theme'] = 'blush';
+  try {
+    await seed(page, old.url, fx);
+    await page.goto(old.url + '/index.html');
+    await page.waitForSelector('#board .task', { timeout: 20000 });
+    await page.waitForTimeout(1500);
+    const root = await page.evaluate(() => ({ look: document.documentElement.dataset.look || null, skin: document.documentElement.dataset.skin || null }));
+    assert.deepEqual(root, { look: null, skin: null }, 'Classic (a stylesheet look: no data-look, no data-skin)');
+    const d = await dump(page);
+    assert.deepEqual(d.docs['settings/theme'], fx.docs['settings/theme'], 'the Blush pick is left as it was');
+    assert.deepEqual(d.docs['settings/app'], fx.docs['settings/app']);
+    for (const [k, v] of Object.entries(fx.docs)) assert.deepEqual(d.docs[k], v, `record unchanged: ${k}`);
+    assert.deepEqual(errors, []);
+  } finally {
+    await ctx.close();
+    await old.close();
+  }
+});
+
 test('"System" follows the light/dark switch of an app it is opened in', async () => {
   // Claude marks the page with data-theme when its own switch is set to light or dark, and takes it away for "System".
   const { ctx, page, errors } = await phone(smallFixture(), { colorScheme: 'light' });
@@ -333,11 +486,12 @@ test('save everything to a file, load it on another phone', async () => {
 });
 
 test('the largest text fits a small iPhone without sideways scrolling', async () => {
-  for (const look of ['classic', 'midnight']) {
+  for (const look of ['classic', 'midnight', 'blush']) { // Blush's serif headings are wider than the condensed Archivo
     const fx = smallFixture();
     fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
     fx.docs['settings/theme'] = { look, appearance: 'system', accent: '' };
     const { ctx, page } = await phone(fx, { viewport: { width: 375, height: 667 } });
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.look || 'classic'), look, 'the look is on');
     const over = await page.evaluate(() => document.scrollingElement.scrollWidth - window.innerWidth);
     assert.ok(over <= 0, `${look}: ${over}px too wide`);
     await page.click('#colorsBtn');
@@ -353,27 +507,98 @@ test('every theme reads clearly (WCAG contrast)', async () => {
   const problems = await page.evaluate(() => {
     const T = window.todoTheme;
     const out = [];
+    // Hooks a look may leave out: the stylesheet's :root then uses these instead, so they're checked as those.
+    const SAME_AS = { '--card-solid': '--card', '--page-tint': '--page', '--pop': '--accent-ink', '--pop-ink': '--accent-ink', '--greet': '--accent-ink' };
+    const isHex = v => /^#[0-9A-F]{6}$/i.test(v);
     for (const t of T.themes.filter(x => x.kind === 'tokens')) {
       for (const mode of t.modes) {
         for (const accent of ['', '#FFC53D', '#2563FF', '#B8FF3C']) {
           const k = T.tokens(t.id, mode, accent);
-          const check = (a, b, min, what) => { const c = T.contrast(k[a], k[b]); if (c < min) out.push(`${t.id}/${mode}/${accent || 'own'}: ${what} ${c.toFixed(2)}`); };
+          const tag = `${t.id}/${mode}/${accent || 'own'}`;
+          const val = n => (n in k ? k[n] : k[SAME_AS[n]]);
+          // Only #RRGGBB can be measured; anything else (a see-through rgba card, a gradient) is a failure, never a pass.
+          const check = (a, b, min, what) => {
+            const x = val(a), y = val(b);
+            if (!isHex(x) || !isHex(y)) { out.push(`${tag}: ${what} can't be measured (${a} ${x}, ${b} ${y})`); return; }
+            const c = T.contrast(x, y);
+            if (!(c >= min)) out.push(`${tag}: ${what} ${c.toFixed(2)}`);
+          };
+          // A see-through card (Blush) is measured by the solid color under it, and a gradient page at its deepest point (--page-tint).
           check('--ink', '--page', 7, 'text on page');
-          check('--ink', '--card', 7, 'text on card');
+          check('--ink', '--card-solid', 7, 'text on card');
+          check('--ink', '--page-tint', 7, 'text on the page gradient');
           check('--soft', '--page', 4.5, 'quiet text on page');
-          check('--soft', '--card', 4.5, 'quiet text on card');
+          check('--soft', '--card-solid', 4.5, 'quiet text on card');
+          check('--soft', '--page-tint', 4.5, 'quiet text on the page gradient');
           check('--on-accent', '--accent', 4.5, 'button text');
           check('--accent-ink', '--page', 4.5, 'accent text on page');
-          check('--accent-ink', '--card', 4.5, 'accent text on card');
-          check('--red', '--card', 4.5, 'overdue text');
+          check('--accent-ink', '--card-solid', 4.5, 'accent text on card');
+          check('--accent-ink', '--page-tint', 4.5, 'accent text on the page gradient');
+          check('--red', '--card-solid', 4.5, 'overdue text');
+          check('--red', '--page', 4.5, 'overdue heading on page');
+          check('--red', '--page-tint', 4.5, 'overdue heading on the page gradient');
           check('--toast-fg', '--toast-bg', 4.5, 'toast text');
           check('--toast-action', '--toast-bg', 4.5, 'toast button');
-          for (const p of ['--prio-1', '--prio-2', '--prio-3']) check(p, '--card', 3, 'priority mark ' + p);
+          for (const p of ['--prio-1', '--prio-2', '--prio-3']) check(p, '--card-solid', 3, 'priority mark ' + p);
+          // Raspberry labels and the greeting's name are text; hearts and progress bars are marks (3:1).
+          for (const g of ['--page', '--card-solid', '--page-tint']) {
+            check('--pop-ink', g, 4.5, 'label text on ' + g);
+            check('--greet', g, 4.5, 'greeting name on ' + g);
+            check('--pop', g, 3, 'heart/progress on ' + g);
+          }
+          check('--pop', '--wash', 3, 'heart/progress on a beige chip');
         }
       }
     }
+    // The look's own hooks are written as #RRGGBB (or are left out and fall back), so nothing above was skipped.
+    const b = T.tokens('blush', 'light', '');
+    for (const n of ['--card-solid', '--page-tint', '--pop', '--pop-ink', '--greet']) if (!b || !isHex(b[n])) out.push(`blush/light: ${n} is missing`);
     return out;
   });
   assert.deepEqual(problems, []);
+  await ctx.close();
+});
+
+test('the contrast checks above are honest for Blush: its page never goes past --page-tint, its glass cards never past --card-solid', async () => {
+  // The page is drawn (page color + gradient) at phone sizes and every pixel measured. In light the deepest point
+  // must be no darker than the tint; in dark, no lighter. The see-through card over that point is held to the solid card.
+  const src = fs.readFileSync(path.join(APP, 'index.html'), 'utf8').match(/<script>\n(\/\* Looks:[\s\S]*?)<\/script>/)[1];
+  const ctx = await phoneContext(browser);
+  const page = await ctx.newPage();
+  await page.goto(srv.url + '/__blank');
+  await page.addScriptTag({ content: src });
+  const out = [];
+  for (const [w, h] of [[390, 844], [320, 640], [430, 932]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const mode of ['light', 'dark']) {
+      const k = await page.evaluate(m => window.todoTheme.tokens('blush', m, ''), mode);
+      await page.evaluate(k => { document.body.style.cssText = `margin:0;height:100vh;background:${k['--page-glow']}, ${k['--page']}`; }, k);
+      const png = (await page.screenshot()).toString('base64');
+      out.push(...await page.evaluate(async ({ png, mode, k, size }) => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + png;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        const T = window.todoTheme, toHex = a => '#' + a.map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+        const glass = k['--card'].match(/[\d.]+/g).map(Number);
+        const lum = h => T.contrast(h, '#000000'); // brighter = higher
+        const bad = [];
+        for (let i = 0; i < d.length; i += 4 * 7) { // every 7th pixel is plenty for a smooth gradient
+          const px = [d[i], d[i + 1], d[i + 2]], on = toHex(px), card = toHex(px.map((v, j) => glass[j] * glass[3] + v * (1 - glass[3])));
+          const pastTint = mode === 'light' ? lum(on) < lum(k['--page-tint']) : lum(on) > lum(k['--page-tint']);
+          const pastCard = mode === 'light' ? lum(card) < lum(k['--card-solid']) : lum(card) > lum(k['--card-solid']);
+          if (pastTint) bad.push(`${size} ${mode}: page ${on} is past --page-tint ${k['--page-tint']}`);
+          if (pastCard) bad.push(`${size} ${mode}: card ${card} is past --card-solid ${k['--card-solid']}`);
+          if (bad.length) break;
+        }
+        return bad;
+      }, { png, mode, k, size: `${w}x${h}` }));
+    }
+  }
+  assert.deepEqual(out, []);
   await ctx.close();
 });

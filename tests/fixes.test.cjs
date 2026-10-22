@@ -331,21 +331,27 @@ test('the red overdue counts read clearly in every look and mode', async () => {
 });
 
 test('at Extra large text on a small iPhone, nothing on the Up next card is cut off', async () => {
-  const fx = smallFixture();
-  fx.local['todo.textSize'] = 'xl';
-  fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
-  const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
-  const over = await page.evaluate(() => {
-    const hero = document.querySelector('#hero');
-    const box = hero.getBoundingClientRect();
-    const right = box.right - parseFloat(getComputedStyle(hero).paddingRight) + 0.5;
-    return [...hero.querySelectorAll('*')].filter(el => el.offsetParent && el.getClientRects().length)
-      .filter(el => el.getBoundingClientRect().right > right && !el.closest('.hero-title'))
-      .map(el => `${el.id || el.className}: ${Math.round(el.getBoundingClientRect().right - right)}px`);
-  });
-  assert.deepEqual(over, []);
-  assert.deepEqual(errors, []);
-  await ctx.close();
+  for (const look of [null, 'blush']) { // the list's own look (Classic here), and Blush with its wider serif title
+    const fx = smallFixture();
+    fx.local['todo.textSize'] = 'xl';
+    fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
+    if (look) fx.docs['settings/theme'] = { look, appearance: 'system', accent: '' };
+    const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.look || null), look);
+    const over = await page.evaluate(() => {
+      const hero = document.querySelector('#hero');
+      const box = hero.getBoundingClientRect();
+      const right = box.right - parseFloat(getComputedStyle(hero).paddingRight) + 0.5;
+      return [...hero.querySelectorAll('*')].filter(el => el.offsetParent && el.getClientRects().length)
+        .filter(el => el.getBoundingClientRect().right > right && !el.closest('.hero-title'))
+        .map(el => `${el.id || el.className}: ${Math.round(el.getBoundingClientRect().right - right)}px`);
+    });
+    assert.deepEqual(over, [], look || 'own look');
+    const pageOver = await page.evaluate(() => document.scrollingElement.scrollWidth - window.innerWidth);
+    assert.ok(pageOver <= 0, `${look || 'own look'}: ${pageOver}px too wide`);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
 });
 
 test('VoiceOver and keyboard: focus moves on after a check-off, a toast waits while focused, and the badge says what it counts', async () => {

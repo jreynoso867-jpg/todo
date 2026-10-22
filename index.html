@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-u9PSON6HQy2NtBBiaFTWp4sXLuHEdjtEW36KKDh1E9M=' 'sha256-5PC3F0uFh4fkED3ondtPw0+CtpN08lxSFXWhBVul54s=' 'sha256-dCVeKmFGj0/5/9/LGHba4LFkbInJX2Dc4f6jWg/n6gg=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xW6F2FpyYkii4gThZZNEaBgj2IvOf+VNpSYemK7gKlg=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-v+kqtrePaDY16W0XweT27+S1niN7NJ+jYeroEQfsIKs=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.638138d0'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.41f1977f'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2060,6 +2060,10 @@ button.wk-head { cursor: pointer; }
   --accent: #000000; --accent-2: #2348F5; --on-accent: #FFFFFF; --accent-ink: #000000; --accent-soft: rgba(0, 0, 0, .07);
   --grad: linear-gradient(135deg, #2348F5 0%, #6B3FE8 100%); --glow: rgba(35, 72, 245, .3); --page-glow: none;
   --prio-3: #DC2A1D; --prio-2: #A15C00; --prio-1: #1F5FD6; --ok: #0A7A43;
+  /* Hooks a look can set (Blush does). These stand-ins keep every other look exactly as it was. A card's corner
+     (--r-card) has no stand-in here: each card falls back to its own radius. */
+  --font-head: var(--font); --card-solid: var(--card); --page-tint: var(--page); --card-shadow: none;
+  --pop: var(--accent-ink); --pop-ink: var(--accent-ink); --greet: var(--accent-ink);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-skin]) {
@@ -2093,6 +2097,8 @@ button.wk-head { cursor: pointer; }
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--page-glow); }
 /* The iPhone app runs under the status bar: a strip of the page color keeps the clock clear of the tasks scrolling by. */
 html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 29; pointer-events: none; background: var(--page); }
+/* Blush's page is its gradient: the strip shows the same gradient (sized to the screen, like the page's), so there's no edge. */
+html.ios-app[data-look="blush"] body::after { background-image: var(--page-glow); background-size: 100vw 100vh; background-repeat: no-repeat; }
 
 /* ---------- the top: weekday, date, progress ring ---------- */
 .top { display: block; }
@@ -2134,21 +2140,22 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 
 /* ---------- the daily kickoff ---------- */
 .brief {
-  position: relative; margin-top: 16px; padding: 16px 16px 14px; border-radius: 24px;
-  border: 1px solid var(--card-line); background: var(--card); overflow: hidden;
+  position: relative; margin-top: 16px; padding: 16px 16px 14px; border-radius: var(--r-card, 24px);
+  border: 1px solid var(--card-line); background: var(--card); overflow: hidden; box-shadow: var(--card-shadow);
 }
 .brief::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--grad); }
 .brief-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px 0 0; }
 .brief h2 { margin: 0; font-size: calc(18px * var(--tsb)); font-weight: 850; font-stretch: 85%; color: var(--head); }
 .brief-text { margin: 4px 0 12px; font-size: calc(15px * var(--ts)); line-height: 1.45; color: var(--ink); }
 .brief-text .late { color: var(--red); font-weight: 700; }
+.greet-name { font-family: var(--font-head); font-style: italic; color: var(--greet); }
 .brief-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .brief-acts .btn-small { height: 42px; }
 
 /* ---------- quick add ---------- */
 .quick {
   height: 58px; margin-top: 18px; padding: 0 7px 0 8px; gap: 10px;
-  border: 1.5px solid var(--card-line); border-radius: 20px; background: var(--card);
+  border: 1.5px solid var(--card-line); border-radius: var(--r-card, 20px); background: var(--card); box-shadow: var(--card-shadow);
 }
 .quick:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .quick > .ico { width: 36px; height: 36px; padding: 8px; border-radius: 12px; background: var(--grad); color: var(--on-accent); stroke-width: 2.6; }
@@ -2163,7 +2170,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 @media (max-width: 599px) { .scope { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); } }
 .scope-tab {
   flex: none; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 15px;
-  border: 1px solid var(--card-line); border-radius: 999px; background: var(--card); color: var(--soft);
+  border: 1px solid var(--chip-line, var(--card-line)); border-radius: 999px; background: var(--chip-bg, var(--card)); color: var(--soft);
   font-size: calc(14.5px * var(--ts)); font-weight: 750; white-space: nowrap; transition: background-color .2s, color .2s;
 }
 .scope-tab[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
@@ -2178,7 +2185,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 
 /* ---------- the week strip ---------- */
 .week { gap: 6px; }
-.day { min-height: 72px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); }
+.day { min-height: 72px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); } /* narrow: a card's 26px would clip "Today" */
 .day.is-today { border-color: var(--accent); }
 .day[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 
@@ -2249,11 +2256,14 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 /* ---------- tasks: cards with a priority stripe ---------- */
 .tasks { margin-top: 10px; }
 .task { padding-bottom: 8px; }
-.swipe-bg { inset: 0 0 8px 0; border-radius: 20px; }
+.swipe-bg { inset: 0 0 8px 0; border-radius: var(--r-card, 20px); }
 .task-inner {
   align-items: flex-start; gap: 4px; padding: 4px 14px 4px 4px;
-  border: 1px solid var(--card-line); border-radius: 20px; background: var(--card);
+  border: 1px solid var(--card-line); border-radius: var(--r-card, 20px); background: var(--card); box-shadow: var(--card-shadow);
 }
+/* A see-through card (Blush) turns solid while it moves, so the swipe's color can't show through it. Before
+   .is-done below, so a done row stays as it is. */
+.task.swiping .task-inner, .task.settling .task-inner, .task.snooze-open .task-inner, .task.dragging .task-inner { background: var(--card-solid); }
 .task-inner::before {
   content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 4px; border-radius: 0 4px 4px 0;
   background: var(--stripe, transparent);
@@ -2269,7 +2279,7 @@ html.ios-app body::after { content: ""; position: fixed; top: 0; left: 0; right:
 .task.is-late .task-inner { border-color: var(--red); }
 .task.is-pinned .task-inner { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html.selecting .task.is-selected .task-inner { background: var(--accent-soft); border-color: var(--accent); }
-.task.dragging .task-inner { margin-inline: 0; padding-inline: 4px 14px; border-radius: 20px; box-shadow: var(--shadow); transform: scale(1.02); }
+.task.dragging .task-inner { margin-inline: 0; padding-inline: 4px 14px; border-radius: var(--r-card, 20px); box-shadow: var(--shadow); transform: scale(1.02); }
 .prio { font-stretch: 90%; }
 .prio-3 { color: var(--prio-3); }
 .prio-2 { color: var(--prio-2); }
@@ -2313,7 +2323,7 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .select-bar { border-radius: 26px 26px 0 0; background: var(--raise); border-color: var(--card-line); }
 
 /* ---------- buttons, chips and sheets in the look's colors ---------- */
-.chip { border-color: var(--card-line); background: var(--card); }
+.chip { border-color: var(--chip-line, var(--card-line)); background: var(--chip-bg, var(--card)); }
 .chip[aria-pressed="true"], .chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .chip.has-color[aria-pressed="true"] { background: var(--solid); border-color: var(--solid); color: var(--on-solid); }
 .chip-quiet { background: transparent; }
@@ -2325,10 +2335,12 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .btn-small { border-radius: 14px; background: var(--accent); color: var(--on-accent); font-weight: 750; }
 .btn-small.quiet { background: var(--wash); color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.stats { padding: 18px 16px 14px; border: 1px solid var(--card-line); border-radius: 26px; background: var(--card); }
+.stats { padding: 18px 16px 14px; border: 1px solid var(--card-line); border-radius: var(--r-card, 26px); background: var(--card); box-shadow: var(--card-shadow); }
 .bar-tip { background: var(--raise); }
 .link-btn { font-weight: 700; }
-.tip, .welcome { background: var(--card); border: 1px solid var(--card-line); }
+.tip, .welcome { background: var(--card); border: 1px solid var(--card-line); box-shadow: var(--card-shadow); }
+.tip { border-radius: var(--r-card, 18px); }
+.welcome { border-radius: var(--r-card, 20px); }
 .month-day.is-today, .day.is-today { border-color: var(--accent); }
 .month-day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .wk-list { background: var(--card); }
@@ -2375,7 +2387,7 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .accent-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 .accent-custom:focus-within { outline: 2.5px solid var(--accent-ink); outline-offset: 3px; }
 .toggles { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
-.toggle-row { display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 14px; border: 1px solid var(--card-line); border-radius: 18px; background: var(--card); }
+.toggle-row { display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 14px; border: 1px solid var(--card-line); border-radius: var(--r-card, 18px); background: var(--card); box-shadow: var(--card-shadow); }
 .toggle-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .toggle-text b { font-size: calc(15.5px * var(--ts)); font-weight: 750; }
 .toggle-text span { font-size: calc(13.5px * var(--ts)); line-height: 1.35; color: var(--soft); }
@@ -2429,6 +2441,24 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .focus-pill .ico { width: 18px; height: 18px; }
 html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); } /* above the running timer */
 
+/* ---------- headings in the look's heading font (the app's own font, unless a look picks one) ---------- */
+.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title { font-family: var(--font-head); }
+.sec h2 .count { font-family: var(--font); }
+
+/* ---------- Blush: rounder cards with a soft shadow, serif headings, beige chips, a raspberry ring ---------- */
+:root[data-look="blush"] {
+  --r-card: 26px; --card-shadow: 0 10px 30px -14px rgba(120, 60, 50, .22);
+  --chip-bg: var(--wash); --chip-line: transparent;
+}
+:root[data-look="blush"][data-mode="dark"] { --card-shadow: 0 10px 30px -14px rgba(0, 0, 0, .5); }
+/* The serif has no narrow widths and reads best a little lighter; it's wider, so the big title steps down. */
+:root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title) {
+  font-weight: 600; font-stretch: normal; letter-spacing: -.01em;
+}
+:root[data-look="blush"] .hero-title { font-size: calc(38px * var(--tsb)); }
+:root[data-look="blush"] .scope-tab:not([aria-pressed="true"]) .scope-n { background: var(--card-solid); }
+:root[data-look="blush"] .rp-stop1, :root[data-look="blush"] .rp-stop2 { stop-color: var(--pop); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
 }
@@ -2453,10 +2483,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
   // Text on an accent fill: white or near-black, whichever reads better.
   const onFill = c => (contrast(c, '#FFFFFF') >= contrast(c, '#0B0B10') ? '#FFFFFF' : '#0B0B10');
-  // An accent used as text: moved toward the text color until it reads on every surface it sits on (4.5:1).
-  function readable(c, ink, grounds) {
+  // An accent used as text: moved toward the text color until it reads on every surface it sits on (4.5:1;
+  // 3:1 is enough for a mark that isn't text, like a heart or a progress bar).
+  function readable(c, ink, grounds, min = 4.5) {
     let v = c;
-    for (let t = 0.1; t <= 1 && grounds.some(g => contrast(v, g) < 4.5); t += 0.1) v = mix(c, ink, t);
+    for (let t = 0.1; t <= 1 && grounds.some(g => contrast(v, g) < min); t += 0.1) v = mix(c, ink, t);
     return v;
   }
   // A second accent for a custom color: a shifted hue, for gradients.
@@ -2525,6 +2556,22 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
         glow: 'radial-gradient(900px 560px at 88% -14%, rgba(139,92,246,.24), transparent 62%), radial-gradient(760px 520px at -10% 18%, rgba(196,181,253,.10), transparent 60%)' },
       light: { page: '#F7F3FF', card: '#FFFFFF', raise: '#FFFFFF', line: '#E4DAFA', ink: '#1C1030', soft: '#62568A', red: '#C2185B',
         accent: '#6D28D9', accent2: '#A855F7', grad: 'linear-gradient(135deg, #6D28D9 0%, #A855F7 100%)' } },
+    // Blush: a peach-to-pink page (the glow is the page here, so it's sized to the screen in %), see-through white
+    // cards, near-black pills (cream in dark), raspberry hearts and labels, serif headings. Its extra keys:
+    // tint = the strongest point of the page's gradient (measured: darkest in light, lightest in dark), glass = what
+    // paints the cards, and card = the glass laid over the tint (the solid color that contrast is checked on, also
+    // used for a row being swiped); pop = raspberry, greet = the greeting's name, fontHead = headings.
+    { id: 'blush', name: 'Blush', note: 'Peach and pink, soft white cards', kind: 'tokens',
+      light: { page: '#FFF8F4', tint: '#FAD6E0', card: '#FDEFF3', glass: 'rgba(255, 255, 255, .62)', raise: '#FFFFFF',
+        line: '#EFDDD5', cardLine: '#F3E4DD', wash: '#F3E8E1', ink: '#2A1D19', head: '#1F1512', soft: '#6B554D', red: '#B42335',
+        accent: '#1C1412', accent2: '#B23A64', grad: 'linear-gradient(135deg, #2A1D19 0%, #120C0B 100%)',
+        pop: '#B23A64', greet: '#B5602A', fontHead: 'ui-serif, "New York", Georgia, serif',
+        glow: 'radial-gradient(85% 55% at 100% 0%, rgba(255,200,165,.60), transparent 70%), radial-gradient(75% 65% at 0% 40%, rgba(247,186,208,.50), transparent 72%), radial-gradient(90% 55% at 40% 100%, rgba(214,198,242,.50), transparent 70%)' },
+      dark: { page: '#181012', tint: '#35221F', card: '#44312E', glass: 'rgba(255, 236, 242, .07)', raise: '#2A2023',
+        line: '#3D2E33', cardLine: '#3A2B30', wash: '#2C2124', ink: '#FBF1EC', head: '#FFF6F1', soft: '#C7B1A9', red: '#FF6F7F',
+        accent: '#F6ECE6', accent2: '#F28AB0', grad: 'linear-gradient(135deg, #FBF3EE 0%, #EBD8CE 100%)',
+        pop: '#F28AB0', greet: '#EFA27A', fontHead: 'ui-serif, "New York", Georgia, serif',
+        glow: 'radial-gradient(85% 55% at 100% 0%, rgba(255,150,110,.12), transparent 70%), radial-gradient(75% 65% at 0% 40%, rgba(226,92,146,.16), transparent 72%), radial-gradient(90% 55% at 40% 100%, rgba(150,120,225,.14), transparent 70%)' } },
     { id: 'classic', name: 'Classic', note: 'The original black and white', kind: 'css',
       light: { page: '#FFFFFF', card: '#F5F5F7', line: '#E7E7EB', ink: '#000000', soft: '#66666E', accent: '#000000', accent2: '#2348F5', grad: 'linear-gradient(135deg, #2348F5, #6B3FE8)' },
       dark: { page: '#000000', card: '#141416', line: '#232327', ink: '#FFFFFF', soft: '#9C9CA4', accent: '#FFFFFF', accent2: '#7D98FF', grad: 'linear-gradient(135deg, #2F55FF, #7650F0)' } },
@@ -2551,7 +2598,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const acc = isHex(accent) ? accent.toUpperCase() : v.accent;
     const acc2 = isHex(accent) ? shift(acc, 38) : v.accent2;
     const onAcc = onFill(acc);
-    const accInk = readable(acc, v.ink, [v.page, card]);
+    const tint = v.tint || v.page; // a gradient page's strongest point (a plain page is its own)
+    const accInk = readable(acc, v.ink, [v.page, card, tint]);
     const toastBg = dark ? mix(raise, v.ink, 0.1) : v.ink;
     const list = LIST[mode];
     const out = {
@@ -2572,6 +2620,17 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
       '--ok': dark ? '#3DDC97' : '#0A7A43', '--on-red': onFill(v.red),
     };
     for (let i = 1; i < list.length; i++) { out['--solid-' + i] = list[i][0]; out['--tone-' + i] = list[i][1]; }
+    // Keys only some looks have (Blush). A look without them gets nothing extra, so its colors stay exactly as they
+    // were; the stylesheet's :root defaults stand in for these hooks.
+    if (v.tint) out['--page-tint'] = tint;
+    if (v.glass) { out['--card'] = v.glass; out['--card-solid'] = card; }
+    if (v.fontHead) out['--font-head'] = v.fontHead;
+    if (v.pop) {
+      const pop = isHex(accent) ? acc : v.pop, grounds = [v.page, card, tint, out['--wash']];
+      out['--pop'] = readable(pop, v.ink, grounds, 3); // hearts and progress bars
+      out['--pop-ink'] = readable(pop, v.ink, grounds); // labels in it
+    }
+    if (v.greet) out['--greet'] = readable(v.greet, v.ink, [v.page, card, tint]);
     return out;
   }
   // Just the accent, laid over Classic or an original look.
@@ -2663,7 +2722,11 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     const v = t[mode] || t[modesOf(t)[0]];
     if (t.kind === 'tokens') {
       const k = tokens(t, mode in t ? mode : modesOf(t)[0], prefs.accent);
-      return { page: k['--page'], card: k['--card'], ink: k['--ink'], soft: k['--soft'], accent: k['--accent'], grad: k['--grad'], line: k['--line'] };
+      const p = { page: k['--page'], card: k['--card'], ink: k['--ink'], soft: k['--soft'], accent: k['--accent'], grad: k['--grad'], line: k['--line'] };
+      // A page that is a gradient (sized in %, so it scales down) shows it in the preview too. The other looks'
+      // glows are drawn in px for a whole screen and would only wash over a thumbnail, so they preview as before.
+      if (k['--page-tint']) p.glow = k['--page-glow'];
+      return p;
     }
     return { page: v.page, card: v.card, ink: v.ink, soft: v.soft, accent: prefs.accent || v.accent, grad: v.grad.startsWith('#') ? v.grad : (prefs.accent ? `linear-gradient(135deg, ${prefs.accent}, ${shift(prefs.accent, 38)})` : v.grad), line: v.line };
   };
@@ -6629,7 +6692,7 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   function previewHalf(id, mode) {
     const c = THEME.preview(id, mode);
     const half = el('span', 'skin-half');
-    half.style.background = c.page;
+    half.style.background = c.glow && c.glow !== 'none' ? `${c.glow}, ${c.page}` : c.page; // a gradient page (Blush) shows it
     const head = el('span', 'skin-line');
     head.style.cssText = `background:${c.ink};width:52%`;
     const card = el('span', 'skin-card');
@@ -8229,7 +8292,8 @@ html.focusing .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
     box.hidden = !want || !(today || late);
     if (box.hidden) return;
     const h = new Date().getHours();
-    $('#briefTitle').textContent = h < 12 ? 'Good morning, Jose' : h < 17 ? 'Good afternoon, Jose' : 'Good evening, Jose';
+    // The name has its own style (the look's serif in italics, in its greeting color); the words read the same.
+    $('#briefTitle').replaceChildren(h < 12 ? 'Good morning, ' : h < 17 ? 'Good afternoon, ' : 'Good evening, ', el('em', 'greet-name', 'Jose'));
     const parts = [today ? `${plural(today, 'task', 'tasks')} due today` : 'Nothing new due today'];
     if (first) parts.push(`first one at ${timeLabel(first)}`);
     if (mins >= 30) parts.push(`${minLabel(mins)} of jobs on the clock`);
