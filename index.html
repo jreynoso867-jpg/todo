@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-My4DFYsKJDQ0/I5EZdkU0Ia/urowbrI8/9gSo8ps23g=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-B9nIU+8VNGARuMDCwZBIUf7gbvVxoyXfb8HOgKrKNDo=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-dXQa8zbU419ZiK0t6yY+8Mp0YjH/Pqj/gLmT76mnKoE=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.cc118a01'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.342b8ad4'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2517,7 +2517,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 .tsum-done .ico { width: 16px; height: 16px; }
 .chip-side .ico { width: 17px; height: 17px; }
 /* Lists: a card per list, two to a row */
-.lcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* Two to a row, or one when two would squeeze the names (a small phone with large text). */
+.lcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(calc(136px * var(--ts)), calc((100% - 12px) / 2))), 1fr)); gap: 12px; }
 .lcard {
   min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 14px 12px;
   border: 1px solid var(--card-line); border-radius: var(--r-card, 20px); background: var(--card); box-shadow: var(--card-shadow);
@@ -2541,6 +2542,67 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 .lcard-sub.late { color: var(--red); font-weight: 600; }
 .lcard-more { font-weight: 700; }
 .lcards-edit { margin-top: 12px; }
+/* Shopping lists: the card opens the list, its ⋮ sits in the corner; the circles are plain until ticked. */
+#shopCards { align-items: start; } /* each card as tall as its items, like the screenshots */
+.shop-card { position: relative; padding: 0; gap: 0; }
+.shop-open {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 14px 12px;
+  border: 0; border-radius: inherit; background: none; color: inherit; text-align: left;
+}
+.shop-card .lcard-head { padding-right: 28px; }
+.shop-card .lcard-item::before { border-color: var(--soft); }
+.shop-more { position: absolute; top: 3px; right: 1px; color: var(--soft); }
+.shop-more .ico, .sub-more .ico { width: 22px; height: 22px; }
+/* One list open: back (‹) at the left, its name, ⋮ at the right; then its items on a card */
+.sub-head { display: flex; align-items: center; gap: 2px; margin: -6px -10px 0; }
+.sub-head .pane-title { flex: 1; min-width: 0; font-size: calc(26px * var(--tsb)); }
+.sub-back .ico { width: 28px; height: 28px; }
+.shop-list {
+  margin-top: 16px; padding: 2px 6px 2px 8px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
+  background: var(--card); box-shadow: var(--card-shadow);
+}
+.shop-list .card-empty { margin: 14px 8px; }
+.shop-rows { list-style: none; margin: 0; padding: 0; }
+.shop-row { display: flex; align-items: center; scroll-margin-bottom: calc(170px + env(safe-area-inset-bottom, 0px)); }
+.shop-row .ring { margin-left: 0; }
+.shop-row .ring::before { border-width: 1.75px; border-color: var(--soft); }
+.shop-row.is-done .ring::before { background: var(--solid); border-color: var(--solid); }
+.shop-row.is-done .ring svg { stroke-dashoffset: 0; }
+.shop-main { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; min-height: 54px; border-bottom: 1px solid var(--line); }
+.shop-row:last-child .shop-main { border-bottom: 0; }
+.shop-text {
+  flex: 1; min-width: 0; align-self: stretch; padding: 12px 6px 12px 4px; border: 0; background: none; color: var(--ink);
+  font-size: calc(16.5px * var(--ts)); line-height: 1.3; text-align: left; overflow-wrap: anywhere;
+}
+.shop-row.is-done .shop-text { color: var(--soft); text-decoration: line-through; }
+.shop-link { color: var(--soft); }
+.shop-link .ico { width: 21px; height: 21px; }
+.shop-done { margin-top: 22px; }
+.shop-done-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shop-done-head h2 { margin: 0; font-size: calc(17px * var(--ts)); font-weight: 750; color: var(--head); }
+.shop-done-head .count { margin-left: 8px; }
+.shop-done .shop-list { margin-top: 6px; }
+/* The add bar: over the tab bar, like it a floating pill. The arrow fills in once there's something to add. */
+.shop-bar {
+  position: fixed; z-index: 30; left: 12px; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); max-width: 540px; margin-inline: auto;
+  display: flex; align-items: center; gap: 6px; height: 56px; padding: 0 5px 0 16px;
+  border: 1.5px solid var(--card-line); border-radius: 28px; background: var(--raise); box-shadow: 0 14px 34px -14px rgba(0, 0, 0, .45);
+}
+@media (max-width: 359px) { .shop-bar { left: 8px; right: 8px; } }
+.shop-bar:focus-within { border-color: var(--ink); }
+.shop-bar > .ico { width: 22px; height: 22px; color: var(--soft); }
+#shopInput {
+  flex: 1; min-width: 0; height: 100%; padding: 0 4px; border: 0; background: transparent; color: var(--ink);
+  font-size: calc(16px * var(--ts)); text-overflow: ellipsis; outline: none;
+}
+#shopInput::placeholder { color: var(--soft); }
+.shop-add {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent);
+}
+#shopInput:placeholder-shown + .shop-add { background: var(--wash); color: var(--soft); }
+.shop-add .ico { width: 22px; height: 22px; stroke-width: 2.4; }
+.app.has-bar { padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
 /* Calendar: the month (or the week) on a card */
 .cal-card {
   margin-top: 18px; padding: 14px 12px 4px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
@@ -3085,15 +3147,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 
   <!-- Lists: every kind of list, each a card -->
   <section class="pane" id="paneLists" aria-labelledby="listsPaneTitle" hidden>
+  <div id="listsHome">
   <div class="pane-head">
     <div class="pane-head-text">
       <h1 class="pane-title" id="listsPaneTitle" tabindex="-1">Lists</h1>
-      <p class="pane-sub">Your task lists, orders and clients</p>
+      <p class="pane-sub">Shopping, your task lists, orders and clients</p>
     </div>
   </div>
   <!-- Shopping lists (a card each, two to a row), then the Wish list and Savings goals: filled in by their own parts of
        the app, and hidden until there's something to show. -->
-  <div class="lcards" id="shopCards" role="group" aria-label="Shopping lists" hidden></div>
+  <h2 class="pane-h2" id="shopTitle" hidden>Shopping lists</h2>
+  <div class="lcards" id="shopCards" role="group" aria-labelledby="shopTitle" hidden></div>
+  <p class="card-empty" id="shopCardsEmpty" hidden>No shopping lists yet. Tap New list to start one.</p>
   <div class="lcards" id="moreCards" role="group" aria-label="Wish list and savings goals" hidden></div>
   <h2 class="pane-h2" id="taskListsTitle">Task lists</h2>
   <div class="lcards" id="taskListCards" role="group" aria-labelledby="taskListsTitle"></div>
@@ -3104,6 +3169,26 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     <button type="button" class="lcard lcard-go" id="listsPo"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg><span class="lcard-name">Purchase orders</span></span><span class="lcard-sub" id="listsPoSub"></span></button>
     <button type="button" class="lcard lcard-go" id="listsClients"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5V10l8-6 8 6v10.5z"/><path d="M9.5 20.5v-6h5v6"/></svg><span class="lcard-name">Clients</span></span><span class="lcard-sub" id="listsClientsSub"></span></button>
   </div>
+  </div>
+  <!-- One shopping list, open in place of the cards: a circle to tick each item, the ticked ones folded under Done. -->
+  <section class="shop-view" id="shopView" aria-labelledby="shopName" hidden>
+    <div class="sub-head">
+      <button type="button" class="icon-btn sub-back" id="shopBack" aria-label="Back to Lists"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <h1 class="pane-title" id="shopName" tabindex="-1"></h1>
+      <button type="button" class="icon-btn sub-more" id="shopMenu" aria-label="Rename, recolor or delete this list" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5h.01M12 12h.01M12 18.5h.01" stroke-width="3.4"/></svg></button>
+    </div>
+    <div class="shop-list" id="shopBox">
+      <ul class="shop-rows" id="shopRows" aria-label="To get"></ul>
+      <p class="card-empty" id="shopEmpty" hidden></p>
+    </div>
+    <section class="shop-done" id="shopDone" aria-labelledby="shopDoneToggle" hidden>
+      <div class="shop-done-head">
+        <h2><button type="button" class="sec-toggle" id="shopDoneToggle" aria-expanded="false" aria-controls="shopDoneBox">Done<span class="count" id="shopDoneN"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></h2>
+        <button type="button" class="link-btn" id="shopClear">Clear done</button>
+      </div>
+      <div class="shop-list" id="shopDoneBox" hidden><ul class="shop-rows" id="shopDoneRows" aria-label="Done"></ul></div>
+    </section>
+  </section>
   </section>
 
   <!-- Calendar: the month (or the week to plan), and what's on each day -->
@@ -3168,6 +3253,13 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 <!-- "+ New": what to add where you are (a task on Tasks; a list on Lists; an event on Calendar). -->
 <button type="button" class="fab new-pill" id="fab" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New task</button>
 <button type="button" class="fab new-pill" id="newBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="newBtnText"></span></button>
+<!-- Adding to the shopping list that's open, over the tab bar. A web link pasted at the end becomes the item's link. -->
+<form class="shop-bar" id="shopBar" autocomplete="off" hidden>
+  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+  <label class="sr-only" for="shopInput" id="shopInputLabel">Add to the list</label>
+  <input id="shopInput" type="text" maxlength="2300" placeholder="Add to the list…" enterkeyhint="done" autocapitalize="sentences">
+  <button type="submit" class="shop-add" id="shopAdd" aria-label="Add"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+</form>
 
 <div class="scrim" id="scrim" hidden></div>
 
@@ -3416,6 +3508,57 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     <h3 class="sheet-sub" id="tplTitle">Job templates</h3>
     <ul class="list-rows" id="tplRows" aria-labelledby="tplTitle"></ul>
     <p class="sheet-note" id="tplEmpty">Open any task and tap “Save as a template”. New tasks can then start from it, checklist and all.</p>
+  </div>
+</section>
+
+<section class="sheet c0" id="shopSheet" role="dialog" aria-modal="true" aria-labelledby="shopSheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="shopSheetCancel">Cancel</button>
+      <h2 id="shopSheetTitle">New shopping list</h2>
+      <span></span>
+    </div>
+    <form id="shopForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="field-label" for="shopNameInput">Name</label>
+        <input id="shopNameInput" class="text-input" type="text" maxlength="40" placeholder="Like Groceries or Hardware store" enterkeyhint="done" autocapitalize="sentences">
+        <p class="field-error" id="shopNameError" hidden>Type a name for the list first.</p>
+      </div>
+      <div class="field">
+        <span class="field-label" id="shopColorLabel">Color</span>
+        <div class="swatch-picks" id="shopColors" role="group" aria-labelledby="shopColorLabel"></div>
+      </div>
+      <button type="submit" class="btn-primary" id="shopSave">Add list</button>
+      <button type="button" class="btn-danger" id="shopDelete" hidden>Delete list</button>
+    </form>
+  </div>
+</section>
+
+<section class="sheet c0" id="itemSheet" role="dialog" aria-modal="true" aria-labelledby="itemSheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="itemCancel">Cancel</button>
+      <h2 id="itemSheetTitle">Edit item</h2>
+      <span></span>
+    </div>
+    <form id="itemForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="field-label" for="itemText">Item</label>
+        <input id="itemText" class="text-input" type="text" maxlength="200" enterkeyhint="done" autocapitalize="sentences">
+        <p class="field-error" id="itemTextError" hidden>Type the item first.</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="itemLink">Link</label>
+        <input id="itemLink" class="text-input" type="url" inputmode="url" maxlength="2000" placeholder="https://" enterkeyhint="done" autocapitalize="off" spellcheck="false" aria-describedby="itemLinkError">
+        <p class="field-error" id="itemLinkError" hidden>Only a web link that starts with https:// can be kept.</p>
+      </div>
+      <div class="field move-row item-move" role="group" aria-label="Its place in the list">
+        <button type="button" class="btn-small quiet" id="itemUp">Move up</button>
+        <button type="button" class="btn-small quiet" id="itemDown">Move down</button>
+      </div>
+      <button type="submit" class="btn-primary" id="itemSave">Save</button>
+      <button type="button" class="btn-danger" id="itemDelete">Delete item</button>
+    </form>
   </div>
 </section>
 
@@ -3723,6 +3866,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     goalEntriesLoaded: false,
     datesLoaded: false,
     binLoaded: false,
+    sub: null,                  // a list open on the Lists tab, for this visit only: { kind: 'shop', id }
+    shopOpen: false,            // the sheet for a shopping list's name and color
+    itemOpen: false,            // the sheet for one item on it
   };
   const DONE_PAGE = 100;
   let db = null;
@@ -4327,18 +4473,26 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     phone: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7A2.5 2.5 0 0 0 13 4.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/></svg>',
     link: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   };
+  // A link out of the app (a task's link or address, a shopping item's link): a new tab in every edition, and the site
+  // learns nothing about where it came from.
+  function outLink(href, cls) {
+    const a = document.createElement('a');
+    if (cls) a.className = cls;
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    return a;
+  }
   function actionEl(a, cls) {
     const copies = a.kind === 'phone';
-    const el = document.createElement(copies ? 'button' : 'a');
+    const el = copies ? document.createElement('button')
+      : outLink(a.kind === 'map' ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a.value) : a.value);
     el.className = cls;
     if (copies) {
       el.type = 'button';
       el.dataset.copy = a.value;
       el.setAttribute('aria-label', `Copy the number ${a.label}`);
     } else {
-      el.href = a.kind === 'map' ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a.value) : a.value;
-      el.target = '_blank';
-      el.rel = 'noopener';
       el.setAttribute('aria-label', a.kind === 'map' ? `Open ${a.label} in Maps` : `Open ${a.label}`);
     }
     el.innerHTML = ACTION_ICON[a.kind];
@@ -6015,6 +6169,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
 
   /* ---------- sheets ---------- */
+  // The page behind a sheet (or the focus timer), out of reach until it closes: the tabs, the tab bar, "+ New" and the
+  // bars over it.
+  const behind = () => [$('#app'), $('#fab'), $('#newBtn'), $('#shopBar'), $('#dock'), $('#selectBar')];
   let lastFocus = null;
   function openSheet(el) {
     lastFocus = document.activeElement;
@@ -6022,7 +6179,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     scrim.hidden = false;
     el.hidden = false;
     document.documentElement.classList.add('locked');
-    for (const el of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) el.inert = true;
+    for (const el of behind()) el.inert = true;
     void el.offsetWidth;
     scrim.classList.add('open');
     el.classList.add('open');
@@ -6034,7 +6191,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (!others.length) {
       $('#scrim').classList.remove('open');
       document.documentElement.classList.remove('locked');
-      for (const el of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) el.inert = false;
+      for (const el of behind()) el.inert = false;
     }
     setTimeout(() => {
       if (!el.classList.contains('open')) el.hidden = true;
@@ -6049,6 +6206,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (S.sheet) { discardSheetPhotos(S.sheet); S.sheet = null; closeSheet($('#taskSheet')); }
     if (S.listsOpen) { S.listsOpen = false; closeSheet($('#listsSheet')); }
     if (S.colorsOpen) { S.colorsOpen = false; closeSheet($('#colorsSheet')); }
+    closeShopSheet();
+    closeItemSheet();
     closeTrash();
     closeAsk();
     closeClients();
@@ -8468,8 +8627,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const tab = isTab(v) ? v : 'home';
     const from = S.tab;
     if (tab !== from) {
-      tabScroll[from] = window.scrollY;
+      tabScroll[from] = from === 'lists' && S.sub ? listsScroll : window.scrollY;
       if (from === 'tasks') { if (S.searchOpen) closeSearch(); if (S.selecting) exitSelect(); }
+      if (from === 'lists' && S.sub) { S.sub = null; $('#shopInput').value = ''; } // a list open there closes
       if (from === 'calendar' && wkDrag) endWkDrag(false);
       if (tab === 'calendar') aimCalendar();
       S.tab = tab;
@@ -8486,12 +8646,17 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       if (k === cur) $(btn).setAttribute('aria-current', 'page'); else $(btn).removeAttribute('aria-current');
     }
   }
-  // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a list (Lists), or a task on the day being
-  // looked at, else today (Calendar).
+  // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a shopping list (Lists; the task lists have
+  // their own Edit lists), or a task on the day being looked at, else today (Calendar). In an open shopping list it's
+  // the add bar instead.
   const NEW_LABEL = { lists: 'New list', calendar: 'New event' };
   function newHere() {
     if (!writable()) return;
-    if (S.tab === 'lists') { openListsSheet(); $('#newListName').focus(); return; }
+    if (S.tab === 'lists') {
+      if (S.sub) $('#shopInput').focus();
+      else openShopSheet();
+      return;
+    }
     openTaskSheet('new');
   }
   function renderNewBtns() {
@@ -8499,7 +8664,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const can = writable() && !S.selecting;
     $('#fab').hidden = !can || cur !== 'tasks';
     const label = NEW_LABEL[cur];
-    $('#newBtn').hidden = !can || !label || !S.tasksLoaded;
+    $('#newBtn').hidden = !can || !label || !S.tasksLoaded || (cur === 'lists' && !!S.sub);
     if (label && $('#newBtnText').textContent !== label) $('#newBtnText').textContent = label;
   }
 
@@ -8665,6 +8830,386 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#listsClientsSub').textContent = S.clients.size ? plural(S.clients.size, 'client', 'clients') : 'None yet';
   }
 
+  /* ---------- shopping lists: a card each on Lists; one open at a time, with an add bar over the tab bar ---------- */
+  // Their records and how they're saved are under "shopping lists, wishes, savings goals and important dates" above;
+  // this is their screen. The list that's open is S.sub, for this visit only. Items keep their order by rank; ticked
+  // ones wait under Done (folded) until Clear done sends them to Recently deleted.
+  const shopListView = (id, l = {}) => ({ id, name: clean(l.name, 40) || 'Untitled list', color: clampColor(l.color), order: finite(l.order) });
+  const sortedShopLists = () => [...S.shopLists].filter(([, l]) => isPlain(l)).map(([id, l]) => shopListView(id, l))
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  // A link is checked again when shown (another device, or an older file, could have put anything there).
+  const shopItemView = (id, d) => ({ id, list: d.list, text: clean(d.text, 200) || 'Untitled item', link: cleanLink(d.link),
+    done: d.done === true, rank: finite(d.rank), createdAt: finite(d.createdAt) });
+  const shopOrder = (a, b) => a.rank - b.rank || a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  // Every list's items, in order: list id -> [items].
+  function shopItemsByList() {
+    const by = new Map();
+    for (const [id, d] of S.shopItems) {
+      if (!isPlain(d) || typeof d.list !== 'string') continue;
+      if (!by.has(d.list)) by.set(d.list, []);
+      by.get(d.list).push(shopItemView(id, d));
+    }
+    for (const items of by.values()) items.sort(shopOrder);
+    return by;
+  }
+  const DOTS_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5h.01M12 12h.01M12 18.5h.01" stroke-width="3.4"/></svg>';
+  // Redraws a box with fn() and keeps focus on the same button (found again by its data attribute) if it was in there.
+  function keepingFocus(box, attrs, fn) {
+    const a = document.activeElement;
+    const k = box.contains(a) ? attrs.find(x => a.hasAttribute('data-' + x)) : null;
+    const v = k ? a.getAttribute('data-' + k) : null;
+    fn();
+    if (!k) return;
+    const again = box.querySelector(`[data-${k}="${CSS.escape(v)}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
+
+  let listsScroll = 0;     // where the Lists cards were scrolled to, for coming back from a list
+  let shopDoneOpen = false; // whether the open list's Done is unfolded
+  let shopAdded = null;     // an item just added, to scroll into view once it shows
+  // o.name and o.pending: a list just made, shown by the name typed until it's saved. o.focus: false leaves focus be.
+  function openShop(id, o = {}) {
+    if (!S.shopLists.has(id) && !o.pending) return;
+    if (!S.sub) listsScroll = window.scrollY;
+    S.sub = { kind: 'shop', id, name: o.name || '', pending: !!o.pending };
+    shopDoneOpen = false;
+    $('#shopInput').value = '';
+    render();
+    window.scrollTo(0, 0);
+    if (o.focus !== false) $('#shopName').focus({ preventScroll: true });
+  }
+  function closeShop(o = {}) {
+    if (!S.sub) return;
+    const id = S.sub.id;
+    S.sub = null;
+    $('#shopInput').value = '';
+    render();
+    window.scrollTo(0, listsScroll);
+    if (o.focus !== false) ($(`[data-shop-open="${CSS.escape(id)}"]`) || $('#listsPaneTitle')).focus({ preventScroll: true });
+  }
+
+  function shopCard(l, items, can) {
+    const open = items.filter(i => !i.done);
+    const card = el('div', 'lcard shop-card c' + l.color);
+    card.dataset.shopCard = l.id;
+    const go = el('button', 'shop-open');
+    go.type = 'button';
+    go.dataset.shopOpen = l.id;
+    go.setAttribute('aria-label', `${l.name}, ${open.length ? plural(open.length, 'item', 'items') + ' to get' : 'nothing to get'}. Open the list`);
+    const head = el('span', 'lcard-head');
+    const dot = el('i', 'dot');
+    dot.setAttribute('aria-hidden', 'true');
+    head.append(dot, el('span', 'lcard-name', l.name));
+    go.append(head);
+    if (open.length) {
+      const ul = el('span', 'lcard-items');
+      ul.setAttribute('aria-hidden', 'true');
+      for (const i of open.slice(0, 4)) ul.append(el('span', 'lcard-item', i.text));
+      go.append(ul);
+      if (open.length > 4) go.append(el('span', 'lcard-more', `+${open.length - 4}`));
+    } else {
+      go.append(el('span', 'lcard-sub', items.length ? 'All ticked off' : 'Nothing on it yet'));
+    }
+    card.append(go);
+    if (can) {
+      const more = el('button', 'icon-btn shop-more');
+      more.type = 'button';
+      more.dataset.shopMore = l.id;
+      more.setAttribute('aria-label', `Rename, recolor or delete ${l.name}`);
+      more.innerHTML = DOTS_SVG;
+      card.append(more);
+    }
+    return card;
+  }
+  function renderShopCards(by) {
+    const ready = S.shopListsLoaded && S.shopItemsLoaded && S.status !== 'unavailable';
+    const lists = ready ? sortedShopLists() : [];
+    const can = writable();
+    const box = $('#shopCards');
+    const sig = JSON.stringify([can, lists.map(l => {
+      const open = (by.get(l.id) || []).filter(i => !i.done);
+      return [l.id, l.name, l.color, (by.get(l.id) || []).length, open.length, open.slice(0, 4).map(i => i.text)];
+    })]);
+    if (box.dataset.sig !== sig) {
+      keepingFocus(box, ['shop-open', 'shop-more'], () => {
+        box.dataset.sig = sig;
+        box.replaceChildren(...lists.map(l => shopCard(l, by.get(l.id) || [], can)));
+      });
+    }
+    box.hidden = !lists.length;
+    $('#shopTitle').hidden = !ready || (!lists.length && !can);
+    $('#shopCardsEmpty').hidden = !ready || !can || lists.length > 0;
+  }
+
+  function shopRow(i, can) {
+    const li = el('li', 'shop-row' + (i.done ? ' is-done' : ''));
+    li.dataset.id = i.id;
+    const ring = el('button', 'ring');
+    ring.type = 'button';
+    ring.dataset.shopTick = i.id;
+    ring.setAttribute('role', 'checkbox');
+    ring.setAttribute('aria-checked', String(i.done));
+    ring.setAttribute('aria-label', i.text);
+    ring.disabled = !can;
+    ring.innerHTML = CHECK_SVG;
+    const main = el('span', 'shop-main');
+    const text = el('button', 'shop-text', i.text);
+    text.type = 'button';
+    text.dataset.shopEdit = i.id;
+    text.setAttribute('aria-label', `Edit ${i.text}`);
+    text.disabled = !can;
+    main.append(text);
+    if (i.link) {
+      const a = outLink(i.link, 'icon-btn shop-link');
+      a.setAttribute('aria-label', `Open the link for ${i.text}`);
+      a.innerHTML = ACTION_ICON.link;
+      main.append(a);
+    }
+    li.append(ring, main);
+    return li;
+  }
+  function renderShopView(sub, by) {
+    const raw = S.shopLists.get(sub.id);
+    const l = raw ? shopListView(sub.id, raw) : { id: sub.id, name: clean(sub.name, 40) || 'Untitled list', color: 1 };
+    const items = by.get(sub.id) || [];
+    const open = items.filter(i => !i.done);
+    const done = items.filter(i => i.done);
+    const can = writable();
+    const view = $('#shopView');
+    const cls = 'shop-view c' + l.color;
+    if (view.className !== cls) view.className = cls;
+    if ($('#shopName').textContent !== l.name) $('#shopName').textContent = l.name;
+    $('#shopMenu').hidden = !can || !raw;
+    $('#shopMenu').setAttribute('aria-label', `Rename, recolor or delete ${l.name}`);
+    const words = `Add to ${l.name}`;
+    if ($('#shopInputLabel').textContent !== words) { $('#shopInputLabel').textContent = words; $('#shopInput').placeholder = words + '…'; }
+    $('#shopEmpty').hidden = open.length > 0;
+    if (!open.length) $('#shopEmpty').textContent = done.length ? 'Everything’s ticked off.' : can ? 'Nothing on this list yet. Add the first thing below.' : 'Nothing on this list yet.';
+    $('#shopDone').hidden = !done.length;
+    $('#shopDoneN').textContent = String(done.length);
+    $('#shopDoneToggle').setAttribute('aria-expanded', String(shopDoneOpen));
+    $('#shopDoneBox').hidden = !shopDoneOpen;
+    $('#shopClear').hidden = !can;
+    const rowSig = i => [i.id, i.text, i.link];
+    const sig = JSON.stringify([can, open.map(rowSig), done.map(rowSig)]);
+    if (view.dataset.sig !== sig) {
+      // A row ticked (or gone) takes focus with it: it goes to the row now in its place, else close by.
+      const a = document.activeElement;
+      const li = view.contains(a) ? a.closest('.shop-row') : null;
+      const was = li && { id: li.dataset.id, ring: a.classList.contains('ring'), ul: li.parentNode, at: [...li.parentNode.children].indexOf(li) };
+      view.dataset.sig = sig;
+      $('#shopRows').replaceChildren(...open.map(i => shopRow(i, can)));
+      $('#shopDoneRows').replaceChildren(...done.map(i => shopRow(i, can)));
+      if (was) {
+        const same = view.querySelector(`.shop-row[data-id="${CSS.escape(was.id)}"]`);
+        let to = same && same.parentNode === was.ul ? same.querySelector(was.ring ? '.ring' : '.shop-text') : null;
+        if (!to) { const near = was.ul.children[Math.min(was.at, was.ul.children.length - 1)]; to = near ? near.querySelector('.ring') : null; }
+        if (!to && done.length) to = $('#shopDoneToggle');
+        (to || $('#shopName')).focus({ preventScroll: true });
+      }
+    }
+    if (shopAdded) {
+      const row = view.querySelector(`.shop-row[data-id="${CSS.escape(shopAdded)}"]`);
+      if (row) { shopAdded = null; row.scrollIntoView({ block: 'nearest' }); }
+    }
+  }
+  function renderShop() {
+    const onLists = shownTab() === 'lists';
+    let sub = S.sub;
+    // A list that's gone (deleted here or on another device) closes; one just made shows while it saves.
+    if (sub && onLists && S.shopListsLoaded && !S.shopLists.has(sub.id) && !sub.pending) {
+      const had = $('#shopView').contains(document.activeElement) || $('#shopBar').contains(document.activeElement);
+      S.sub = sub = null;
+      if (had) setTimeout(() => $('#listsPaneTitle').focus({ preventScroll: true }), 0);
+    }
+    const barOn = onLists && !!sub && writable();
+    $('#shopBar').hidden = !barOn;
+    $('#app').classList.toggle('has-bar', barOn);
+    if (!onLists) return;
+    $('#listsHome').hidden = !!sub;
+    $('#shopView').hidden = !sub;
+    const by = shopItemsByList();
+    if (sub) renderShopView(sub, by);
+    else renderShopCards(by);
+  }
+
+  // What's typed in the add bar: a web link at the end (or alone) becomes the item's link, and only an https one (see
+  // cleanLink); anything else is the item's words. A link on its own is named after its site.
+  function readShopInput(raw) {
+    const s = String(raw || '').trim();
+    const m = /(^|\s)(https?:\/\/\S+)$/i.exec(s);
+    const link = m ? cleanLink(m[2]) : null;
+    if (!link) return { text: clean(s, 200), link: null };
+    let text = clean(s.slice(0, m.index), 200);
+    if (!text) { try { text = new URL(link).hostname.replace(/^www\./i, ''); } catch (e) { text = ''; } }
+    return { text, link };
+  }
+  function addShopItem() {
+    const input = $('#shopInput');
+    if (!S.sub || !writable()) return;
+    const { text, link } = readShopInput(input.value);
+    if (!text) return;
+    const id = addRecord('shopItems', { list: S.sub.id, text, link });
+    if (!id) return; // (its list isn't saved yet) the words stay in the box
+    input.value = '';
+    shopAdded = id;
+    buzz(8);
+  }
+  function tickShopItem(id) {
+    const d = S.shopItems.get(id);
+    if (!d || !writable()) return;
+    editRecord('shopItems', id, { done: d.done !== true });
+    buzz(10);
+  }
+  function clearShopDone() {
+    if (!S.sub || !writable()) return;
+    const done = (shopItemsByList().get(S.sub.id) || []).filter(i => i.done);
+    if (done.length) binMany(done.map(i => ['shopItems', i.id]), `Cleared ${plural(done.length, 'item', 'items')}`);
+  }
+
+  // The sheet for a shopping list: a new one (+ New list), or ⋮ on one to rename it, recolor it or delete it.
+  let shopEditing = null; // the list being changed, or null for a new one
+  let shopPick = 1;       // the color picked
+  function openShopSheet(id = null) {
+    if (!writable()) return;
+    const raw = id ? S.shopLists.get(id) : null;
+    if (id && !raw) return;
+    const v = raw ? shopListView(id, raw) : null;
+    shopEditing = v ? id : null;
+    shopPick = v ? v.color : freeColor(new Set(sortedShopLists().map(x => x.color)));
+    S.shopOpen = true;
+    $('#shopSheetTitle').textContent = v ? 'Edit list' : 'New shopping list';
+    $('#shopNameInput').value = v ? v.name : '';
+    $('#shopNameError').hidden = true;
+    $('#shopSave').textContent = v ? 'Save' : 'Add list';
+    $('#shopDelete').hidden = !v;
+    fillSwatches($('#shopColors'), shopPick);
+    const sheet = $('#shopSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#shopNameInput').focus();
+  }
+  function closeShopSheet() {
+    if (!S.shopOpen) return;
+    S.shopOpen = false;
+    shopEditing = null;
+    closeSheet($('#shopSheet'));
+  }
+  function saveShopSheet() {
+    const name = clean($('#shopNameInput').value, 40);
+    $('#shopNameError').hidden = !!name;
+    if (!name) { $('#shopNameInput').focus(); return; }
+    const id = shopEditing;
+    if (id) { editRecord('shopLists', id, { name, color: shopPick }); closeShopSheet(); return; }
+    const made = addRecord('shopLists', { name, color: shopPick });
+    if (!made) return;
+    closeShopSheet();
+    // Straight into the new list, ready for its first item. Until it's saved it shows by the name typed; if it can't
+    // be saved (the phone is full), it closes again.
+    openShop(made, { name, pending: true, focus: false });
+    $('#shopInput').focus();
+    const saving = chains.get('shopLists/' + made);
+    Promise.resolve(saving).then(ok => {
+      if (!S.sub || S.sub.id !== made) return;
+      S.sub.pending = false;
+      if (ok === false) closeShop(); else render();
+    });
+  }
+  function deleteShopList(id) {
+    const raw = S.shopLists.get(id);
+    if (!raw || !writable()) return;
+    closeShopSheet();
+    if (S.sub && S.sub.id === id) closeShop({ focus: false });
+    $('#listsPaneTitle').focus({ preventScroll: true });
+    binMany([['shopLists', id]], `Deleted “${clean(shopListView(id, raw).name, 60)}”`);
+  }
+
+  // The sheet for one item: its words, its link, its place in the list, or delete it.
+  let itemEditing = null;
+  function openItemSheet(id) {
+    const d = S.shopItems.get(id);
+    if (!d || !writable()) return;
+    const v = shopItemView(id, d);
+    itemEditing = id;
+    S.itemOpen = true;
+    $('#itemText').value = v.text;
+    $('#itemLink').value = v.link || '';
+    $('#itemTextError').hidden = true;
+    $('#itemLinkError').hidden = true;
+    renderItemSheet();
+    const sheet = $('#itemSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#itemText').focus();
+  }
+  function closeItemSheet() {
+    if (!S.itemOpen) return;
+    S.itemOpen = false;
+    itemEditing = null;
+    closeSheet($('#itemSheet'));
+  }
+  // The item's neighbours on its own part of the list (to get, or done).
+  function itemGroup(id) {
+    const d = S.shopItems.get(id);
+    if (!isPlain(d)) return { group: [], at: -1 };
+    const group = (shopItemsByList().get(d.list) || []).filter(i => i.done === (d.done === true));
+    return { group, at: group.findIndex(i => i.id === id) };
+  }
+  function renderItemSheet() {
+    if (!S.itemOpen) return;
+    if (!S.shopItems.has(itemEditing)) { closeItemSheet(); return; } // deleted meanwhile (another device)
+    const { group, at } = itemGroup(itemEditing);
+    const up = $('#itemUp'), down = $('#itemDown');
+    up.disabled = at <= 0;
+    down.disabled = at < 0 || at >= group.length - 1;
+    // At the top (or the bottom) the button pressed turns off: the keyboard goes on to the other one.
+    const a = document.activeElement;
+    if ((a === up || a === down) && a.disabled) {
+      const other = a === up ? down : up;
+      (other.disabled ? $('#itemText') : other).focus();
+    }
+  }
+  // One place up (-1) or down (1): the item takes a rank between its new neighbours, so only it changes. If two of them
+  // share a rank (or there's no room left between), the whole part is numbered again.
+  function moveShopItem(id, step) {
+    if (!writable()) return;
+    const { group, at } = itemGroup(id);
+    const to = at + step;
+    if (at < 0 || to < 0 || to >= group.length) return;
+    const a = group[to];
+    const b = group[to + step];
+    const rank = b ? (a.rank + b.rank) / 2 : a.rank + step * 1000;
+    if (rank !== a.rank && (!b || rank !== b.rank)) { editRecord('shopItems', id, { rank }); return; }
+    const order = group.map(i => i.id);
+    order.splice(at, 1);
+    order.splice(to, 0, id);
+    runPool(order.map((x, n) => () => editRecord('shopItems', x, { rank: (n + 1) * 1000 })));
+  }
+  function saveItemSheet() {
+    const id = itemEditing;
+    if (!id || !S.shopItems.has(id)) { closeItemSheet(); return; }
+    const text = clean($('#itemText').value, 200);
+    const typed = $('#itemLink').value.trim();
+    const link = typed ? cleanLink(typed) : null;
+    $('#itemTextError').hidden = !!text;
+    $('#itemLinkError').hidden = !typed || !!link;
+    if (!text) { $('#itemText').focus(); return; }
+    if (typed && !link) { $('#itemLink').focus(); return; }
+    editRecord('shopItems', id, { text, link });
+    closeItemSheet();
+  }
+  function deleteShopItem(id) {
+    const d = S.shopItems.get(id);
+    if (!d || !writable()) return;
+    closeItemSheet();
+    binMany([['shopItems', id]], `Deleted “${clean(shopItemView(id, d).text, 60)}”`);
+  }
+  // A list or item deleted meanwhile (another device) closes its sheet.
+  function renderShopSheets() {
+    if (S.shopOpen && shopEditing && !S.shopLists.has(shopEditing)) closeShopSheet();
+    renderItemSheet();
+  }
+
   /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
   function renderBrief(show) {
     const box = $('#brief');
@@ -8763,7 +9308,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const box = $('#focus');
     box.hidden = false;
     document.documentElement.classList.add('locked');
-    for (const e of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar'), $('#focusPill')]) e.inert = true;
+    for (const e of [...behind(), $('#focusPill')]) e.inert = true;
     paintFocus();
     box.focus({ preventScroll: true });
   }
@@ -8774,7 +9319,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#focusPill').inert = false;
     if (!document.querySelector('.sheet.open')) {
       document.documentElement.classList.remove('locked');
-      for (const e of [$('#app'), $('#fab'), $('#newBtn'), $('#dock'), $('#selectBar')]) e.inert = false;
+      for (const e of behind()) e.inert = false;
     }
     if (focus.back && focus.back.isConnected) { try { focus.back.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
     paintFocus();
@@ -9091,6 +9636,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     renderHomeDue();
     renderTaskSum();
     renderListsPane();
+    renderShop();
+    renderShopSheets();
     renderNewBtns();
     $('#dock').hidden = S.status === 'unavailable' || S.status === 'loading' || !S.tasksLoaded || S.selecting;
     $('#dockWeek').hidden = !S.tasksLoaded;
@@ -12524,7 +13071,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (S.day) { S.day = null; render(); }
     window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
   });
-  $('#dockLists').addEventListener('click', () => setTab('lists'));
+  // Lists tapped again while a list is open there: back to the cards.
+  $('#dockLists').addEventListener('click', () => { if (S.tab === 'lists' && S.sub) closeShop(); else setTab('lists'); });
   // Calendar opens on the week to plan (the dock's old Week button); Month is one tap away there, or the month button on Tasks.
   $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); setTab('calendar'); });
   $('#newBtn').addEventListener('click', newHere);
@@ -12549,6 +13097,41 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   $('#listsEdit').addEventListener('click', openListsSheet);
   $('#listsPo').addEventListener('click', openPoSheet);
   $('#listsClients').addEventListener('click', () => openClients());
+  // shopping lists: a card opens its list, its ⋮ the sheet to rename, recolor or delete it
+  $('#shopCards').addEventListener('click', e => {
+    const more = e.target.closest('[data-shop-more]');
+    if (more) { openShopSheet(more.dataset.shopMore); return; }
+    const go = e.target.closest('[data-shop-open]');
+    if (go) openShop(go.dataset.shopOpen);
+  });
+  $('#shopBack').addEventListener('click', () => closeShop());
+  $('#shopMenu').addEventListener('click', () => { if (S.sub) openShopSheet(S.sub.id); });
+  $('#shopView').addEventListener('click', e => {
+    const tick = e.target.closest('[data-shop-tick]');
+    if (tick) { tickShopItem(tick.dataset.shopTick); return; }
+    const edit = e.target.closest('[data-shop-edit]');
+    if (edit) openItemSheet(edit.dataset.shopEdit);
+  });
+  $('#shopDoneToggle').addEventListener('click', () => { shopDoneOpen = !shopDoneOpen; render(); });
+  $('#shopClear').addEventListener('click', clearShopDone);
+  $('#shopBar').addEventListener('submit', e => { e.preventDefault(); addShopItem(); });
+  $('#shopSheetCancel').addEventListener('click', closeShopSheet);
+  $('#shopForm').addEventListener('submit', e => { e.preventDefault(); saveShopSheet(); });
+  $('#shopNameInput').addEventListener('input', () => { $('#shopNameError').hidden = true; });
+  $('#shopColors').addEventListener('click', e => {
+    const b = e.target.closest('[data-color]');
+    if (!b) return;
+    shopPick = clampColor(b.dataset.color);
+    fillSwatches($('#shopColors'), shopPick);
+  });
+  $('#shopDelete').addEventListener('click', () => { if (shopEditing) deleteShopList(shopEditing); });
+  $('#itemCancel').addEventListener('click', closeItemSheet);
+  $('#itemForm').addEventListener('submit', e => { e.preventDefault(); saveItemSheet(); });
+  $('#itemText').addEventListener('input', () => { $('#itemTextError').hidden = true; });
+  $('#itemLink').addEventListener('input', () => { $('#itemLinkError').hidden = true; });
+  $('#itemUp').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, -1); });
+  $('#itemDown').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, 1); });
+  $('#itemDelete').addEventListener('click', () => { if (itemEditing) deleteShopItem(itemEditing); });
   // your list in one file
   $('#exportAll').addEventListener('click', exportAll);
   $('#importAll').addEventListener('click', pickImport);
@@ -12750,7 +13333,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
-    else { closeListsSheet(); closeColorsSheet(); closeTrash(); closeAsk(); closePoSheet(); }
+    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeTrash(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
     if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
@@ -12765,7 +13348,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen) return;
       if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
       else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
@@ -12774,11 +13357,14 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
+    else if (S.itemOpen) closeItemSheet();
+    else if (S.shopOpen) closeShopSheet();
     else if (S.poOpen) closePoSheet();
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
     else if (S.trashOpen) closeTrash();
     else if (S.askOpen) closeAsk();
+    else if (S.sub && shownTab() === 'lists') closeShop(); // the open list, back to the cards
     else if (S.selecting) exitSelect();
     else if (S.day) { S.day = null; render(); }
   });

@@ -129,13 +129,13 @@ test('the tab bar and "+ New" can\'t be reached behind a sheet', async () => {
   assert.deepEqual(await inert(), [true, true, true, true], 'a new task being written');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
-  // Lists has its own "+ New": a new list.
+  // Lists has its own "+ New": a new shopping list (the task lists keep their Edit lists button).
   await page.click('#dockLists');
   assert.ok(await page.isHidden('#fab'));
   assert.equal(await page.textContent('#newBtn'), 'New list');
   await page.click('#newBtn');
-  await page.waitForSelector('#listsSheet.open');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'newListName');
+  await page.waitForSelector('#shopSheet.open');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'shopNameInput');
   assert.deepEqual(await inert(), [true, true, true, true]);
   assert.deepEqual(errors, []);
   await ctx.close();
@@ -349,7 +349,7 @@ test('the keyboard: / searches from any tab, N adds what fits the tab', async ()
   await page.click('#dockLists'); // leaving Tasks closes the search
   assert.ok(await page.isHidden('#searchBar'));
   await page.keyboard.press('n');
-  await page.waitForSelector('#listsSheet.open');
+  await page.waitForSelector('#shopSheet.open'); // a new shopping list
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
   await page.click('#dockHome');
