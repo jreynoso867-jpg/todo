@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1VISosxMDBr0++B+wfrNYqghybZqFzWPBe6O8h1T+9c=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-wFXVCWbB4g68qm+Micv/NiXrHJdbZ7E3qeDD+9F8PfU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-047HRRY2uPW1S4hyMbbS2wrCoQQ4iQkSdwLOLV1QqzU=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-5SK/GA+YrTj2OyurK7jQV3RhYBvRDrlWxnAs1KIPpls=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.585f20e7'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.f50b8aca'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2642,6 +2642,57 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 /* the wish sheet: the note's box grows with it; Got it (or Not yet) under Save */
 .text-input.text-area { height: auto; min-height: 96px; padding: 12px 14px; line-height: 1.4; font-weight: 500; resize: vertical; }
 #wishGotBtn { margin-top: 12px; }
+/* Savings goals, like the screenshot: back (‹) over the title as on the Wish list; Open (with how many, in a small badge)
+   and Closed as two pills; a card per goal: its name and due date, "$16,000.00 of $35,000.00", a bar in the look's ink,
+   what's left, what went in, and Add money / Close goal as plain words. */
+#listsGoals .lcard-head .ico { color: var(--pop); }
+.goal-tabs { margin-top: 22px; gap: 10px; }
+.goal-tabs .chip { position: relative; height: 44px; padding: 0 24px; font-size: calc(15.5px * var(--ts)); font-weight: 700; }
+.goal-badge {
+  position: absolute; top: -10px; right: -6px; min-width: 24px; height: 24px; display: grid; place-items: center; padding: 0 6px;
+  border: 2px solid var(--page); border-radius: 999px; background: var(--accent); color: var(--on-accent);
+  font-size: calc(12.5px * var(--ts)); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.goal-list { display: grid; gap: 14px; margin-top: 18px; }
+.goal-list:empty { display: none; }
+#goalView .card-empty { margin-top: 16px; }
+.goal-card {
+  min-width: 0; padding: 16px 18px 6px; border: 1px solid var(--card-line); border-radius: var(--r-card, 20px);
+  background: var(--card); box-shadow: var(--card-shadow); color: var(--ink);
+}
+.goal-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
+.goal-open {
+  flex: 1 1 9em; min-width: 0; margin: -6px 0 -4px -6px; padding: 6px; border: 0; border-radius: 12px; background: none; color: var(--ink);
+  font-size: calc(18px * var(--ts)); font-weight: 700; line-height: 1.3; text-align: left; overflow-wrap: anywhere;
+}
+.goal-due { flex: none; font-size: calc(15px * var(--ts)); color: var(--soft); white-space: nowrap; }
+.goal-amt { margin: 10px 0 0; font-size: calc(18px * var(--ts)); font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.goal-bar { height: 8px; margin-top: 14px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.goal-bar .goal-fill { display: block; height: 100%; border-radius: 4px; background: var(--accent-ink); }
+.goal-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 10px; font-size: calc(15px * var(--ts)); color: var(--soft); }
+.goal-left.is-reached { color: var(--ink); font-weight: 700; }
+.goal-entries { list-style: none; margin: 12px 0 0; padding: 4px 0 0; border-top: 1px solid var(--line); }
+.goal-entry {
+  width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: 44px; padding: 6px 0;
+  border: 0; border-radius: 10px; background: none; color: var(--ink); font-size: calc(15.5px * var(--ts)); text-align: left;
+}
+.ge-day { flex: none; color: var(--soft); white-space: nowrap; }
+.ge-note { flex: 1 1 0; min-width: 0; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ge-amt { flex: none; max-width: 100%; margin-left: auto; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.goal-none { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: calc(15px * var(--ts)); color: var(--soft); }
+.goal-more { padding: 6px 0 2px; color: var(--ink); }
+.goal-acts { display: flex; flex-wrap: wrap; gap: 0 10px; margin: 6px 0 0 -12px; }
+.goal-act {
+  min-height: 48px; padding: 10px 12px; border: 0; border-radius: 14px; background: none; color: var(--ink);
+  font-size: calc(17px * var(--ts)); font-weight: 750; text-align: left;
+}
+/* the goal and money sheets: a label with a button at its end; dates fill the row and start at the left */
+.field-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.field-row .field-label { min-width: 0; }
+.field-row .link-btn { flex: none; margin: -8px 0 0; }
+.date-input { -webkit-appearance: none; appearance: none; min-width: 0; text-align: left; }
+.date-input::-webkit-date-and-time-value { text-align: left; }
+#moneyFor { margin: 6px 0 -8px; overflow-wrap: anywhere; }
 /* Calendar: the month (or the week) on a card */
 .cal-card {
   margin-top: 18px; padding: 14px 12px 4px; border: 1px solid var(--card-line); border-radius: var(--r-card, 22px);
@@ -3190,7 +3241,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   <div class="pane-head">
     <div class="pane-head-text">
       <h1 class="pane-title" id="listsPaneTitle" tabindex="-1">Lists</h1>
-      <p class="pane-sub">Shopping, wishes, your task lists, orders and clients</p>
+      <p class="pane-sub">Shopping, wishes, savings, your task lists, orders and clients</p>
     </div>
   </div>
   <!-- Shopping lists (a card each, two to a row), then the Wish list and Savings goals: filled in by their own parts of
@@ -3198,9 +3249,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   <h2 class="pane-h2" id="shopTitle" hidden>Shopping lists</h2>
   <div class="lcards" id="shopCards" role="group" aria-labelledby="shopTitle" hidden></div>
   <p class="card-empty" id="shopCardsEmpty" hidden>No shopping lists yet. Tap New list to start one.</p>
-  <h2 class="pane-h2" id="moreTitle" hidden>Wishes</h2>
+  <h2 class="pane-h2" id="moreTitle" hidden>Wishes and savings</h2>
   <div class="lcards" id="moreCards" role="group" aria-labelledby="moreTitle" hidden>
-    <button type="button" class="lcard lcard-go" id="listsWish"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg><span class="lcard-name">Wish list</span></span><span class="lcard-sub" id="listsWishSub"></span></button>
+    <button type="button" class="lcard lcard-go" id="listsWish" hidden><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg><span class="lcard-name">Wish list</span></span><span class="lcard-sub" id="listsWishSub"></span></button>
+    <button type="button" class="lcard lcard-go" id="listsGoals" hidden><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.5-1.3-2.6-1.3-1.5 0-2.6.8-2.6 2s1.1 1.6 2.6 1.9 2.7.8 2.7 2.1-1.2 2-2.7 2c-1.2 0-2.2-.5-2.7-1.3M12 6.6V8M12 16v1.4"/></svg><span class="lcard-name">Savings goals</span></span><span class="lcard-sub" id="listsGoalsSub"></span></button>
   </div>
   <h2 class="pane-h2" id="taskListsTitle">Task lists</h2>
   <div class="lcards" id="taskListCards" role="group" aria-labelledby="taskListsTitle"></div>
@@ -3252,6 +3304,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       </div>
       <div class="lcards wish-grid" id="wishGotBox" role="group" aria-label="Got it" hidden></div>
     </section>
+  </section>
+  <!-- Savings goals, open in place of the cards: the open ones or the closed ones, a card per goal with what went in. -->
+  <section class="goal-view" id="goalView" aria-labelledby="goalPaneTitle" hidden>
+    <button type="button" class="icon-btn wish-back" id="goalBack" aria-label="Back to Lists"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h1 class="pane-title" id="goalPaneTitle" tabindex="-1">Savings goals</h1>
+    <p class="pane-sub" id="goalSub">A goal, what you’ve saved and what’s left</p>
+    <div class="chips wrap goal-tabs" id="goalTabs" role="group" aria-label="Show">
+      <button type="button" class="chip" data-goal-show="open" aria-pressed="true" aria-label="Open goals">Open<span class="goal-badge" id="goalOpenN" aria-hidden="true" hidden></span></button>
+      <button type="button" class="chip" data-goal-show="closed" aria-pressed="false" aria-label="Closed goals">Closed</button>
+    </div>
+    <div class="goal-list" id="goalList" role="group" aria-label="Open goals"></div>
+    <p class="card-empty" id="goalEmpty" hidden></p>
   </section>
   </section>
 
@@ -3670,6 +3734,68 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   </div>
 </section>
 
+<section class="sheet c0" id="goalSheet" role="dialog" aria-modal="true" aria-labelledby="goalSheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="goalCancel">Cancel</button>
+      <h2 id="goalSheetTitle">New goal</h2>
+      <span></span>
+    </div>
+    <form id="goalForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="field-label" for="goalName">What are you saving for?</label>
+        <input id="goalName" class="text-input" type="text" maxlength="80" placeholder="Like a trip, a car or a rainy day" enterkeyhint="done" autocapitalize="sentences" aria-describedby="goalNameError">
+        <p class="field-error" id="goalNameError" hidden>Type what it’s for first.</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="goalTarget">Amount to reach</label>
+        <input id="goalTarget" class="text-input" type="text" inputmode="decimal" maxlength="24" placeholder="$0.00" enterkeyhint="done" autocapitalize="off" spellcheck="false" aria-describedby="goalTargetError">
+        <p class="field-error" id="goalTargetError" hidden>Type the amount to reach, like 1,000 or 250.50.</p>
+      </div>
+      <div class="field">
+        <div class="field-row"><label class="field-label" for="goalDue">Due date (if there is one)</label><button type="button" class="link-btn" id="goalDueClear" hidden>No date</button></div>
+        <input id="goalDue" class="text-input date-input" type="date">
+      </div>
+      <button type="submit" class="btn-primary" id="goalSave">Add goal</button>
+      <button type="button" class="btn-danger" id="goalDelete" hidden>Delete goal</button>
+    </form>
+  </div>
+</section>
+
+<section class="sheet c0" id="moneySheet" role="dialog" aria-modal="true" aria-labelledby="moneySheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="moneyCancel">Cancel</button>
+      <h2 id="moneySheetTitle">Add money</h2>
+      <span></span>
+    </div>
+    <p class="sheet-note" id="moneyFor"></p>
+    <form id="moneyForm" autocomplete="off" novalidate>
+      <div class="field">
+        <div class="seg seg-wide" id="moneyDir" role="group" aria-label="Put in or take out">
+          <button type="button" data-money-dir="in" aria-pressed="true">Put in</button>
+          <button type="button" data-money-dir="out" aria-pressed="false">Take out</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="moneyAmount" id="moneyAmountLabel">Amount put in</label>
+        <input id="moneyAmount" class="text-input" type="text" inputmode="decimal" maxlength="24" placeholder="$0.00" enterkeyhint="done" autocapitalize="off" spellcheck="false" aria-describedby="moneyAmountError">
+        <p class="field-error" id="moneyAmountError" hidden>Type an amount like 250 or 12.10 (not zero).</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="moneyDay">Day</label>
+        <input id="moneyDay" class="text-input date-input" type="date">
+      </div>
+      <div class="field">
+        <label class="field-label" for="moneyNote">Note</label>
+        <input id="moneyNote" class="text-input" type="text" maxlength="200" placeholder="Like a bonus or birthday money" enterkeyhint="done" autocapitalize="sentences">
+      </div>
+      <button type="submit" class="btn-primary" id="moneySave">Add</button>
+      <button type="button" class="btn-danger" id="moneyDelete" hidden>Delete entry</button>
+    </form>
+  </div>
+</section>
+
 <section class="sheet c0" id="colorsSheet" role="dialog" aria-modal="true" aria-labelledby="colorsTitle" tabindex="-1" hidden>
   <div class="sheet-inner">
     <div class="sheet-head">
@@ -3974,10 +4100,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     goalEntriesLoaded: false,
     datesLoaded: false,
     binLoaded: false,
-    sub: null,                  // a list open on the Lists tab, for this visit only: { kind: 'shop', id } or { kind: 'wish' }
+    sub: null,                  // a list open on the Lists tab, for this visit only: { kind: 'shop', id }, { kind: 'wish' } or { kind: 'goals' }
     shopOpen: false,            // the sheet for a shopping list's name and color
     itemOpen: false,            // the sheet for one item on it
     wishOpen: false,            // the sheet for a wish (a new one, or one tapped)
+    goalOpen: false,            // the sheet for a savings goal (a new one, or one tapped)
+    moneyOpen: false,           // the sheet for money put into a goal (or taken out), new or tapped
   };
   const DONE_PAGE = 100;
   let db = null;
@@ -6318,6 +6446,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     closeShopSheet();
     closeItemSheet();
     closeWishSheet();
+    closeGoalSheet();
+    closeMoneySheet();
     closeTrash();
     closeAsk();
     closeClients();
@@ -8757,13 +8887,15 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     }
   }
   // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a shopping list (Lists; the task lists have
-  // their own Edit lists), a wish (the Wish list), or a task on the day being looked at, else today (Calendar). In an
-  // open shopping list it's the add bar instead.
+  // their own Edit lists), a wish (the Wish list), a goal (Savings goals), or a task on the day being looked at, else
+  // today (Calendar). In an open shopping list it's the add bar instead.
   const NEW_LABEL = { lists: 'New list', calendar: 'New event' };
+  const SUB_NEW = { wish: 'New wish', goals: 'New goal' }; // (a shopping list has its add bar)
   function newHere() {
     if (!writable()) return;
     if (S.tab === 'lists') {
       if (S.sub && S.sub.kind === 'wish') openWishSheet();
+      else if (S.sub && S.sub.kind === 'goals') openGoalSheet();
       else if (S.sub) $('#shopInput').focus();
       else openShopSheet();
       return;
@@ -8774,9 +8906,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const cur = shownTab();
     const can = writable() && !S.selecting;
     $('#fab').hidden = !can || cur !== 'tasks';
-    const wishing = cur === 'lists' && !!S.sub && S.sub.kind === 'wish';
-    const label = wishing ? 'New wish' : NEW_LABEL[cur];
-    $('#newBtn').hidden = !can || !label || !S.tasksLoaded || (cur === 'lists' && !!S.sub && !wishing);
+    const label = cur === 'lists' && S.sub ? SUB_NEW[S.sub.kind] : NEW_LABEL[cur];
+    $('#newBtn').hidden = !can || !label || !S.tasksLoaded;
     if (label && $('#newBtnText').textContent !== label) $('#newBtnText').textContent = label;
   }
 
@@ -8991,7 +9122,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     window.scrollTo(0, 0);
     if (o.focus !== false) $('#shopName').focus({ preventScroll: true });
   }
-  // Back to the Lists cards from whatever is open there (a shopping list, or the Wish list), focus on the card it came from.
+  // Back to the Lists cards from whatever is open there (a shopping list, the Wish list or Savings goals), focus on the
+  // card it came from.
   function closeSub(o = {}) {
     if (!S.sub) return;
     const was = S.sub;
@@ -9001,7 +9133,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     render();
     window.scrollTo(0, listsScroll);
     if (o.focus === false) return;
-    const from = was.kind === 'wish' ? $('#listsWish') : $(`[data-shop-open="${CSS.escape(was.id)}"]`);
+    const from = was.kind === 'wish' ? $('#listsWish') : was.kind === 'goals' ? $('#listsGoals') : $(`[data-shop-open="${CSS.escape(was.id)}"]`);
     (from && from.offsetParent ? from : $('#listsPaneTitle')).focus({ preventScroll: true });
   }
 
@@ -9397,8 +9529,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (!onLists) return;
     const ready = S.wishesLoaded && S.status !== 'unavailable';
     const all = ready ? sortedWishes() : [];
-    // Its card on Lists: how many are wanted, and how many got.
-    $('#moreTitle').hidden = $('#moreCards').hidden = !ready;
+    // Its card on Lists: how many are wanted, and how many got. (The heading over it and Savings goals' card shows
+    // when either card does: see renderGoals.)
+    $('#listsWish').hidden = !ready;
     const wanted = all.filter(w => !w.got).length;
     const gotN = all.length - wanted;
     const sum = !all.length ? 'None yet' : [wanted ? plural(wanted, 'wish', 'wishes') : '', gotN ? `${gotN} got` : ''].filter(Boolean).join(' · ');
@@ -9534,6 +9667,307 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   // A wish deleted meanwhile (another device) closes its sheet.
   function renderWishSheet() {
     if (S.wishOpen && wishEditing && !S.wishes.has(wishEditing)) closeWishSheet();
+  }
+
+  /* ---------- savings goals: their card on Lists opens them; Open N or Closed, a card per goal with what went in ---------- */
+  // Their records are under "shopping lists, wishes, savings goals and important dates" above; this is their screen. It
+  // opens in place of the Lists cards (S.sub is { kind: 'goals' }, for this visit only). What's saved and what's left
+  // always come from the entries (goalTotals), never stored. Open goals keep the order they were made in; the closed
+  // ones show the one closed last first.
+  const goalOf = (id, d) => ({ id, name: clean(d.name, 80) || 'Untitled goal', due: isYmd(d.due) ? d.due : null,
+    closedAt: Number(d.closedAt) > 0 ? Number(d.closedAt) : null, order: finite(d.order), createdAt: finite(d.createdAt) });
+  const idOrder = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  // Each goal's entries, newest first (by day, then the one put in last): goal id -> [entries].
+  function entriesByGoal() {
+    const by = new Map();
+    for (const [id, d] of S.goalEntries) {
+      if (!isPlain(d) || typeof d.goal !== 'string' || !isCents(d.amountCents)) continue;
+      if (!by.has(d.goal)) by.set(d.goal, []);
+      by.get(d.goal).push({ id, amountCents: d.amountCents, day: isYmd(d.day) ? d.day : '', note: clean(d.note, 200), createdAt: finite(d.createdAt) });
+    }
+    for (const list of by.values()) list.sort((a, b) => b.day.localeCompare(a.day) || b.createdAt - a.createdAt || idOrder(b, a));
+    return by;
+  }
+  // A due date always shows its year ("Jan 4, 2027", longDate); an entry's day only when it isn't this year ("Oct 15").
+  const entryDay = day => (!day ? '' : day.slice(0, 4) === S.today.slice(0, 4) ? parseYmd(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : longDate(day));
+  const GOAL_ENTRIES = 5;     // entries a card shows before "Show all"
+  let goalShow = 'open';      // the pill picked: 'open' or 'closed'
+  const goalAll = new Set();  // goals showing all their entries, for this visit
+  // From its card on Lists (or from anywhere else, which goes to Lists first), on the open goals. o.focus: false leaves
+  // focus be.
+  function openGoals(o = {}) {
+    if (S.tab !== 'lists') setTab('lists', { focus: false });
+    if (!S.sub) listsScroll = window.scrollY;
+    S.sub = { kind: 'goals' };
+    goalShow = 'open';
+    shopAdded = null;
+    $('#shopInput').value = '';
+    render();
+    window.scrollTo(0, 0);
+    if (o.focus !== false) $('#goalPaneTitle').focus({ preventScroll: true });
+  }
+
+  function goalCard(g, entries, totals, can) {
+    const { saved, target, left, reached } = totals;
+    // How far along, in whole percent (worked out in cents, so 29 of 100 is 29): full only once it's reached.
+    const pct = reached ? 100 : target > 0 ? Math.max(0, Math.min(99, Math.floor(saved * 100 / target))) : 0;
+    const amt = `${money(saved)} of ${money(target)}`;
+    const card = el('article', 'goal-card');
+    card.dataset.goalCard = g.id;
+    const top = el('div', 'goal-top');
+    const name = el('button', 'goal-open');
+    name.type = 'button';
+    name.dataset.goalOpen = g.id;
+    name.disabled = !can;
+    name.setAttribute('aria-label', `${g.name}, ${amt}. Edit the goal`);
+    name.append(el('span', 'goal-name', g.name));
+    top.append(name);
+    if (g.due) top.append(el('span', 'sr-only', 'Due'), el('span', 'goal-due', longDate(g.due)));
+    const bar = el('div', 'goal-bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-label', `Saved for ${g.name}`);
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    bar.setAttribute('aria-valuenow', String(pct));
+    const fill = el('i', 'goal-fill');
+    fill.style.width = pct + '%';
+    bar.append(fill);
+    const foot = el('div', 'goal-foot');
+    foot.append(el('span', 'goal-left' + (reached ? ' is-reached' : ''), reached ? 'Reached!' : `${money(left)} to go`));
+    if (g.closedAt) foot.append(el('span', 'goal-closed', `Closed ${pastDay(g.closedAt)}`));
+    card.append(top, el('p', 'goal-amt', amt), bar, foot);
+    // What went in (and came out), newest first: a few, or all of them once asked. Each opens to change or delete it.
+    if (entries.length) {
+      const all = goalAll.has(g.id);
+      const ul = el('ul', 'goal-entries');
+      ul.setAttribute('aria-label', `Money for ${g.name}`);
+      for (const e of all ? entries : entries.slice(0, GOAL_ENTRIES)) {
+        const day = entryDay(e.day);
+        const b = el('button', 'goal-entry');
+        b.type = 'button';
+        b.dataset.goalEntry = e.id;
+        b.disabled = !can;
+        b.setAttribute('aria-label', `${[day, money(e.amountCents), e.note].filter(Boolean).join(', ')}. Edit the entry`);
+        b.append(el('span', 'ge-day', day), el('span', 'ge-note', e.note), el('span', 'ge-amt', money(e.amountCents)));
+        const li = el('li');
+        li.append(b);
+        ul.append(li);
+      }
+      card.append(ul);
+      if (entries.length > GOAL_ENTRIES) {
+        const more = el('button', 'link-btn goal-more', all ? 'Show fewer' : `Show all ${entries.length}`);
+        more.type = 'button';
+        more.dataset.goalMore = g.id;
+        more.setAttribute('aria-expanded', String(all));
+        card.append(more);
+      }
+    } else card.append(el('p', 'goal-none', 'Nothing put in yet.'));
+    if (can) {
+      const acts = el('div', 'goal-acts');
+      const act = (label, key) => {
+        const b = el('button', 'goal-act', label);
+        b.type = 'button';
+        b.dataset[key] = g.id;
+        b.setAttribute('aria-label', `${label}: ${g.name}`);
+        return b;
+      };
+      if (g.closedAt) acts.append(act('Reopen', 'goalReopen'));
+      else acts.append(act('Add money', 'goalAdd'), act('Close goal', 'goalClose'));
+      card.append(acts);
+    }
+    return card;
+  }
+  const GOAL_BTNS = ['goal-open', 'goal-add', 'goal-close', 'goal-reopen', 'goal-entry', 'goal-more'];
+  function renderGoals() {
+    const onLists = shownTab() === 'lists';
+    const open = onLists && !!S.sub && S.sub.kind === 'goals';
+    $('#goalView').hidden = !open;
+    if (!onLists) return;
+    const ready = S.goalsLoaded && S.goalEntriesLoaded && S.status !== 'unavailable';
+    const goals = ready ? [...S.goals].filter(([, d]) => isPlain(d)).map(([id, d]) => goalOf(id, d)) : [];
+    const opened = goals.filter(g => !g.closedAt).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || idOrder(a, b));
+    const closed = goals.filter(g => g.closedAt).sort((a, b) => b.closedAt - a.closedAt || idOrder(a, b));
+    // Its card on Lists: how many are open and how many closed. The heading over it and the Wish list's card shows
+    // when either card does.
+    $('#listsGoals').hidden = !ready;
+    $('#moreTitle').hidden = $('#moreCards').hidden = $('#listsWish').hidden && $('#listsGoals').hidden;
+    const sum = !goals.length ? 'None yet' : [opened.length ? `${opened.length} open` : '', closed.length ? `${closed.length} closed` : ''].filter(Boolean).join(' · ');
+    if ($('#listsGoalsSub').textContent !== sum) $('#listsGoalsSub').textContent = sum;
+    if (!open) return;
+    const can = writable();
+    for (const b of $('#goalTabs').children) b.setAttribute('aria-pressed', String(b.dataset.goalShow === goalShow));
+    const n = $('#goalOpenN');
+    n.hidden = !opened.length;
+    n.textContent = opened.length ? String(opened.length) : '';
+    $('#goalTabs [data-goal-show="open"]').setAttribute('aria-label', opened.length ? `Open goals, ${opened.length}` : 'Open goals');
+    const list = goalShow === 'closed' ? closed : opened;
+    $('#goalList').setAttribute('aria-label', goalShow === 'closed' ? 'Closed goals' : 'Open goals');
+    $('#goalEmpty').hidden = !ready || list.length > 0;
+    if (ready && !list.length) {
+      $('#goalEmpty').textContent = goalShow === 'closed' ? 'No closed goals. A goal you close waits here.'
+        : closed.length ? 'No open goals. The ones you closed are under Closed.'
+        : can ? 'No savings goals yet. Tap New goal to start one.' : 'No savings goals yet.';
+    }
+    const by = entriesByGoal();
+    const rows = list.map(g => ({ g, entries: by.get(g.id) || [], totals: goalTotals(g.id) }));
+    const view = $('#goalView');
+    const sig = JSON.stringify([can, S.today, rows.map(r => [r.g, r.totals, goalAll.has(r.g.id), r.entries])]);
+    if (view.dataset.sig === sig) return;
+    // The button that had focus keeps it when it's drawn again; if it went (the goal closed, the entry deleted), focus
+    // goes to its card's name, else the card now in its place, else the pill picked.
+    const a = document.activeElement;
+    const box = $('#goalList');
+    const from = box.contains(a) ? a.closest('.goal-card') : null;
+    const attr = from && GOAL_BTNS.find(k => a.hasAttribute('data-' + k));
+    const was = from && { sel: attr ? `[data-${attr}="${CSS.escape(a.getAttribute('data-' + attr))}"]` : null, id: from.dataset.goalCard, at: [...box.children].indexOf(from) };
+    view.dataset.sig = sig;
+    box.replaceChildren(...rows.map(r => goalCard(r.g, r.entries, r.totals, can)));
+    if (!was) return;
+    const same = box.querySelector(`.goal-card[data-goal-card="${CSS.escape(was.id)}"]`);
+    let to = (was.sel && box.querySelector(was.sel)) || (same && same.querySelector('.goal-open'));
+    if (!to) { const near = box.children[Math.min(was.at, box.children.length - 1)]; to = near ? near.querySelector('.goal-open') : null; }
+    (to || $(`#goalTabs [data-goal-show="${goalShow}"]`)).focus({ preventScroll: true });
+  }
+  // Close goal (or Reopen): kept the moment it's tapped, with Undo. Nothing else about it changes.
+  function setGoalClosed(id, on) {
+    const raw = S.goals.get(id);
+    if (!isPlain(raw) || !writable()) return;
+    const name = clean(goalOf(id, raw).name, 60);
+    const was = Number(raw.closedAt) > 0 ? Number(raw.closedAt) : null;
+    editRecord('goals', id, { closedAt: on ? Date.now() : null });
+    buzz(10);
+    toast(on ? `Closed “${name}”` : `“${name}” is open again`, () => editRecord('goals', id, { closedAt: was }));
+  }
+
+  // The sheet for a goal: a new one (+ New goal, or N), or one tapped to change it or delete it (its entries go with it).
+  let goalEditing = null; // the goal being changed, or null for a new one
+  function openGoalSheet(id = null) {
+    if (!writable()) return;
+    const raw = id ? S.goals.get(id) : null;
+    if (id && !isPlain(raw)) return;
+    const g = raw ? goalOf(id, raw) : null;
+    goalEditing = g ? id : null;
+    S.goalOpen = true;
+    $('#goalSheetTitle').textContent = g ? 'Edit goal' : 'New goal';
+    $('#goalName').value = g ? g.name : '';
+    $('#goalTarget').value = g && isCents(raw.targetCents) && raw.targetCents > 0 ? money(raw.targetCents) : '';
+    $('#goalDue').value = g && g.due ? g.due : '';
+    $('#goalDueClear').hidden = !$('#goalDue').value;
+    for (const e of ['#goalNameError', '#goalTargetError']) $(e).hidden = true;
+    $('#goalSave').textContent = g ? 'Save' : 'Add goal';
+    $('#goalDelete').hidden = !g;
+    const sheet = $('#goalSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#goalName').focus();
+  }
+  function closeGoalSheet() {
+    if (!S.goalOpen) return;
+    S.goalOpen = false;
+    goalEditing = null;
+    closeSheet($('#goalSheet'));
+  }
+  // What the sheet says, checked: its words and an amount above zero are needed; the due date is optional. Something
+  // wrong gets its message and the cursor, and nothing is saved.
+  function readGoalSheet() {
+    const name = clean($('#goalName').value, 80);
+    const targetCents = parseCents($('#goalTarget').value);
+    const targetOk = targetCents !== null && targetCents > 0;
+    $('#goalNameError').hidden = !!name;
+    $('#goalTargetError').hidden = targetOk;
+    const wrong = !name ? '#goalName' : !targetOk ? '#goalTarget' : null;
+    if (wrong) { $(wrong).focus(); return null; }
+    return { name, targetCents, due: isYmd($('#goalDue').value) ? $('#goalDue').value : null };
+  }
+  function saveGoalSheet() {
+    const f = readGoalSheet();
+    if (!f) return;
+    const id = goalEditing;
+    if (id) {
+      if (S.goals.has(id)) editRecord('goals', id, f);
+    } else {
+      if (!addRecord('goals', f)) return;
+      if (goalShow !== 'open') { goalShow = 'open'; scheduleRender(); } // so the new one shows
+    }
+    closeGoalSheet();
+  }
+  function deleteGoal(id) {
+    const raw = S.goals.get(id);
+    if (!isPlain(raw) || !writable()) return;
+    closeGoalSheet();
+    binMany([['goals', id]], `Deleted “${clean(goalOf(id, raw).name, 60)}”`);
+  }
+
+  // The sheet for money put in (or taken out): new from a goal's Add money, or an entry tapped to change or delete it.
+  // Take out (or a minus sign typed) saves the amount below zero; the day starts at today.
+  let moneyGoal = null;     // the goal it's for
+  let moneyEditing = null;  // the entry being changed, or null for a new one
+  let moneyDir = 'in';      // 'in' or 'out'
+  function paintMoneyDir() {
+    for (const b of $('#moneyDir').children) b.setAttribute('aria-pressed', String(b.dataset.moneyDir === moneyDir));
+    $('#moneyAmountLabel').textContent = moneyDir === 'out' ? 'Amount taken out' : 'Amount put in';
+  }
+  function openMoneySheet(goalId, entryId = null) {
+    if (!writable()) return;
+    const raw = entryId ? S.goalEntries.get(entryId) : null;
+    if (entryId && (!isPlain(raw) || !isCents(raw.amountCents))) return;
+    const gid = raw ? raw.goal : goalId;
+    const g = S.goals.get(gid);
+    if (!isPlain(g)) return;
+    moneyGoal = gid;
+    moneyEditing = raw ? entryId : null;
+    moneyDir = raw && raw.amountCents < 0 ? 'out' : 'in';
+    S.moneyOpen = true;
+    $('#moneySheetTitle').textContent = raw ? 'Edit entry' : 'Add money';
+    $('#moneyFor').textContent = `For ${goalOf(gid, g).name}`;
+    $('#moneyAmount').value = raw ? money(Math.abs(raw.amountCents)) : '';
+    $('#moneyDay').value = raw && isYmd(raw.day) ? raw.day : S.today;
+    $('#moneyNote').value = raw ? clean(raw.note, 200) : '';
+    $('#moneyAmountError').hidden = true;
+    $('#moneySave').textContent = raw ? 'Save' : 'Add';
+    $('#moneyDelete').hidden = !raw;
+    paintMoneyDir();
+    const sheet = $('#moneySheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#moneyAmount').focus();
+  }
+  function closeMoneySheet() {
+    if (!S.moneyOpen) return;
+    S.moneyOpen = false;
+    moneyEditing = null;
+    closeSheet($('#moneySheet'));
+  }
+  // An amount is needed, and zero isn't one. A day left empty is today.
+  function readMoneySheet() {
+    const cents = parseCents($('#moneyAmount').value);
+    const ok = cents !== null && cents !== 0;
+    $('#moneyAmountError').hidden = ok;
+    if (!ok) { $('#moneyAmount').focus(); return null; }
+    const out = moneyDir === 'out' || cents < 0;
+    const day = $('#moneyDay').value;
+    return { amountCents: out ? -Math.abs(cents) : Math.abs(cents), day: isYmd(day) ? day : S.today, note: clean($('#moneyNote').value, 200) };
+  }
+  function saveMoneySheet() {
+    const f = readMoneySheet();
+    if (!f) return;
+    if (moneyEditing) {
+      if (S.goalEntries.has(moneyEditing)) editRecord('goalEntries', moneyEditing, f);
+    } else if (!addRecord('goalEntries', { goal: moneyGoal, ...f })) return;
+    buzz(10);
+    closeMoneySheet();
+  }
+  function deleteGoalEntry(id) {
+    const raw = S.goalEntries.get(id);
+    if (!isPlain(raw) || !writable()) return;
+    const g = S.goals.get(raw.goal);
+    closeMoneySheet();
+    binMany([['goalEntries', id]], `Deleted ${isCents(raw.amountCents) ? money(raw.amountCents) : 'the entry'}${isPlain(g) ? ` from “${clean(goalOf(raw.goal, g).name, 60)}”` : ''}`);
+  }
+  // A goal (or an entry) deleted meanwhile (another device) closes its sheet.
+  function renderGoalSheets() {
+    if (S.goalOpen && goalEditing && !S.goals.has(goalEditing)) closeGoalSheet();
+    if (S.moneyOpen && (!S.goals.has(moneyGoal) || (moneyEditing && !S.goalEntries.has(moneyEditing)))) closeMoneySheet();
   }
 
   /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
@@ -9966,6 +10400,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     renderShopSheets();
     renderWish();
     renderWishSheet();
+    renderGoals();
+    renderGoalSheets();
     renderNewBtns();
     $('#dock').hidden = S.status === 'unavailable' || S.status === 'loading' || !S.tasksLoaded || S.selecting;
     $('#dockWeek').hidden = !S.tasksLoaded;
@@ -13399,7 +13835,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (S.day) { S.day = null; render(); }
     window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
   });
-  // Lists tapped again while a list (or the Wish list) is open there: back to the cards.
+  // Lists tapped again while a list (the Wish list, Savings goals) is open there: back to the cards.
   $('#dockLists').addEventListener('click', () => { if (S.tab === 'lists' && S.sub) closeSub(); else setTab('lists'); });
   // Calendar opens on the week to plan (the dock's old Week button); Month is one tap away there, or the month button on Tasks.
   $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); setTab('calendar'); });
@@ -13487,6 +13923,43 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   for (const k of ['Name', 'Price', 'Link']) $('#wish' + k).addEventListener('input', () => { $(`#wish${k}Error`).hidden = true; });
   $('#wishGotBtn').addEventListener('click', toggleWishGot);
   $('#wishDelete').addEventListener('click', () => { if (wishEditing) deleteWish(wishEditing); });
+  // savings goals: their card on Lists opens them; a pill shows the open or the closed ones; on a card, its name opens
+  // the goal's sheet, an entry its own, and Add money, Close goal, Reopen and Show all do what they say
+  $('#listsGoals').addEventListener('click', () => openGoals());
+  $('#goalBack').addEventListener('click', () => closeSub());
+  $('#goalTabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-goal-show]');
+    if (!b) return;
+    goalShow = b.dataset.goalShow === 'closed' ? 'closed' : 'open';
+    render();
+  });
+  $('#goalList').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    const k = b.dataset;
+    if (k.goalOpen) openGoalSheet(k.goalOpen);
+    else if (k.goalAdd) openMoneySheet(k.goalAdd);
+    else if (k.goalEntry) openMoneySheet(null, k.goalEntry);
+    else if (k.goalClose) setGoalClosed(k.goalClose, true);
+    else if (k.goalReopen) setGoalClosed(k.goalReopen, false);
+    else if (k.goalMore) { if (!goalAll.delete(k.goalMore)) goalAll.add(k.goalMore); render(); }
+  });
+  $('#goalCancel').addEventListener('click', closeGoalSheet);
+  $('#goalForm').addEventListener('submit', e => { e.preventDefault(); saveGoalSheet(); });
+  for (const k of ['Name', 'Target']) $('#goal' + k).addEventListener('input', () => { $(`#goal${k}Error`).hidden = true; });
+  $('#goalDue').addEventListener('input', () => { $('#goalDueClear').hidden = !$('#goalDue').value; });
+  $('#goalDueClear').addEventListener('click', () => { $('#goalDue').value = ''; $('#goalDueClear').hidden = true; $('#goalDue').focus(); });
+  $('#goalDelete').addEventListener('click', () => { if (goalEditing) deleteGoal(goalEditing); });
+  $('#moneyCancel').addEventListener('click', closeMoneySheet);
+  $('#moneyForm').addEventListener('submit', e => { e.preventDefault(); saveMoneySheet(); });
+  $('#moneyDir').addEventListener('click', e => {
+    const b = e.target.closest('[data-money-dir]');
+    if (!b) return;
+    moneyDir = b.dataset.moneyDir === 'out' ? 'out' : 'in';
+    paintMoneyDir();
+  });
+  $('#moneyAmount').addEventListener('input', () => { $('#moneyAmountError').hidden = true; });
+  $('#moneyDelete').addEventListener('click', () => { if (moneyEditing) deleteGoalEntry(moneyEditing); });
   // your list in one file
   $('#exportAll').addEventListener('click', exportAll);
   $('#importAll').addEventListener('click', pickImport);
@@ -13688,7 +14161,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
-    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeWishSheet(); closeTrash(); closeAsk(); closePoSheet(); }
+    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeWishSheet(); closeGoalSheet(); closeMoneySheet(); closeTrash(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
     if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
@@ -13703,7 +14176,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen || S.goalOpen || S.moneyOpen) return;
       if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
       else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
@@ -13715,12 +14188,14 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.itemOpen) closeItemSheet();
     else if (S.shopOpen) closeShopSheet();
     else if (S.wishOpen) closeWishSheet();
+    else if (S.moneyOpen) closeMoneySheet();
+    else if (S.goalOpen) closeGoalSheet();
     else if (S.poOpen) closePoSheet();
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
     else if (S.trashOpen) closeTrash();
     else if (S.askOpen) closeAsk();
-    else if (S.sub && shownTab() === 'lists') closeSub(); // the open list (or the Wish list), back to the cards
+    else if (S.sub && shownTab() === 'lists') closeSub(); // the open list (the Wish list, Savings goals), back to the cards
     else if (S.selecting) exitSelect();
     else if (S.day) { S.day = null; render(); }
   });

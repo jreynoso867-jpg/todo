@@ -116,9 +116,9 @@ test('a card shows the first four things to get and how many more', async () => 
     { id: 'sl_groceries', name: 'Groceries', items: ['Milk'], more: '' },
     { id: 'sl_hardware', name: 'Hardware <b>store</b> 🔧', items: ['Wood screws 日本語', 'Thing 1', 'Thing 2', 'Thing 4'], more: '+3' }]);
   assert.match(await page.getAttribute('[data-shop-open="sl_hardware"]', 'aria-label'), /^Hardware <b>store<\/b> 🔧, 7 items to get\. Open the list$/);
-  // The order on the tab: Shopping lists first, then the Wish list's card, then the task lists.
+  // The order on the tab: Shopping lists first, then the Wish list's and Savings goals' cards, then the task lists.
   const order = await page.$$eval('#paneLists h2', els => els.filter(e => e.offsetParent).map(e => e.textContent));
-  assert.deepEqual(order.slice(0, 3), ['Shopping lists', 'Wishes', 'Task lists']);
+  assert.deepEqual(order.slice(0, 3), ['Shopping lists', 'Wishes and savings', 'Task lists']);
   assert.deepEqual(errors, []);
   await ctx.close();
 });
