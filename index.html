@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xJ4q6YCK1lQQ3UdSUhJ+s7DthaxB7RoO2+PEEfaGik8=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-My4DFYsKJDQ0/I5EZdkU0Ia/urowbrI8/9gSo8ps23g=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-RLoJovH08tUFSTzXphMB9j2TVTqy8Lub6WuNksi/FDU=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -370,7 +370,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.c99cacb6'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.cc118a01'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2550,7 +2550,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 
 /* ---------- headings in the look's heading font (the app's own font, unless a look picks one) ---------- */
 .top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
-.pane-title, .pane-h2, .card-head h2, .tsum h2 { font-family: var(--font-head); }
+.pane-title, .pane-h2, .tsum h2 { font-family: var(--font-head); }
 .sec h2 .count { font-family: var(--font); }
 
 /* ---------- Blush: rounder cards with a soft shadow, serif headings, beige chips, a raspberry ring ---------- */
@@ -2561,12 +2561,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 :root[data-look="blush"][data-mode="dark"] { --card-shadow: 0 10px 30px -14px rgba(0, 0, 0, .5); }
 /* The serif has no narrow widths and reads best a little lighter; it's wider, so the big title steps down. */
 :root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
-  .pane-title, .pane-h2, .card-head h2, .tsum h2) {
+  .pane-title, .pane-h2, .tsum h2) {
   font-weight: 600; font-stretch: normal; letter-spacing: -.01em;
 }
 /* The date over the greeting is quiet, like the screenshots; the summary on Tasks sits on a soft peach-to-lilac wash. */
 :root[data-look="blush"] .top .top-kicker { color: var(--soft); font-size: calc(15px * var(--ts)); font-weight: 500; letter-spacing: 0; text-transform: none; }
 :root[data-look="blush"] { --sum-bg: linear-gradient(135deg, rgba(255, 218, 196, .55) 0%, rgba(248, 206, 224, .55) 55%, rgba(226, 214, 248, .55) 100%); }
+/* The month reads lighter, with today's number in a filled circle. */
+:root[data-look="blush"] .month-day { font-weight: 600; font-stretch: normal; }
+:root[data-look="blush"] .month-day.is-today:not([aria-pressed="true"]) { border-color: transparent; }
+:root[data-look="blush"] .month-day.is-today:not([aria-pressed="true"]) > span:first-child {
+  display: grid; place-items: center; width: 1.9em; height: 1.9em; margin: -.45em 0 -.2em; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+}
 :root[data-look="blush"][data-mode="dark"] { --sum-bg: linear-gradient(135deg, rgba(255, 150, 110, .14) 0%, rgba(226, 92, 146, .16) 55%, rgba(150, 120, 225, .14) 100%), var(--card-solid); }
 :root[data-look="blush"] .hero-title { font-size: calc(38px * var(--tsb)); }
 :root[data-look="blush"] .hello { font-size: calc(32px * var(--tsb)); line-height: 1.08; }
