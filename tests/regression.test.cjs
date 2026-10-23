@@ -272,7 +272,10 @@ test('timeline, month and week planner open', async () => {
   await page.click(`#monthGrid [data-day="${addDays(T, 1)}"]`);
   await page.waitForTimeout(400);
   assert.ok(await page.isVisible('#dayBar'));
+  // The week planner: the dock's Week button (the Calendar tab now, which opens on the month: Week is one tap there).
   await page.click('#dockWeek');
+  await page.waitForTimeout(200);
+  if (await page.isHidden('#weekView')) await page.click('[data-cal-mode="week"]');
   await page.waitForSelector('#weekView:not([hidden]) .wk-task');
   assert.deepEqual(errors, []);
   await ctx.close();

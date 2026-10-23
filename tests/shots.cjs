@@ -40,7 +40,8 @@ const { serve, smallFixture, launch, phoneContext, seed } = require('./lib.cjs')
     // The other tabs (the list opens on Tasks).
     if (full === 'home') { await page.click('#dockHome'); await page.waitForTimeout(500); }
     if (full === 'lists') { await page.click('#dockLists'); await page.waitForTimeout(500); }
-    if (full === 'calendar') { await page.click('#dockWeek'); await page.waitForTimeout(500); }
+    if (full === 'calendar') { await page.click('#dockWeek'); await page.waitForTimeout(500); } // on the month
+    if (full === 'week') { await page.click('#dockWeek'); await page.click('[data-cal-mode="week"]'); await page.waitForTimeout(500); }
     if (full === 'overdue') { await page.click('[data-scope="overdue"]'); await page.waitForTimeout(300); }
     await page.screenshot({ path: path.join(out, name + '.png'), fullPage: full === 'full' });
     if (full) {

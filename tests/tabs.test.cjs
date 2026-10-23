@@ -78,7 +78,8 @@ const PLACES = [
   ['purchase orders, from Lists', ['#dockLists', '#listsPo'], '#poSheet.open'],
   ['clients, from Tasks', ['#dockToday', '#clientsBtn'], '#clientsSheet.open'],
   ['clients, from Lists', ['#dockLists', '#listsClients'], '#clientsSheet.open'],
-  ['the week planner', ['#dockWeek'], '#weekView:not([hidden]) .wk-task'],
+  ['the week planner', ['#dockWeek', '[data-cal-mode="week"]'], '#weekView:not([hidden]) .wk-task'],
+  ['the month, from Calendar', ['#dockWeek'], '#monthView:not([hidden]) #monthGrid [data-day]'],
   ['the month', ['#dockToday', '#monthBtn'], '#monthView:not([hidden]) #monthGrid [data-day]'],
   ['the timeline', ['#dockToday', '#tlBtn'], '#timeline:not([hidden]) .tl-block'],
   ['Settings', ['#colorsBtn'], '#colorsSheet.open'],
@@ -94,8 +95,9 @@ test('everything the app had is two taps or less from Home', async () => {
   const { ctx, page, errors } = await phone();
   for (const [what, taps, want] of PLACES) {
     assert.ok(taps.length <= 2, `${what}: ${taps.length} taps`);
-    // From Home each time, with the list as it opened (the timeline row leaves Tasks on the timeline, which hides the list).
-    await page.evaluate(() => { localStorage.setItem('todo.tab', 'home'); localStorage.removeItem('todo.view'); });
+    // From Home each time, with the list as it opened (the timeline row leaves Tasks on the timeline, which hides the list;
+    // the week planner's row leaves Week picked on Calendar).
+    await page.evaluate(() => { localStorage.setItem('todo.tab', 'home'); localStorage.removeItem('todo.view'); localStorage.removeItem('todo.calMode'); });
     await page.reload();
     await page.waitForSelector('#paneHome:not([hidden])');
     await page.waitForSelector('#dock:not([hidden])');
@@ -310,19 +312,49 @@ test('Lists: a card for each task list shows it in Tasks; orders and clients ope
   await ctx.close();
 });
 
-test('Calendar: the week to plan, the month, a day tapped opens it in Tasks, and "+ New event" is for that day', async () => {
+test('Calendar: it opens on the month, Week is kept only when picked there, a day tapped opens it in Tasks, and "+ New event" is for that day or today', async () => {
   const fx = smallFixture();
   const T = fx.today;
   const { ctx, page, errors } = await phone(fx);
   await page.click('#dockWeek');
-  assert.ok(await page.isVisible('#weekView .wk-task'), 'Calendar opens on the week');
+  assert.ok(await page.isVisible('#monthGrid'), 'Calendar opens on the month, like the screenshot');
+  assert.ok(await page.isHidden('#weekView'));
+  assert.equal(await page.getAttribute('[data-cal-mode="month"]', 'aria-pressed'), 'true');
+  assert.equal((await dump(page)).local['todo.calMode'], undefined, 'nothing kept just for opening it');
+  // "+ New event" with no day picked: a new task for today.
+  assert.equal(await page.textContent('#newBtn'), 'New event');
+  await page.click('#newBtn');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.inputValue('#taskDate'), T, 'today');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  // Week, picked there: the week to plan, kept for the next time Calendar opens (after a reload too).
+  await page.click('[data-cal-mode="week"]');
+  assert.ok(await page.isVisible('#weekView .wk-task'), 'the week to plan, one tap away');
+  assert.equal((await dump(page)).local['todo.calMode'], 'week');
+  await page.click('#dockHome');
+  await page.click('#dockWeek');
+  assert.ok(await page.isVisible('#weekView .wk-task'), 'Week, as it was picked');
+  await page.reload();
+  await page.waitForSelector('#dock:not([hidden])');
+  await page.waitForTimeout(300);
+  assert.ok(await page.isVisible('#weekView .wk-task'), 'and after a reload');
+  // The month button on Tasks shows the month without changing the pick.
+  await page.click('#dockToday');
+  await page.click('#monthBtn');
+  assert.deepEqual(await shownPanels(page), ['paneCalendar']);
+  assert.ok(await page.isVisible('#monthGrid') && await page.isHidden('#weekView'));
+  assert.equal((await dump(page)).local['todo.calMode'], 'week', 'the month button keeps no pick');
   await page.click('[data-cal-mode="month"]');
+  assert.equal((await dump(page)).local['todo.calMode'], 'month', 'Month, picked there, is kept');
+  // A day tapped: Tasks shows just that day; "+ New event" back on Calendar is for that day.
   const day = addDays(T, 1);
   await page.click(`#monthGrid [data-day="${day}"]`);
   await page.waitForTimeout(300);
   assert.deepEqual(await shownPanels(page), ['paneTasks']);
   assert.ok(await page.isVisible('#dayBar'), 'that day in Tasks');
   await page.click('#dockWeek');
+  assert.ok(await page.isVisible('#monthGrid'), 'the month again');
   assert.equal(await page.textContent('#newBtn'), 'New event');
   await page.click('#newBtn');
   await page.waitForSelector('#taskSheet.open');

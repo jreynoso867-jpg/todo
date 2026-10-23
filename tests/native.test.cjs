@@ -146,6 +146,75 @@ test('never more than 60 waiting (iOS keeps 64), the nearest first', async () =>
   await ctx.close();
 });
 
+test('important dates become morning notes, with ids of their own; tasks come first under the limit; Off sends none; a tap opens the Calendar', async () => {
+  const today = ymd(new Date());
+  const inDays = n => addDays(today, n);
+  const date = (title, kind, day, yearly, more = {}) => ({ title, kind, date: day, yearly, note: '', createdAt: 1700000000000, updatedAt: 1700000000000, ...more });
+  // A birthday in 3 days (from a year long ago, yearly), a one-off date in 30 days (too far to hand over yet) and one
+  // that's gone; a task with only a date on the same day as the birthday.
+  const fx = fixture({
+    'dates/d_sam': date('Sam’s birthday', 'birthday', '1990' + inDays(3).slice(4), true, { note: 'Likes tea' }),
+    'dates/d_far': date('Conference', 'appointment', inDays(30), false),
+    'dates/d_gone': date('Old checkup', 'appointment', inDays(-3), false),
+    'tasks/t_rent': task('Pay rent', { due: inDays(3) }),
+  }, { 'todo.prefs': JSON.stringify({ reminders: 'standard' }) });
+  let { ctx, page, errors } = await app(fx, { notify: 'granted' });
+  await waitPending(page, () => [...window.__cap.pending.values()].some(n => n.threadIdentifier === 'todo-date'));
+  await page.waitForTimeout(500);
+  let p = await pending(page);
+  const nine = new Date(); nine.setDate(nine.getDate() + 3); nine.setHours(9, 0, 0, 0);
+  const six = new Date(); six.setDate(six.getDate() + 2); six.setHours(18, 0, 0, 0);
+  const dated = p.filter(n => n.threadIdentifier === 'todo-date');
+  assert.deepEqual(dated.map(n => [n.at, n.title, n.body, n.extra]), [
+    [six.getTime(), 'Tomorrow: Sam’s birthday', 'Birthday · Likes tea', { tab: 'calendar' }],
+    [nine.getTime(), 'Today: Sam’s birthday', 'Birthday · Likes tea', { tab: 'calendar' }],
+  ], 'Standard: the evening before and the morning of, like a task with only a date; nothing for one too far off or gone');
+  const day = p.filter(n => n.threadIdentifier === 'todo-day');
+  assert.deepEqual(day.map(n => [n.at, n.title, n.extra.taskId]), [[six.getTime(), 'Due tomorrow', 't_rent'], [nine.getTime(), 'Due today', 't_rent']], 'the task keeps its own notes');
+  assert.equal(new Set(p.map(n => n.id)).size, p.length, 'every id its own (a date\'s never a task\'s)');
+  // Settings › Reminders › Off: none, dates included.
+  await page.click('#colorsBtn');
+  await page.click('#colorsSheet [data-rem="off"]');
+  await waitPending(page, () => window.__cap.pending.size === 0);
+  await page.click('#colorsSheet [data-rem="gentle"]');
+  await waitPending(page, () => window.__cap.pending.size === 2);
+  assert.deepEqual((await pending(page)).map(n => n.title).sort(), ['Due today', 'Today: Sam’s birthday'], 'Gentle: the morning of');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+
+  // The limit: 58 tasks with a time and three dates over the next days, Gentle (one note each): every task's note, then
+  // the two nearest dates' (though the dates come first in time).
+  const docs = {};
+  for (let i = 0; i < 58; i++) { const s = soon(30 + i * 45); docs[`tasks/t${pad(i)}`] = task(`Task ${i}`, { due: s.due, time: s.time }); }
+  docs['dates/d_a'] = date('Date A', 'other', inDays(1), false);
+  docs['dates/d_b'] = date('Date B', 'other', inDays(2), false);
+  docs['dates/d_c'] = date('Date C', 'other', inDays(3), false);
+  ({ ctx, page, errors } = await app(fixture(docs, { 'todo.prefs': JSON.stringify({ reminders: 'gentle' }) }), { notify: 'granted' }));
+  await waitPending(page, () => window.__cap.pending.size >= 60);
+  await page.waitForTimeout(600);
+  p = await pending(page);
+  assert.equal(p.length, 60, 'never more than 60');
+  assert.equal(p.filter(n => n.extra.taskId).length, 58, 'every task first');
+  assert.deepEqual(p.filter(n => n.extra.tab).map(n => n.title), ['Today: Date A', 'Today: Date B'], 'then the nearest dates in the room left');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+
+  // A tapped date note opens the Calendar, even the one that opened the app.
+  const tapFx = fixture({ 'dates/d_sam': fx.docs['dates/d_sam'], 'tasks/t_rent': task('Pay rent', { due: inDays(3) }) });
+  const tctx = await phoneContext(browser);
+  const tpage = await tctx.newPage();
+  const terrors = [];
+  tpage.on('pageerror', e => terrors.push(String(e)));
+  await seed(tpage, srv.url, tapFx);
+  await tpage.addInitScript(fakeCapacitor, { notify: 'granted', tap: { tab: 'calendar' } });
+  await tpage.goto(srv.url + '/index.html');
+  await tpage.waitForSelector('#paneCalendar:not([hidden]) #monthGrid [data-day]', { timeout: 20000 });
+  await tpage.waitForSelector('#calDates:not([hidden])');
+  assert.ok(await tpage.isHidden('#taskSheet'), 'no task opened');
+  assert.deepEqual(terrors, []);
+  await tctx.close();
+});
+
 test('with notifications turned off in iPhone Settings, Settings says how to turn them on', async () => {
   const a = soon(120);
   const { ctx, page, errors } = await app(fixture({ 'tasks/t_one': task('First thing', { due: a.due, time: a.time }) }), { notify: 'denied' });

@@ -148,7 +148,9 @@ test('opened in Claude: the tabs work the same (with no phone welcome), and noth
   assert.equal(await page.$$eval('#taskListCards .lcard', els => els.length), 3);
   await page.click('#dockWeek');
   assert.deepEqual(await shownPanels(), ['paneCalendar']);
-  assert.ok(await page.isVisible('#weekView .wk-task'));
+  assert.ok(await page.isVisible('#monthGrid [data-day]'), 'Calendar opens on the month');
+  await page.click('[data-cal-mode="week"]');
+  assert.ok(await page.isVisible('#weekView .wk-task'), 'the week to plan, one tap away');
   await page.click('[data-cal-mode="month"]');
   assert.ok(await page.isVisible('#monthGrid [data-day]'));
   await page.click('#dockToday');

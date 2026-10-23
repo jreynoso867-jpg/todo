@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-047HRRY2uPW1S4hyMbbS2wrCoQQ4iQkSdwLOLV1QqzU=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-5SK/GA+YrTj2OyurK7jQV3RhYBvRDrlWxnAs1KIPpls=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-C2QYkcAcA5RfMvWt8mXMVaLU/TkKMYREBPHEbDBgGTc=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-ZoQgPfNMrsziTuxnYyUc9Y+6AflAUThm7fvqKytqUYw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -308,7 +308,8 @@ img { max-width: 100%; }
           if (!has('LocalNotifications')) return 'none';
           try { const r = await LN().requestPermissions(); return (r && r.display) || 'denied'; } catch (e) { return 'denied'; }
         },
-        // list: [{ id (a whole number), title, body, at (ms), taskId }]. Whatever is waiting and not in the list is taken back.
+        // list: [{ id (a whole number), title, body, at (ms), taskId, or tab (the place a tap opens) }]. Whatever is waiting
+        // and not in the list is taken back.
         async set(list) {
           if (!has('LocalNotifications')) return false;
           if (firstLook) await firstLook;
@@ -324,7 +325,7 @@ img { max-width: 100%; }
             await LN().schedule({ notifications: keep.map(n => ({
               id: n.id, title: String(n.title || 'To-Do'), body: String(n.body || ' '), sound: 'reminder.wav', // without a sound iOS stays silent
               schedule: { at: new Date(n.at) }, // a real Date: iOS takes it as a time (a string would make it come right away)
-              threadIdentifier: n.thread || 'todo', extra: n.taskId ? { taskId: String(n.taskId) } : {},
+              threadIdentifier: n.thread || 'todo', extra: n.taskId ? { taskId: String(n.taskId) } : n.tab ? { tab: String(n.tab) } : {},
               ...(n.foreground === false ? { foreground: false } : {}), // not shown while the app is open
             })) });
           }
@@ -370,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.f50b8aca'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.9e9fe629'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1705,10 +1706,14 @@ html.selecting .task-body, html.selecting .ring { cursor: pointer; }
 @media (hover: hover) { .month-day:not(:disabled):hover { border-color: var(--soft); } }
 .month-day[aria-pressed="true"] { background: var(--head); border-color: var(--head); color: var(--page); }
 .month-dots { display: flex; align-items: center; justify-content: center; gap: 3px; height: 8px; font-size: calc(11.5px * var(--ts)); font-weight: 800; line-height: 1; color: var(--soft); }
-.month-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
+.month-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+.month-dots .md-date { background: var(--pop-ink); }
+.month-dots .md-goal { background: none; box-shadow: inset 0 0 0 1.5px var(--ink); }
 .month-day[aria-pressed="true"] .month-dots { color: inherit; }
 .month-day[aria-pressed="true"] .month-dots i { background: currentColor; }
+.month-day[aria-pressed="true"] .month-dots .md-goal { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
 .month-late { color: var(--red); }
+.month-late .md-task { background: var(--red); }
 
 /* ---------- ask Claude about the list ---------- */
 .ai-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -2699,6 +2704,66 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   background: var(--card); box-shadow: var(--card-shadow);
 }
 .cal-card .wk-list { background: var(--wash); }
+/* Important dates under the month, like the screenshot: each kind's icon and how long is left in the look's raspberry */
+#calDatesTitle:focus { outline: none; } /* focus lands here from Home's Coming up, for screen readers */
+.date-rows { list-style: none; margin: 0; padding: 0; }
+.date-row {
+  width: 100%; display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 7px 0;
+  border: 0; border-radius: 12px; background: none; color: var(--ink); text-align: left;
+}
+.date-row > .ico { width: 24px; height: 24px; stroke-width: 1.9; color: var(--pop-ink); }
+.dr-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.dr-title { font-size: calc(16.5px * var(--ts)); line-height: 1.3; overflow-wrap: anywhere; }
+.dr-day { font-size: calc(14.5px * var(--ts)); color: var(--soft); }
+.dr-count {
+  flex: none; max-width: 42%; font-size: calc(14px * var(--ts)); font-weight: 700; line-height: 1.25; color: var(--pop-ink);
+  text-align: right; overflow-wrap: anywhere;
+}
+.dr-count.is-today { padding: 3px 10px; border-radius: 999px; background: var(--pop-ink); color: var(--card-solid); }
+.is-past .date-row > .ico, .is-past .dr-count { color: var(--soft); }
+.is-past .dr-count { font-weight: 600; }
+.date-card .card-more { padding: 8px 0; }
+.add-row {
+  display: flex; align-items: center; gap: 12px; min-height: 52px; margin: 2px 0 4px; padding: 4px 10px 4px 2px; border: 0;
+  border-radius: 14px; background: none; color: var(--ink); font-size: calc(17px * var(--ts)); font-weight: 750; text-align: left;
+}
+.add-row .ico { width: 24px; height: 24px; }
+/* Everything in the month shown: a quiet heading for each day, then its tasks, dates and goals due */
+.month-all-box { padding: 2px 14px 4px 16px; }
+.ma-day + .ma-day { border-top: 1px solid var(--line); }
+.ma-head { margin: 0; padding: 12px 0 0; font-size: calc(14px * var(--ts)); font-weight: 750; color: var(--soft); }
+.ma-rows { list-style: none; margin: 0; padding: 0 0 6px; }
+.ma-row {
+  width: 100%; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 0;
+  border: 0; border-radius: 12px; background: none; color: var(--ink); text-align: left;
+}
+.ma-row > .ico { width: 22px; height: 22px; stroke-width: 1.9; color: var(--pop-ink); }
+.ma-dot { flex: none; width: 16px; height: 16px; margin: 0 3px; border: 2px solid var(--solid, var(--soft)); border-radius: 50%; }
+.ma-title { flex: 1; min-width: 0; font-size: calc(16px * var(--ts)); line-height: 1.3; overflow-wrap: anywhere; }
+.ma-side {
+  flex: none; max-width: 40%; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); text-align: right;
+  overflow-wrap: anywhere;
+}
+.ma-side.late { color: var(--red); }
+/* Home's newer cards: Coming up (the next dates), Savings (each open goal with its bar), and New for you */
+.home-goals { list-style: none; margin: 0; padding: 0 0 4px; }
+.home-goal { width: 100%; display: block; padding: 8px 0 10px; border: 0; border-radius: 12px; background: none; color: var(--ink); text-align: left; }
+.hg-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
+.hg-name { flex: 1 1 8em; min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.hg-amt { flex: none; max-width: 100%; font-size: calc(14px * var(--ts)); color: var(--soft); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.home-goal .goal-bar { margin-top: 8px; }
+.home-new { position: relative; padding: 22px 20px 8px; background: var(--sum-bg, var(--card)); }
+.home-new-kicker {
+  margin: 0 64px 0 0; font-size: calc(13px * var(--ts)); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--soft);
+}
+.home-new h2 { margin: 14px 64px 0 0; font-family: var(--font-head); font-size: calc(28px * var(--tsb)); font-weight: 800; line-height: 1.15; color: var(--head); overflow-wrap: anywhere; }
+.home-new-text { margin: 8px 0 0; font-size: calc(16px * var(--ts)); line-height: 1.4; color: var(--ink); }
+.home-new-star {
+  position: absolute; top: 14px; right: 14px; width: 52px; height: 52px; border-radius: 50%;
+  background: var(--raise); color: var(--ink); box-shadow: var(--card-shadow);
+}
+.home-new-star .ico { width: 26px; height: 26px; stroke-width: 1.8; }
+.home-new-x { display: block; margin-top: 4px; }
 
 /* ---------- headings in the look's heading font (the app's own font, unless a look picks one) ---------- */
 .top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
@@ -2730,6 +2795,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 :root[data-look="blush"] .hello { font-size: calc(32px * var(--tsb)); line-height: 1.08; }
 :root[data-look="blush"] .scope-tab:not([aria-pressed="true"]) .scope-n { background: var(--card-solid); }
 :root[data-look="blush"] .rp-stop1, :root[data-look="blush"] .rp-stop2 { stop-color: var(--pop); }
+:root[data-look="blush"] .home-new h2 { font-weight: 600; font-stretch: normal; letter-spacing: -.01em; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
@@ -3053,6 +3119,35 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     <p class="card-empty" id="homeDueEmpty" hidden>Nothing waiting. Enjoy the day.</p>
     <button type="button" class="link-btn card-more" id="homeDueMore" hidden></button>
   </section>
+  <!-- Once, until it's dismissed: the Wish list, introduced. -->
+  <section class="home-card home-new" id="homeNew" aria-labelledby="homeNewTitle" hidden>
+    <p class="home-new-kicker">New for you</p>
+    <h2 id="homeNewTitle">Wish list</h2>
+    <p class="home-new-text">Places, things and plans you want, each with its price and a link, so you don’t forget them.</p>
+    <button type="button" class="icon-btn home-new-star" id="homeNewOpen" aria-label="Open the Wish list"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.3 5.2 5.7.6-4.3 3.8 1.2 5.6L12 15.8l-4.9 2.9 1.2-5.6L4 9.3l5.7-.6z"/></svg></button>
+    <button type="button" class="link-btn home-new-x" id="homeNewDismiss">Dismiss</button>
+  </section>
+  <!-- The next important dates, with how long is left; they open the Calendar. -->
+  <section class="home-card" id="homeDates" aria-labelledby="homeDatesTitle" hidden>
+    <div class="card-head">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <h2 id="homeDatesTitle">Coming up</h2>
+      <span class="card-n" id="homeDatesN"></span>
+      <button type="button" class="icon-btn card-go" id="homeDatesGo" aria-label="Open the dates in Calendar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <ul class="date-rows" id="homeDateRows" aria-labelledby="homeDatesTitle"></ul>
+  </section>
+  <!-- Open savings goals: how far along each one is; they open Savings goals. -->
+  <section class="home-card" id="homeSavings" aria-labelledby="homeSavingsTitle" hidden>
+    <div class="card-head">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.5-1.3-2.6-1.3-1.5 0-2.6.8-2.6 2s1.1 1.6 2.6 1.9 2.7.8 2.7 2.1-1.2 2-2.7 2c-1.2 0-2.2-.5-2.7-1.3M12 6.6V8M12 16v1.4"/></svg>
+      <h2 id="homeSavingsTitle">Savings</h2>
+      <span class="card-n" id="homeSavingsN"></span>
+      <button type="button" class="icon-btn card-go" id="homeSavingsGo" aria-label="Open Savings goals"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <ul class="home-goals" id="homeGoalRows" aria-labelledby="homeSavingsTitle"></ul>
+    <button type="button" class="link-btn card-more" id="homeSavingsMore" hidden></button>
+  </section>
   <section class="sec stats" id="stats" aria-labelledby="statsTitle" hidden>
     <div class="sec-head"><h2 id="statsTitle">Your week</h2><span class="stats-sum" id="statsSum"></span></div>
     <div class="bars" id="bars" role="group" aria-label="Tasks done each day"></div>
@@ -3348,6 +3443,27 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       <div id="weekDays"></div>
     </div>
   </div>
+  <!-- Important dates: the next ones with how long is left, each opening its sheet, and a way to add one. Filled in by
+       "important dates" in the app, and hidden until the dates have loaded. -->
+  <section class="home-card date-card" id="calDates" aria-labelledby="calDatesTitle" hidden>
+    <div class="card-head">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5h16"/><path d="M5.5 20.5V14a1.5 1.5 0 0 1 1.5-1.5h10a1.5 1.5 0 0 1 1.5 1.5v6.5"/><path d="M5.5 16.3c1.1.9 2.3.9 3.3 0s2.2-.9 3.2 0 2.2.9 3.2 0 2.2-.9 3.3 0"/><path d="M8.5 12.5v-2.5M12 12.5v-2.5M15.5 12.5v-2.5"/><path d="M8.5 7.3v.01M12 7.3v.01M15.5 7.3v.01" stroke-width="2.8"/></svg>
+      <h2 id="calDatesTitle" tabindex="-1">Dates to remember</h2>
+      <span class="card-n" id="calDatesN"></span>
+    </div>
+    <ul class="date-rows" id="dateRows" aria-label="Coming up"></ul>
+    <p class="card-empty" id="dateEmpty" hidden></p>
+    <button type="button" class="link-btn card-more" id="dateMore" aria-expanded="false" hidden></button>
+    <button type="button" class="link-btn card-more" id="datePastToggle" aria-expanded="false" aria-controls="datePastRows" hidden></button>
+    <ul class="date-rows is-past" id="datePastRows" aria-label="Past dates" hidden></ul>
+    <button type="button" class="add-row" id="dateAdd" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a date</button>
+  </section>
+  <!-- Everything in the month shown, by day: open tasks due, important dates, savings goals due. -->
+  <section class="month-all" id="monthAll" aria-labelledby="monthAllTitle" hidden>
+    <h2 class="pane-h2" id="monthAllTitle">Everything this month</h2>
+    <div class="home-card month-all-box" id="monthAllBox"></div>
+    <p class="card-empty" id="monthAllEmpty" hidden></p>
+  </section>
   </section>
 </main>
 
@@ -3796,6 +3912,46 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   </div>
 </section>
 
+<section class="sheet c0" id="dateSheet" role="dialog" aria-modal="true" aria-labelledby="dateSheetTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button type="button" class="link-btn start" id="dateCancel">Cancel</button>
+      <h2 id="dateSheetTitle">New date</h2>
+      <span></span>
+    </div>
+    <form id="dateForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="field-label" for="dateName">What is it?</label>
+        <input id="dateName" class="text-input" type="text" maxlength="80" placeholder="Like Sam’s birthday or the dentist" enterkeyhint="done" autocapitalize="sentences" aria-describedby="dateNameError">
+        <p class="field-error" id="dateNameError" hidden>Type what the date is first.</p>
+      </div>
+      <div class="field">
+        <span class="field-label" id="dateKindLabel">Kind</span>
+        <div class="chips wrap" id="dateKinds" role="group" aria-labelledby="dateKindLabel">
+          <button type="button" class="chip" data-date-kind="birthday" aria-pressed="false">Birthday</button>
+          <button type="button" class="chip" data-date-kind="appointment" aria-pressed="false">Appointment</button>
+          <button type="button" class="chip" data-date-kind="anniversary" aria-pressed="false">Anniversary</button>
+          <button type="button" class="chip" data-date-kind="other" aria-pressed="true">Other</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="dateWhen">Date</label>
+        <input id="dateWhen" class="text-input date-input" type="date" aria-describedby="dateWhenError">
+        <p class="field-error" id="dateWhenError" hidden>Pick the date first.</p>
+      </div>
+      <div class="field">
+        <div class="toggle-row date-yearly"><span class="toggle-text" id="dateYearlyText"><b>Every year</b><span>It comes round again each year, like a birthday.</span></span><button type="button" class="switch" role="switch" aria-checked="false" id="dateYearly" aria-labelledby="dateYearlyText"></button></div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="dateNote">Note</label>
+        <textarea id="dateNote" class="text-input text-area" rows="3" maxlength="500" placeholder="A gift idea, the address, what to bring" autocapitalize="sentences"></textarea>
+      </div>
+      <button type="submit" class="btn-primary" id="dateSave">Add date</button>
+      <button type="button" class="btn-danger" id="dateDelete" hidden>Delete date</button>
+    </form>
+  </div>
+</section>
+
 <section class="sheet c0" id="colorsSheet" role="dialog" aria-modal="true" aria-labelledby="colorsTitle" tabindex="-1" hidden>
   <div class="sheet-inner">
     <div class="sheet-head">
@@ -4027,7 +4183,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   // The iPhone app (the same page in a native shell): notifications, the share menu, taps you can feel. Null elsewhere.
   const NATIVE = IS_PHONE && window.claude.native && window.claude.native.on ? window.claude.native : null;
   // Its notifications (see "the iPhone app: reminders as notifications"): permission, what was last handed to iOS.
-  const notes = { state: '', sig: '', timer: 0, busy: false, again: false, open: null, copyTimer: 0, copySig: '', copyAt: 0 };
+  const notes = { state: '', sig: '', timer: 0, busy: false, again: false, open: null, tab: null, copyTimer: 0, copySig: '', copyAt: 0 };
 
   /* ---------- per-device conveniences only (never the tasks) ---------- */
   const local = {
@@ -4106,6 +4262,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     wishOpen: false,            // the sheet for a wish (a new one, or one tapped)
     goalOpen: false,            // the sheet for a savings goal (a new one, or one tapped)
     moneyOpen: false,           // the sheet for money put into a goal (or taken out), new or tapped
+    dateOpen: false,            // the sheet for an important date (a new one, or one tapped)
   };
   const DONE_PAGE = 100;
   let db = null;
@@ -6448,6 +6605,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     closeWishSheet();
     closeGoalSheet();
     closeMoneySheet();
+    closeDateSheet();
     closeTrash();
     closeAsk();
     closeClients();
@@ -8401,6 +8559,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const [y, m] = monthCursor.split('-').map(Number);
     monthCursor = monthKey(new Date(y, m - 1 + n, 1));
     renderMonth();
+    renderMonthAll();
   }
   function renderMonth() {
     if (!calShown() || S.calMode !== 'month') return;
@@ -8413,13 +8572,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#monthName').textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     $('#monthPrev').disabled = monthCursor <= S.today.slice(0, 7);
     $('#monthNext').disabled = monthCursor >= last;
-    const byDay = new Map();
-    for (const [id, raw] of S.tasks) {
-      const t = taskView(id, raw);
-      if (t.done || !t.due || !inFilter(t) || t.due.slice(0, 7) !== monthCursor) continue;
-      if (!byDay.has(t.due)) byDay.set(t.due, []);
-      byDay.get(t.due).push(t);
-    }
+    // What falls on each day: open tasks due then, important dates (where they next come round) and open goals' due dates.
+    const { tasks: byDay, dates: datesOn, goals: goalsOn } = monthItems(monthCursor);
     const cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => {
       const h = document.createElement('span');
       h.className = 'month-wd';
@@ -8431,6 +8585,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     for (let n = 1; n <= days; n++) {
       const day = `${monthCursor}-${pad(n)}`;
       const items = byDay.get(day) || [];
+      const ds = datesOn.get(day) || [];
+      const gs = goalsOn.get(day) || [];
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'month-day' + (day === S.today ? ' is-today' : '');
@@ -8438,14 +8594,16 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       b.disabled = day < S.today;
       b.setAttribute('aria-pressed', String(!!S.day && S.day === day));
       const label = parseYmd(day).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-      b.setAttribute('aria-label', `${day === S.today ? 'Today, ' : ''}${label}, ${plural(items.length, 'task', 'tasks')}${day < S.today && items.length ? ' overdue' : ''}`);
+      b.setAttribute('aria-label', `${day === S.today ? 'Today, ' : ''}${label}, ${plural(items.length, 'task', 'tasks')}${day < S.today && items.length ? ' overdue' : ''}`
+        + ds.map(d => `, ${d.title}`).join('') + gs.map(g => `, ${g.name} (savings goal) due`).join(''));
       const num = document.createElement('span');
       num.textContent = String(n);
-      const dots = document.createElement('span');
-      dots.className = 'month-dots' + (day < S.today ? ' month-late' : '');
+      // A dot for each kind there: tasks in the ink (red once late), dates in the look's raspberry, a goal as a ring.
+      const dots = el('span', 'month-dots' + (day < S.today ? ' month-late' : ''));
       dots.setAttribute('aria-hidden', 'true');
-      if (items.length > 3) dots.textContent = String(items.length);
-      else dots.replaceChildren(...items.map(t => { const i = document.createElement('i'); i.className = 'c' + colorOf(t.list); return i; }));
+      if (items.length) dots.append(el('i', 'md-task'));
+      if (ds.length) dots.append(el('i', 'md-date'));
+      if (gs.length) dots.append(el('i', 'md-goal'));
       b.append(num, dots);
       cells.push(b);
     }
@@ -9707,10 +9865,24 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (o.focus !== false) $('#goalPaneTitle').focus({ preventScroll: true });
   }
 
+  // How far along, in whole percent (worked out in cents, so 29 of 100 is 29): full only once it's reached.
+  const goalPct = ({ saved, target, reached }) => (reached ? 100 : target > 0 ? Math.max(0, Math.min(99, Math.floor(saved * 100 / target))) : 0);
+  // A goal's bar: the look's readable accent on a quiet track, with its percent for a screen reader.
+  function goalBar(name, pct) {
+    const bar = el('div', 'goal-bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-label', `Saved for ${name}`);
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    bar.setAttribute('aria-valuenow', String(pct));
+    const fill = el('i', 'goal-fill');
+    fill.style.width = pct + '%';
+    bar.append(fill);
+    return bar;
+  }
   function goalCard(g, entries, totals, can) {
     const { saved, target, left, reached } = totals;
-    // How far along, in whole percent (worked out in cents, so 29 of 100 is 29): full only once it's reached.
-    const pct = reached ? 100 : target > 0 ? Math.max(0, Math.min(99, Math.floor(saved * 100 / target))) : 0;
+    const pct = goalPct(totals);
     const amt = `${money(saved)} of ${money(target)}`;
     const card = el('article', 'goal-card');
     card.dataset.goalCard = g.id;
@@ -9723,15 +9895,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     name.append(el('span', 'goal-name', g.name));
     top.append(name);
     if (g.due) top.append(el('span', 'sr-only', 'Due'), el('span', 'goal-due', longDate(g.due)));
-    const bar = el('div', 'goal-bar');
-    bar.setAttribute('role', 'progressbar');
-    bar.setAttribute('aria-label', `Saved for ${g.name}`);
-    bar.setAttribute('aria-valuemin', '0');
-    bar.setAttribute('aria-valuemax', '100');
-    bar.setAttribute('aria-valuenow', String(pct));
-    const fill = el('i', 'goal-fill');
-    fill.style.width = pct + '%';
-    bar.append(fill);
+    const bar = goalBar(g.name, pct);
     const foot = el('div', 'goal-foot');
     foot.append(el('span', 'goal-left' + (reached ? ' is-reached' : ''), reached ? 'Reached!' : `${money(left)} to go`));
     if (g.closedAt) foot.append(el('span', 'goal-closed', `Closed ${pastDay(g.closedAt)}`));
@@ -9968,6 +10132,330 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   function renderGoalSheets() {
     if (S.goalOpen && goalEditing && !S.goals.has(goalEditing)) closeGoalSheet();
     if (S.moneyOpen && (!S.goals.has(moneyGoal) || (moneyEditing && !S.goalEntries.has(moneyEditing)))) closeMoneySheet();
+  }
+
+  /* ---------- important dates on the Calendar (and their sheet), everything in the month, and Home's newer cards ---------- */
+  // Their records are under "shopping lists, wishes, savings goals and important dates" above, with nextDateOn (the day
+  // one next comes round) and dateCountdown ("Tomorrow", "In 55 days"); this is their screen. Under the month: "Dates to
+  // remember", the next ones soonest first with how long is left, then everything in the month shown, by day. On Home:
+  // the next three dates, the open savings goals, and the Wish list introduced once (until it's dismissed). Nothing is
+  // written by looking; only the sheet's Save and Delete, and the dismissal (on this device), write.
+  const GOAL_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.5-1.3-2.6-1.3-1.5 0-2.6.8-2.6 2s1.1 1.6 2.6 1.9 2.7.8 2.7 2.1-1.2 2-2.7 2c-1.2 0-2.2-.5-2.7-1.3M12 6.6V8M12 16v1.4"/></svg>';
+  const DATE_KIND = { // what each kind is called, and its icon
+    birthday: ['Birthday', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5h16"/><path d="M5.5 20.5V14a1.5 1.5 0 0 1 1.5-1.5h10a1.5 1.5 0 0 1 1.5 1.5v6.5"/><path d="M5.5 16.3c1.1.9 2.3.9 3.3 0s2.2-.9 3.2 0 2.2.9 3.2 0 2.2-.9 3.3 0"/><path d="M8.5 12.5v-2.5M12 12.5v-2.5M15.5 12.5v-2.5"/><path d="M8.5 7.3v.01M12 7.3v.01M15.5 7.3v.01" stroke-width="2.8"/></svg>'],
+    appointment: ['Appointment', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5"/><path d="M12 16.4v.01" stroke-width="2.8"/></svg>'],
+    anniversary: ['Anniversary', HEART_SVG],
+    other: ['Important date', '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'],
+  };
+  // A date as shown, checked again (another device, or an older file, could have put anything there). One saved without
+  // saying whether it comes every year does when it's a birthday or an anniversary, the same as a new one would.
+  const dateOf = (id, d) => ({ id, title: clean(d.title, 80) || 'Untitled date', kind: DATE_KINDS.includes(d.kind) ? d.kind : 'other',
+    date: isYmd(d.date) ? d.date : '', yearly: typeof d.yearly === 'boolean' ? d.yearly : d.kind === 'birthday' || d.kind === 'anniversary',
+    note: cleanNote(d.note).slice(0, 500) });
+  // Every date with the day it next comes round, soonest first; and the one-off dates already gone, the latest first.
+  function datesAhead() {
+    const up = [], past = [];
+    if (!S.datesLoaded) return { up, past };
+    for (const [id, raw] of S.dates) {
+      if (!isPlain(raw)) continue;
+      const d = dateOf(id, raw);
+      const next = nextDateOn(d, S.today);
+      if (next) up.push({ ...d, next }); else past.push(d);
+    }
+    up.sort((a, b) => a.next.localeCompare(b.next) || a.title.localeCompare(b.title) || idOrder(a, b));
+    past.sort((a, b) => b.date.localeCompare(a.date) || idOrder(a, b));
+    return { up, past };
+  }
+  // What falls in the month mk ('2026-11'), each by day: the open tasks due then (from the list picked on Tasks, as the
+  // month has always shown them; not the old samples), the important dates where they next come round (counted from today in this month, so
+  // one already gone this month comes next year instead), and the due dates of the open savings goals.
+  function monthItems(mk) {
+    const tasks = new Map(), dates = new Map(), goals = new Map();
+    const add = (m, day, x) => { if (!m.has(day)) m.set(day, []); m.get(day).push(x); };
+    for (const [id, raw] of S.tasks) {
+      const t = taskView(id, raw);
+      if (t.done || t.sample || !t.due || !inFilter(t) || t.due.slice(0, 7) !== mk) continue;
+      add(tasks, t.due, t);
+    }
+    if (S.datesLoaded) {
+      const from = mk + '-01' > S.today ? mk + '-01' : S.today;
+      for (const [id, raw] of S.dates) {
+        if (!isPlain(raw)) continue;
+        const d = dateOf(id, raw);
+        const on = nextDateOn(d, from);
+        if (on && on.slice(0, 7) === mk) add(dates, on, d);
+      }
+    }
+    if (S.goalsLoaded) {
+      for (const [id, raw] of S.goals) {
+        if (!isPlain(raw)) continue;
+        const g = goalOf(id, raw);
+        if (!g.closedAt && g.due && g.due.slice(0, 7) === mk) add(goals, g.due, g);
+      }
+    }
+    for (const list of tasks.values()) list.sort((a, b) => byTime(a, b) || b.priority - a.priority || byCreated(a, b));
+    for (const list of dates.values()) list.sort((a, b) => a.title.localeCompare(b.title) || idOrder(a, b));
+    for (const list of goals.values()) list.sort((a, b) => a.order - b.order || idOrder(a, b));
+    return { tasks, dates, goals };
+  }
+  // Rows drawn again only when what they say changed. A button that had focus keeps it (data-row names what it is for),
+  // else the one now in its place, else `fallback`.
+  function fillRows(box, sig, rows, fallback) {
+    if (box.dataset.sig === sig) return;
+    const a = document.activeElement;
+    const was = box.contains(a) ? { row: a.dataset.row, at: [...box.querySelectorAll('button')].indexOf(a) } : null;
+    box.dataset.sig = sig;
+    box.replaceChildren(...rows);
+    if (!was) return;
+    const btns = [...box.querySelectorAll('button:not(:disabled)')];
+    const to = (was.row && btns.find(b => b.dataset.row === was.row)) || btns[Math.min(Math.max(was.at, 0), btns.length - 1)] || fallback;
+    if (to) to.focus({ preventScroll: true });
+  }
+  // A date's row: its kind's icon, its words and day ("Oct 17"; with the year when it isn't this year), and how long is
+  // left at the right ("Tomorrow", "In 55 days", then the day; "3 days ago" for one gone). key: what a tap does.
+  function dateRow(d, key, can, does) {
+    const [kind, icon] = DATE_KIND[d.kind];
+    const on = d.next || d.date;
+    const day = entryDay(on);
+    const count = on ? dateCountdown(on) : '';
+    const li = el('li');
+    const b = el('button', 'date-row');
+    b.type = 'button';
+    b.dataset[key] = d.id;
+    b.dataset.row = 'date:' + d.id;
+    b.dataset.kind = d.kind;
+    b.disabled = !can;
+    b.setAttribute('aria-label', `${d.title}, ${kind}, ${[...new Set([day, count].filter(Boolean))].join(', ')}. ${does}`);
+    b.innerHTML = icon;
+    const text = el('span', 'dr-text');
+    text.append(el('span', 'dr-title', d.title));
+    if (day) text.append(el('span', 'dr-day', day));
+    b.append(text);
+    if (count) b.append(el('span', 'dr-count' + (on === S.today ? ' is-today' : ''), count));
+    li.append(b);
+    return li;
+  }
+
+  const DATES_SHOWN = 6;      // dates the Calendar's card shows before "Show all"
+  let datesAll = false;       // all of them showing, for this visit
+  let datesPastOpen = false;  // the ones gone, unfolded
+  function renderDates() {
+    const box = $('#calDates');
+    const show = calShown() && S.datesLoaded;
+    box.hidden = !show;
+    if (!show) return;
+    const can = writable();
+    const { up, past } = datesAhead();
+    const shown = datesAll ? up : up.slice(0, DATES_SHOWN);
+    const n = up.length ? String(up.length) : '';
+    if ($('#calDatesN').textContent !== n) $('#calDatesN').textContent = n;
+    const rows = $('#dateRows');
+    rows.hidden = !shown.length;
+    fillRows(rows, JSON.stringify([can, S.today, shown]), shown.map(d => dateRow(d, 'dateOpen', can, 'Edit the date')), $('#dateAdd'));
+    const empty = $('#dateEmpty');
+    empty.hidden = up.length > 0;
+    if (!up.length) empty.textContent = past.length ? 'Nothing coming up.' : can ? 'No dates yet. Add birthdays, appointments and anniversaries to see how long is left.' : 'No dates yet.';
+    const more = $('#dateMore');
+    more.hidden = up.length <= DATES_SHOWN;
+    if (!more.hidden) { more.textContent = datesAll ? 'Show fewer' : `Show all ${up.length}`; more.setAttribute('aria-expanded', String(datesAll)); }
+    // The one-off dates already gone, folded at the end so they can still be opened or deleted.
+    const toggle = $('#datePastToggle');
+    toggle.hidden = !past.length;
+    if (past.length) { toggle.textContent = `Past dates (${past.length})`; toggle.setAttribute('aria-expanded', String(datesPastOpen)); }
+    const pastRows = $('#datePastRows');
+    pastRows.hidden = !past.length || !datesPastOpen;
+    if (!pastRows.hidden) fillRows(pastRows, JSON.stringify([can, S.today, past]), past.map(d => dateRow(d, 'dateOpen', can, 'Edit the date')), toggle);
+    $('#dateAdd').hidden = !can;
+  }
+
+  // The month list: a heading for each day with something on it, then its open tasks (by time), dates and goals due.
+  const dayHead = day => (day === S.today ? 'Today' : day === addDays(S.today, 1) ? 'Tomorrow'
+    : parseYmd(day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }));
+  function monthAllDay(day, ts, ds, gs, can) {
+    const sec = el('div', 'ma-day');
+    sec.dataset.maDay = day;
+    const ul = el('ul', 'ma-rows');
+    const row = (cls, key, id, label, title, side, sideCls, icon, enabled) => {
+      const li = el('li');
+      const b = el('button', 'ma-row ' + cls);
+      b.type = 'button';
+      b.dataset[key] = id;
+      b.dataset.row = key + ':' + id;
+      b.disabled = !enabled;
+      b.setAttribute('aria-label', label);
+      if (icon) b.innerHTML = icon; else b.append(el('i', 'ma-dot'));
+      b.append(el('span', 'ma-title', title));
+      if (side) b.append(el('span', 'ma-side' + (sideCls ? ' ' + sideCls : ''), side));
+      li.append(b);
+      ul.append(li);
+    };
+    for (const t of ts) {
+      const title = t.title || 'Untitled task';
+      const late = day < S.today;
+      const when = late ? 'Late' : t.time ? timeLabel(t.time) : '';
+      row('is-task c' + colorOf(t.list), 'maTask', t.id, `${title}, ${late ? 'overdue' : when || 'task'}. Open the task`, title, when, late ? 'late' : '', null, can);
+    }
+    for (const d of ds) {
+      const [kind, icon] = DATE_KIND[d.kind];
+      row('is-date', 'maDate', d.id, `${d.title}, ${kind}. Edit the date`, d.title, kind, '', icon, can);
+    }
+    for (const g of gs) row('is-goal', 'maGoal', g.id, `${g.name}, savings goal due. Open Savings goals`, g.name, 'Goal due', '', GOAL_SVG, true);
+    sec.append(el('h3', 'ma-head', dayHead(day)), ul);
+    return sec;
+  }
+  function renderMonthAll() {
+    const wrap = $('#monthAll');
+    const show = calShown();
+    wrap.hidden = !show;
+    if (!show) return;
+    const now = S.today.slice(0, 7);
+    const mk = monthCursor && monthCursor > now ? monthCursor : now;
+    const title = mk === now ? 'Everything this month'
+      : `Everything in ${parseYmd(mk + '-01').toLocaleDateString('en-US', mk.slice(0, 4) === now.slice(0, 4) ? { month: 'long' } : { month: 'long', year: 'numeric' })}`;
+    if ($('#monthAllTitle').textContent !== title) $('#monthAllTitle').textContent = title;
+    const { tasks, dates, goals } = monthItems(mk);
+    const days = [...new Set([...tasks.keys(), ...dates.keys(), ...goals.keys()])].sort();
+    const can = writable();
+    const box = $('#monthAllBox');
+    box.hidden = !days.length;
+    const empty = $('#monthAllEmpty');
+    empty.hidden = !!days.length;
+    if (!days.length) empty.textContent = mk === now ? 'Nothing due this month.' : 'Nothing due that month.';
+    const at = d => [tasks.get(d) || [], dates.get(d) || [], goals.get(d) || []];
+    const sig = JSON.stringify([can, S.today, mk, days.map(d => { const [ts, ds, gs] = at(d); return [d, ts.map(t => [t.id, t.title, t.time, colorOf(t.list)]), ds.map(x => [x.id, x.title, x.kind]), gs.map(g => [g.id, g.name])]; })]);
+    fillRows(box, sig, days.map(d => monthAllDay(d, ...at(d), can)), $('#monthAllTitle'));
+  }
+
+  // From Home's Coming up: the Calendar (on the month, or the week if that was picked there), at its dates.
+  const keptCalMode = () => (local.get('todo.calMode') === 'week' ? 'week' : 'month');
+  function openDates() {
+    S.calMode = keptCalMode();
+    setTab('calendar', { focus: false });
+    const card = $('#calDates');
+    if (card.hidden) { $('#calTitle').focus({ preventScroll: true }); return; }
+    card.scrollIntoView({ block: 'start' });
+    $('#calDatesTitle').focus({ preventScroll: true });
+  }
+  // Home: the next three dates, the open goals with their bars, and (until it's dismissed on this device) the Wish list
+  // introduced. Each hides when it has nothing to show.
+  const HOME_DATES = 3, HOME_GOALS = 3;
+  let newWishSeen = local.get('todo.newWish') === '1';
+  function homeGoalRow(g, totals) {
+    const amt = `${money(totals.saved)} of ${money(totals.target)}`;
+    const li = el('li');
+    const b = el('button', 'home-goal');
+    b.type = 'button';
+    b.dataset.homeGoal = g.id;
+    b.dataset.row = 'goal:' + g.id;
+    b.setAttribute('aria-label', `${g.name}, ${amt}${totals.reached ? ', reached' : ''}. Open Savings goals`);
+    const top = el('span', 'hg-top');
+    top.append(el('span', 'hg-name', g.name), el('span', 'hg-amt', amt));
+    b.append(top, goalBar(g.name, goalPct(totals)));
+    li.append(b);
+    return li;
+  }
+  function renderHomeCards() {
+    const home = shownTab() === 'home' && S.tasksLoaded && (S.status === 'ready' || S.status === 'readonly');
+    $('#homeNew').hidden = !home || newWishSeen;
+    const up = home ? datesAhead().up : [];
+    $('#homeDates').hidden = !up.length;
+    if (up.length) {
+      const top = up.slice(0, HOME_DATES);
+      const n = plural(up.length, 'date', 'dates');
+      if ($('#homeDatesN').textContent !== n) $('#homeDatesN').textContent = n;
+      fillRows($('#homeDateRows'), JSON.stringify([S.today, top]), top.map(d => dateRow(d, 'homeDate', true, 'Open Calendar')), $('#homeDatesGo'));
+    }
+    const goals = home && S.goalsLoaded && S.goalEntriesLoaded
+      ? [...S.goals].filter(([, d]) => isPlain(d)).map(([id, d]) => goalOf(id, d)).filter(g => !g.closedAt)
+        .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || idOrder(a, b))
+      : [];
+    $('#homeSavings').hidden = !goals.length;
+    if (goals.length) {
+      const top = goals.slice(0, HOME_GOALS).map(g => ({ g, totals: goalTotals(g.id) }));
+      const n = `${goals.length} open`;
+      if ($('#homeSavingsN').textContent !== n) $('#homeSavingsN').textContent = n;
+      fillRows($('#homeGoalRows'), JSON.stringify(top), top.map(x => homeGoalRow(x.g, x.totals)), $('#homeSavingsGo'));
+      const more = goals.length - top.length;
+      $('#homeSavingsMore').hidden = more <= 0;
+      if (more > 0) $('#homeSavingsMore').textContent = `and ${more} more`;
+    }
+  }
+  // Dismissed: kept on this device, and it never shows again.
+  function dismissNewWish() {
+    newWishSeen = true;
+    local.set('todo.newWish', '1');
+    render();
+    const next = ['#homeDatesGo', '#homeSavingsGo', '#homeDueGo'].map(s => $(s)).find(b => b.offsetParent);
+    (next || $('#briefTitle')).focus({ preventScroll: true });
+  }
+
+  // The sheet for an important date: a new one (Add a date), or one tapped to change it or delete it. Every year is on
+  // for a new birthday or anniversary, off otherwise, until it's set by hand.
+  let dateEditing = null;     // the date being changed, or null for a new one
+  let dateKind = 'other';     // the kind picked
+  let dateYearly = false;     // Every year
+  let yearlyByHand = false;   // whether Every year was set by hand (or the date is an old one)
+  function paintDateSheet() {
+    for (const b of $('#dateKinds').children) b.setAttribute('aria-pressed', String(b.dataset.dateKind === dateKind));
+    $('#dateYearly').setAttribute('aria-checked', String(dateYearly));
+  }
+  function openDateSheet(id = null) {
+    if (!writable()) return;
+    const raw = id ? S.dates.get(id) : null;
+    if (id && !isPlain(raw)) return;
+    const d = raw ? dateOf(id, raw) : null;
+    dateEditing = d ? id : null;
+    dateKind = d ? d.kind : 'other';
+    dateYearly = d ? d.yearly : false;
+    yearlyByHand = !!d;
+    S.dateOpen = true;
+    $('#dateSheetTitle').textContent = d ? 'Edit date' : 'New date';
+    $('#dateName').value = d ? d.title : '';
+    $('#dateWhen').value = d ? d.date : '';
+    $('#dateNote').value = d ? d.note : '';
+    for (const e of ['#dateNameError', '#dateWhenError']) $(e).hidden = true;
+    $('#dateSave').textContent = d ? 'Save' : 'Add date';
+    $('#dateDelete').hidden = !d;
+    paintDateSheet();
+    const sheet = $('#dateSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    $('#dateName').focus();
+  }
+  function closeDateSheet() {
+    if (!S.dateOpen) return;
+    S.dateOpen = false;
+    dateEditing = null;
+    closeSheet($('#dateSheet'));
+  }
+  // Its words and its day are needed; something missing gets its message and the cursor, and nothing is saved.
+  function readDateSheet() {
+    const title = clean($('#dateName').value, 80);
+    const date = $('#dateWhen').value;
+    $('#dateNameError').hidden = !!title;
+    $('#dateWhenError').hidden = isYmd(date);
+    const wrong = !title ? '#dateName' : !isYmd(date) ? '#dateWhen' : null;
+    if (wrong) { $(wrong).focus(); return null; }
+    return { title, kind: dateKind, date, yearly: dateYearly, note: cleanNote($('#dateNote').value).slice(0, 500) };
+  }
+  function saveDateSheet() {
+    const f = readDateSheet();
+    if (!f) return;
+    if (dateEditing) {
+      if (S.dates.has(dateEditing)) editRecord('dates', dateEditing, f);
+    } else if (!addRecord('dates', f)) return;
+    buzz(10);
+    closeDateSheet();
+  }
+  function deleteDate(id) {
+    const raw = S.dates.get(id);
+    if (!isPlain(raw) || !writable()) return;
+    closeDateSheet();
+    binMany([['dates', id]], `Deleted “${clean(dateOf(id, raw).title, 60)}”`);
+  }
+  // A date deleted meanwhile (another device) closes its sheet.
+  function renderDateSheet() {
+    if (S.dateOpen && dateEditing && !S.dates.has(dateEditing)) closeDateSheet();
   }
 
   /* ---------- the daily kickoff: the day at a glance, the first time the app opens each day ---------- */
@@ -10231,7 +10719,27 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       out.push({ id: noteId('focus'), at: focus.endAt, title: 'Focus done', body: `${focus.min} min on ${clean(focus.title, 60) || 'your task'}`,
         taskId: focus.taskId || '', thread: 'todo-focus', foreground: false }); // with the app open, the timer says it
     }
-    return out.sort((a, b) => a.at - b.at || a.id - b.id).slice(0, NOTE_MAX);
+    // Important dates: a morning note on the day (and the evening or morning before, by the setting), at the same hours
+    // as tasks with only a date, for each date's next time round. They open the Calendar. The tasks' notes come first:
+    // the dates only get the room left under the limit, the nearest first.
+    const dateNotes = [];
+    if (dayAt.length) {
+      for (const d of datesAhead().up) {
+        const name = clean(d.title, 80);
+        for (const [dOff, hour] of dayAt) {
+          const at = parseYmd(d.next);
+          at.setDate(at.getDate() + dOff);
+          at.setHours(hour, 0, 0, 0);
+          if (at.getTime() <= now || at.getTime() > until) continue;
+          dateNotes.push({ id: noteId(`date|${d.id}|${d.next}|${dOff}|${hour}`), at: at.getTime(), title: `${dOff ? 'Tomorrow' : 'Today'}: ${name}`,
+            body: [DATE_KIND[d.kind][0], clean(d.note, 60)].filter(Boolean).join(' · '), tab: 'calendar', thread: 'todo-date' });
+        }
+      }
+    }
+    const tasksFirst = out.sort((a, b) => a.at - b.at || a.id - b.id).slice(0, NOTE_MAX);
+    const room = NOTE_MAX - tasksFirst.length;
+    const dated = dateNotes.sort((a, b) => a.at - b.at || a.id - b.id).slice(0, room);
+    return tasksFirst.concat(dated).sort((a, b) => a.at - b.at || a.id - b.id);
   }
   function queueNotes(ms = 1200) {
     if (!NATIVE || !NATIVE.notify.ok()) return;
@@ -10239,7 +10747,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     notes.timer = setTimeout(() => { notes.timer = 0; syncNotes(); }, ms);
   }
   async function syncNotes() {
-    if (!S.tasksLoaded || S.status !== 'ready') return;
+    if (!S.tasksLoaded || S.status !== 'ready' || !(S.datesLoaded || recDown.has('dates'))) return; // the dates' notes too
     if (notes.busy) { notes.again = true; return; }
     notes.busy = true;
     try {
@@ -10258,8 +10766,16 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       if (notes.again) { notes.again = false; queueNotes(300); }
     }
   }
-  // A tapped notification opens its task, once the list is there (it may be what opened the app).
+  // A tapped notification opens its task (an important date's, the Calendar), once the list is there (it may be what
+  // opened the app).
   function openFromNote() {
+    if (notes.tab && S.tasksLoaded && S.status === 'ready') {
+      notes.tab = null;
+      NATIVE.notify.tapDone();
+      if (S.sheet) toast('Reminder: an important date', () => setTab('calendar'), 'Open', 9000); // never over a task being edited
+      else queueMicrotask(() => { S.calMode = keptCalMode(); setTab('calendar'); }); // (this can run while the page draws)
+      return;
+    }
     const id = notes.open;
     if (!id || !S.tasksLoaded || S.status !== 'ready') return;
     notes.open = null;
@@ -10272,7 +10788,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   if (NATIVE) {
     NATIVE.notify.onTap(extra => {
       notes.open = extra && typeof extra.taskId === 'string' && extra.taskId ? extra.taskId : null;
-      if (notes.open) openFromNote(); else NATIVE.notify.tapDone(); // a note for the whole day: the app opening is enough
+      notes.tab = !notes.open && extra && extra.tab === 'calendar' ? 'calendar' : null;
+      if (notes.open || notes.tab) openFromNote(); else NATIVE.notify.tapDone(); // a note for the whole day: the app opening is enough
     });
     NATIVE.onResume(() => checkDate());
     // Leaving the app right after adding a task: hand the reminders over now, before iOS pauses the page.
@@ -10402,6 +10919,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     renderWishSheet();
     renderGoals();
     renderGoalSheets();
+    renderDates();
+    renderMonthAll();
+    renderDateSheet();
+    renderHomeCards();
     renderNewBtns();
     $('#dock').hidden = S.status === 'unavailable' || S.status === 'loading' || !S.tasksLoaded || S.selecting;
     $('#dockWeek').hidden = !S.tasksLoaded;
@@ -13837,8 +14358,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   });
   // Lists tapped again while a list (the Wish list, Savings goals) is open there: back to the cards.
   $('#dockLists').addEventListener('click', () => { if (S.tab === 'lists' && S.sub) closeSub(); else setTab('lists'); });
-  // Calendar opens on the week to plan (the dock's old Week button); Month is one tap away there, or the month button on Tasks.
-  $('#dockWeek').addEventListener('click', () => { S.calMode = 'week'; local.set('todo.calMode', 'week'); setTab('calendar'); });
+  // Calendar opens on the month, like the screenshot, unless Week was picked there last (that pick is kept only when its
+  // switch is tapped); the week to plan is one tap away.
+  $('#dockWeek').addEventListener('click', () => { S.calMode = keptCalMode(); setTab('calendar'); });
   $('#newBtn').addEventListener('click', newHere);
   // Home's cards
   $('#homeDue').addEventListener('click', e => {
@@ -13848,6 +14370,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (open) { openTaskSheet('edit', open.dataset.homeOpen); return; }
     if (e.target.closest('#homeDueGo, #homeDueMore')) setTab('tasks');
   });
+  // Coming up opens the Calendar at its dates; Savings, the open goals; New for you, the Wish list (or goes for good).
+  $('#homeDates').addEventListener('click', e => { if (e.target.closest('[data-home-date], #homeDatesGo')) openDates(); });
+  $('#homeSavings').addEventListener('click', e => { if (e.target.closest('[data-home-goal], #homeSavingsGo, #homeSavingsMore')) openGoals(); });
+  $('#homeNewOpen').addEventListener('click', () => openWish());
+  $('#homeNewDismiss').addEventListener('click', dismissNewWish);
   // the Tasks title's list picker, and the week's done count
   $('#listPickSel').addEventListener('change', e => setFilter(e.target.value));
   $('#sumDone').addEventListener('click', () => setScope('done'));
@@ -13960,6 +14487,36 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   });
   $('#moneyAmount').addEventListener('input', () => { $('#moneyAmountError').hidden = true; });
   $('#moneyDelete').addEventListener('click', () => { if (moneyEditing) deleteGoalEntry(moneyEditing); });
+  // important dates, under the month: a row opens its sheet; Show all, the past ones and Add a date do what they say;
+  // in everything this month, a task opens it, a date its sheet, a goal Savings goals
+  $('#calDates').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.dateOpen) openDateSheet(b.dataset.dateOpen);
+    else if (b.id === 'dateAdd') openDateSheet();
+    else if (b.id === 'dateMore') { datesAll = !datesAll; render(); }
+    else if (b.id === 'datePastToggle') { datesPastOpen = !datesPastOpen; render(); }
+  });
+  $('#monthAllBox').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.maTask) openTaskSheet('edit', b.dataset.maTask);
+    else if (b.dataset.maDate) openDateSheet(b.dataset.maDate);
+    else if (b.dataset.maGoal) openGoals();
+  });
+  $('#dateCancel').addEventListener('click', closeDateSheet);
+  $('#dateForm').addEventListener('submit', e => { e.preventDefault(); saveDateSheet(); });
+  $('#dateKinds').addEventListener('click', e => {
+    const b = e.target.closest('[data-date-kind]');
+    if (!b || !DATE_KINDS.includes(b.dataset.dateKind)) return;
+    dateKind = b.dataset.dateKind;
+    if (!yearlyByHand) dateYearly = dateKind === 'birthday' || dateKind === 'anniversary';
+    paintDateSheet();
+  });
+  $('#dateYearly').addEventListener('click', () => { dateYearly = !dateYearly; yearlyByHand = true; paintDateSheet(); });
+  $('#dateName').addEventListener('input', () => { $('#dateNameError').hidden = true; });
+  $('#dateWhen').addEventListener('input', () => { $('#dateWhenError').hidden = true; });
+  $('#dateDelete').addEventListener('click', () => { if (dateEditing) deleteDate(dateEditing); });
   // your list in one file
   $('#exportAll').addEventListener('click', exportAll);
   $('#importAll').addEventListener('click', pickImport);
@@ -14080,8 +14637,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   });
   $('#selDate').addEventListener('change', e => { const v = e.target.value; e.target.blur(); if (isYmd(v)) runBulk('date', v); });
   $('#selList').addEventListener('change', e => { const v = e.target.value; e.target.blur(); if (v) runBulk('list', v); });
-  // the month: the button on Tasks goes to the Calendar tab, showing the month
-  $('#monthBtn').addEventListener('click', () => { if (S.calMode !== 'month') setCalMode('month'); setTab('calendar'); });
+  // the month: the button on Tasks goes to the Calendar tab, showing the month (Week, if picked, stays the pick)
+  $('#monthBtn').addEventListener('click', () => { S.calMode = 'month'; setTab('calendar'); });
   $('#monthPrev').addEventListener('click', () => shiftMonth(-1));
   $('#monthNext').addEventListener('click', () => shiftMonth(1));
   $('#monthGrid').addEventListener('click', e => {
@@ -14161,7 +14718,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.planOpen) closePlan();
     else if (cb.open) closeClients();
     else if (S.sheet) requestCloseTaskSheet();
-    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeWishSheet(); closeGoalSheet(); closeMoneySheet(); closeTrash(); closeAsk(); closePoSheet(); }
+    else { closeListsSheet(); closeColorsSheet(); closeShopSheet(); closeItemSheet(); closeWishSheet(); closeGoalSheet(); closeMoneySheet(); closeDateSheet(); closeTrash(); closeAsk(); closePoSheet(); }
   });
   document.addEventListener('keydown', e => {
     if (!$('#focus').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeFocus(); } return; }
@@ -14176,7 +14733,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen || S.goalOpen || S.moneyOpen) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen || S.goalOpen || S.moneyOpen || S.dateOpen) return;
       if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
       else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
@@ -14190,6 +14747,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     else if (S.wishOpen) closeWishSheet();
     else if (S.moneyOpen) closeMoneySheet();
     else if (S.goalOpen) closeGoalSheet();
+    else if (S.dateOpen) closeDateSheet();
     else if (S.poOpen) closePoSheet();
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
