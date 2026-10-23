@@ -218,6 +218,54 @@ test('a quick double tap on an item\'s circle ticks just that item, though the r
   await ctx.close();
 });
 
+test('ticking an item draws only that row again, and Done\'s rows are made only once it\'s unfolded', async () => {
+  const fx = withExtras(smallFixture());
+  for (let i = 0; i < 6; i++) fx.docs['shopItems/si_x' + i] = item('sl_groceries', 'Item ' + i, 3000 + i * 1000);
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.$$eval('#shopDoneRows .shop-row', els => els.length), 0, 'folded: nothing made in it');
+  await page.$$eval('#shopRows .shop-row', els => els.forEach(e => { e.__drawn = true; }));
+  await page.click('[data-shop-tick="si_x2"]');
+  await page.waitForTimeout(500);
+  assert.deepEqual(await rows(page), ['Milk', 'Item 0', 'Item 1', 'Item 3', 'Item 4', 'Item 5']);
+  assert.equal(await page.$$eval('#shopRows .shop-row', els => els.filter(e => !e.__drawn).length), 0, 'the other rows stay as they were drawn');
+  assert.equal(await focused(page), 'shopTick=si_x3', 'focus moves to the row now in its place');
+  await page.click('#shopDoneToggle');
+  assert.deepEqual(await rows(page, '#shopDoneRows'), ['Eggs ×12 “free range”', 'Item 2'], 'unfolded: made then');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('deleting a list with many items draws the page a few times, not once or twice for each item', async () => {
+  const fx = withExtras(smallFixture());
+  for (let i = 0; i < 40; i++) fx.docs['shopItems/si_x' + i] = item('sl_groceries', 'Item ' + i, 3000 + i * 1000);
+  // Every drawing of the page sets the search button's aria-expanded, so its changes count the drawings.
+  const init = () => {
+    window.__draws = 0;
+    addEventListener('DOMContentLoaded', () => {
+      const b = document.querySelector('#searchBtn');
+      if (b) new MutationObserver(r => { window.__draws += r.length; }).observe(b, { attributes: true, attributeFilter: ['aria-expanded'] });
+    });
+  };
+  const { ctx, page, errors } = await phone(fx, { init });
+  await page.click('[data-shop-more="sl_groceries"]');
+  await page.waitForSelector('#shopSheet.open');
+  await page.evaluate(() => { window.__draws = 0; });
+  await page.click('#shopDelete');
+  let d;
+  for (let n = 0; n < 60; n++) { // until all of it has gone
+    await page.waitForTimeout(300);
+    d = (await dump(page)).docs;
+    if (!d['shopLists/sl_groceries'] && !Object.keys(d).some(k => k.startsWith('shopItems/si_x'))) break;
+  }
+  await page.waitForTimeout(800);
+  assert.ok(d['bin/shopLists~sl_groceries'] && d['bin/shopItems~si_x39'] && !d['shopItems/si_milk'], 'all 42 went to Recently deleted');
+  const draws = await page.evaluate(() => window.__draws);
+  assert.ok(draws > 0 && draws < 42, `drawn ${draws} times for 42 records`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('an item the phone can\'t keep leaves no ghost behind', async () => {
   const init = () => {
     const put = IDBObjectStore.prototype.put;

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CMja3Vmnept+ZAYzrq6vyo88pMY520TCXJa4BcmOO58=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-DnXQjTyxHhAfOPithw8d9NVFqTjVNJ+/B2/q88nwCks=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ItnUKUDmIz6BeDmU2inJcJy3UcZp0IxiaUnWgpoK4dk=' 'sha256-GLT+3hM+h5XBIKbsYCKLhRfctTpwlcjzjThO4U5GlkQ=' 'sha256-aBYZCPFBxZ8VD8vIvsx9gSPYSBay9DWnatMdTd/rpyk=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.ce39b105'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.6bbaf653'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2116,7 +2116,6 @@ html.ios-app[data-look="blush"] body::after { background-image: var(--page-glow)
 
 /* ---------- the top: weekday, date, progress ring ---------- */
 .top { display: block; }
-.top-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-top: -8px; }
 .top-kicker {
   font-size: calc(13px * var(--ts)); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink);
 }
@@ -2158,8 +2157,6 @@ html.ios-app[data-look="blush"] body::after { background-image: var(--page-glow)
   border: 1px solid var(--card-line); background: var(--card); overflow: hidden; box-shadow: var(--card-shadow);
 }
 .brief::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--grad); }
-.brief-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px 0 0; }
-.brief h2 { margin: 0; font-size: calc(18px * var(--tsb)); font-weight: 850; font-stretch: 85%; color: var(--head); }
 .brief-text { margin: 4px 0 12px; font-size: calc(15px * var(--ts)); line-height: 1.45; color: var(--ink); }
 .brief-text .late { color: var(--red); font-weight: 700; }
 .greet-name { font-family: var(--font-head); font-style: italic; color: var(--greet); }
@@ -2462,6 +2459,12 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); } /* above the running timer */
 
 /* ---------- the tabs' panels: a title, then cards ---------- */
+/* A tab that isn't showing keeps its layout but isn't drawn (rather than display: none), so coming back to a long
+   list doesn't lay all of it out again. Like display: none, nothing in it can be tabbed to, found or read out
+   (renderTabs also marks it aria-hidden), and it takes no room. */
+.pane[hidden] { display: block !important; content-visibility: hidden; }
+html[data-tab="home"] #paneHome[hidden], html[data-tab="tasks"] #paneTasks[hidden],
+html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalendar[hidden] { content-visibility: visible; }
 .pane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .pane-head-text { flex: 1; min-width: 0; }
 /* On Tasks, the buttons go above the title when both don't fit on one line (a small phone, large text). */
@@ -2768,7 +2771,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 .home-new-x { display: block; margin-top: 4px; }
 
 /* ---------- headings in the look's heading font (the app's own font, unless a look picks one) ---------- */
-.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
+.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .welcome h2, .focus-title,
 .pane-title, .pane-h2, .tsum h2 { font-family: var(--font-head); }
 .sec h2 .count { font-family: var(--font); }
 
@@ -2779,7 +2782,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 }
 :root[data-look="blush"][data-mode="dark"] { --card-shadow: 0 10px 30px -14px rgba(0, 0, 0, .5); }
 /* The serif has no narrow widths and reads best a little lighter; it's wider, so the big title steps down. */
-:root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .brief h2, .welcome h2, .focus-title,
+:root[data-look="blush"] :is(.top h1, .hero-title, .sec h2, .sheet-head h2, .sheet-sub, .welcome h2, .focus-title,
   .pane-title, .pane-h2, .tsum h2) {
   font-weight: 600; font-stretch: normal; letter-spacing: -.01em;
 }
@@ -3056,6 +3059,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     }).observe(root0, { attributes: true, attributeFilter: ['data-theme'] });
   }
   apply();
+  // The tab the app opens on (the one picked last, else Home) shows its frame before the app's script has run, so the
+  // first paint isn't blank. Only read here, never written; the app then keeps data-tab to the tab showing (renderTabs).
+  { const tab = ls.get('todo.tab'); root0.setAttribute('data-tab', ['home', 'tasks', 'lists', 'calendar'].includes(tab) ? tab : 'home'); }
   // For the Settings sheet: the looks, a preview of each, and the picks.
   const preview = (id, mode) => {
     const t = byId.get(id);
@@ -5923,7 +5929,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
           if (to) to.querySelector('.ring').focus({ preventScroll: true });
         }
       }, reduced() ? 350 : 1000));
-      const li = rowEls.get(id);
+      const li = shownTab() === 'tasks' ? rowEls.get(id) : null; // (a tick on Home: the row isn't showing)
       if (li) { li.classList.remove('pop'); void li.offsetWidth; li.classList.add('pop'); }
       buzz(12);
       armCheer();
@@ -5961,6 +5967,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
   // The tasks showing on the list after this one, then the ones before it (nearest first): where focus goes when it leaves.
   function rowsAround(id) {
+    if (shownTab() !== 'tasks') return []; // (opened from Home or the Calendar: focus goes back there)
     const order = [...document.querySelectorAll('#board .task')].filter(x => x.offsetParent).map(x => x.dataset.id);
     const i = order.indexOf(id);
     return i < 0 ? order : [...order.slice(i + 1), ...order.slice(0, i).reverse()];
@@ -6320,11 +6327,13 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const far = n > 300 && day.slice(0, 4) !== from.slice(0, 4);
     return parseYmd(day).toLocaleDateString('en-US', far ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
   }
-  // A goal's progress, from its entries (never stored): saved, what's left, and whether it's reached.
-  function goalTotals(goalId) {
+  // A goal's progress, from its entries (never stored): saved, what's left, and whether it's reached. entries: the goal's
+  // own, when they're already to hand (see entriesByGoal); otherwise they're looked up.
+  function goalTotals(goalId, entries) {
     const g = S.goals.get(goalId);
     let saved = 0;
-    for (const e of S.goalEntries.values()) if (e && e.goal === goalId && isCents(e.amountCents)) saved += e.amountCents;
+    if (entries) for (const e of entries) saved += e.amountCents;
+    else for (const e of S.goalEntries.values()) if (e && e.goal === goalId && isCents(e.amountCents)) saved += e.amountCents;
     const target = g && isCents(g.targetCents) ? g.targetCents : 0;
     return { saved, target, left: Math.max(0, target - saved), reached: target > 0 && saved >= target };
   }
@@ -7707,11 +7716,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#quickForm').hidden = !show;
     renderRcptBtns();
     const key = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
-    if (show && key !== quickFit && !quickFitQueued) {
+    // (measured only while Tasks shows: measuring a tab that isn't showing would lay all of it out)
+    if (show && shownTab() === 'tasks' && key !== quickFit && !quickFitQueued) {
       quickFitQueued = true;
       requestAnimationFrame(() => setTimeout(() => {
         quickFitQueued = false;
-        if ($('#quickForm').hidden) return;
+        if ($('#quickForm').hidden || shownTab() !== 'tasks') return;
         const want = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
         const ok = fitPlaceholder($('#quickInput'), S.day ? [`Add a task for ${dayInSentence(S.day)}`, 'Add a task…']
           : ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
@@ -7770,12 +7780,22 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   /* ---------- read a receipt: a photo of a receipt, invoice or bill becomes the task's details ---------- */
   let rcptCtl = null;
   let rcptFrom = null; // 'quick': the photo came from the quick-add bar, so a new task opens for it
-  const longDate = d => parseYmd(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Dates in words, from formatters made once (they read exactly as toLocaleDateString does, for far less on long lists).
+  const dayWords = o => { const f = new Intl.DateTimeFormat('en-US', o); return d => f.format(parseYmd(d)); };
+  const longDate = dayWords({ month: 'short', day: 'numeric', year: 'numeric' }); // "Jan 4, 2027"
+  const monthDay = dayWords({ month: 'short', day: 'numeric' });                   // "Oct 18"
+  const fullDay = dayWords({ weekday: 'long', month: 'long', day: 'numeric' });     // "Sunday, October 18"
   const canReadReceipts = () => !!(S.sample && S.rcpt && writable());
   function svgEl(markup) {
     const t = document.createElement('template');
     t.innerHTML = markup;
     return t.content.firstChild;
+  }
+  // One of the app's own icons (fixed markup, never anything typed), read once and then copied for each card or row.
+  const icons = new Map();
+  function iconOf(markup) {
+    if (!icons.has(markup)) icons.set(markup, svgEl(markup));
+    return icons.get(markup).cloneNode(true);
   }
   function renderRcptBtns() {
     const ok = canReadReceipts();
@@ -8654,7 +8674,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       b.dataset.day = day;
       b.disabled = day < S.today;
       b.setAttribute('aria-pressed', String(!!S.day && S.day === day));
-      const label = parseYmd(day).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const label = fullDay(day);
       b.setAttribute('aria-label', `${day === S.today ? 'Today, ' : ''}${label}, ${plural(items.length, 'task', 'tasks')}${day < S.today && items.length ? ' overdue' : ''}`
         + ds.map(d => `, ${d.title}`).join('') + gs.map(g => `, ${g.name} (savings goal) due`).join(''));
       const num = document.createElement('span');
@@ -9100,8 +9120,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
   function renderTabs() {
     const cur = shownTab();
+    if (document.documentElement.dataset.tab !== cur) document.documentElement.dataset.tab = cur;
     for (const [k, [pane, btn]] of Object.entries(TABS)) {
       $(pane).hidden = k !== cur;
+      if (k === cur) $(pane).removeAttribute('aria-hidden'); else $(pane).setAttribute('aria-hidden', 'true');
       if (k === cur) $(btn).setAttribute('aria-current', 'page'); else $(btn).removeAttribute('aria-current');
     }
   }
@@ -9148,7 +9170,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     ring.type = 'button';
     ring.dataset.homeDone = t.id;
     ring.disabled = !can;
-    ring.innerHTML = CHECK_SVG;
+    ring.append(iconOf(CHECK_SVG));
     ring.setAttribute('aria-label', `Mark as done: ${title}`);
     const body = el('button', 'hr-body');
     body.type = 'button';
@@ -9315,6 +9337,28 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     return by;
   }
   const DOTS_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5h.01M12 12h.01M12 18.5h.01" stroke-width="3.4"/></svg>';
+  // Draws a box's cards (or rows) in order, keeping the element already there for each key whose look (sig) is the
+  // same, so a tap redraws only what it changed. keyOf and sigOf give strings; make builds a card.
+  const drawnAs = new WeakMap(); // a card -> { key, sig } it was drawn for
+  function keyedFill(box, items, keyOf, sigOf, make) {
+    const had = new Map();
+    for (const e of box.children) { const d = drawnAs.get(e); if (d) had.set(d.key, e); }
+    const els = items.map(x => {
+      const key = keyOf(x), sig = sigOf(x);
+      let e = had.get(key);
+      if (!e || drawnAs.get(e).sig !== sig) { e = make(x); drawnAs.set(e, { key, sig }); }
+      return e;
+    });
+    // In order, moving only what's out of place; what's no longer wanted goes.
+    const keep = new Set(els);
+    let at = box.firstElementChild;
+    const skip = () => { while (at && !keep.has(at)) { const next = at.nextElementSibling; at.remove(); at = next; } };
+    for (const e of els) {
+      skip();
+      if (e === at) at = at.nextElementSibling; else box.insertBefore(e, at);
+    }
+    skip();
+  }
   // Redraws a box with fn() and keeps focus on the same button (found again by its data attribute) if it was in there.
   function keepingFocus(box, attrs, fn) {
     const a = document.activeElement;
@@ -9329,17 +9373,23 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   let listsScroll = 0;     // where the Lists cards were scrolled to, for coming back from a list
   let shopDoneOpen = false; // whether the open list's Done is unfolded
   let shopAdded = null;     // an item just added, to scroll into view once it shows
-  // o.name and o.pending: a list just made, shown by the name typed until it's saved. o.focus: false leaves focus be.
-  function openShop(id, o = {}) {
-    if (!S.shopLists.has(id) && !o.pending) return;
+  // Opens one view in place of the Lists cards (sub: a shopping list, the Wish list or Savings goals; from anywhere, Lists
+  // first), at its top, with focus on its title unless o.focus is false.
+  function openSub(sub, title, o = {}) {
+    if (S.tab !== 'lists') setTab('lists', { focus: false });
     if (!S.sub) listsScroll = window.scrollY;
-    S.sub = { kind: 'shop', id, name: o.name || '', pending: !!o.pending };
-    shopDoneOpen = false;
+    S.sub = sub;
     shopAdded = null;
     $('#shopInput').value = '';
     render();
     window.scrollTo(0, 0);
-    if (o.focus !== false) $('#shopName').focus({ preventScroll: true });
+    if (o.focus !== false) $(title).focus({ preventScroll: true });
+  }
+  // o.name and o.pending: a list just made, shown by the name typed until it's saved.
+  function openShop(id, o = {}) {
+    if (!S.shopLists.has(id) && !o.pending) return;
+    shopDoneOpen = false;
+    openSub({ kind: 'shop', id, name: o.name || '', pending: !!o.pending }, '#shopName', o);
   }
   // Back to the Lists cards from whatever is open there (a shopping list, the Wish list or Savings goals), focus on the
   // card it came from.
@@ -9384,7 +9434,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       more.type = 'button';
       more.dataset.shopMore = l.id;
       more.setAttribute('aria-label', `Rename, recolor or delete ${l.name}`);
-      more.innerHTML = DOTS_SVG;
+      more.append(iconOf(DOTS_SVG));
       card.append(more);
     }
     return card;
@@ -9419,7 +9469,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     ring.setAttribute('aria-checked', String(i.done));
     ring.setAttribute('aria-label', i.text);
     ring.disabled = !can;
-    ring.innerHTML = CHECK_SVG;
+    ring.append(iconOf(CHECK_SVG));
     const main = el('span', 'shop-main');
     const text = el('button', 'shop-text', i.text);
     text.type = 'button';
@@ -9430,7 +9480,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     if (i.link) {
       const a = outLink(i.link, 'icon-btn shop-link');
       a.setAttribute('aria-label', `Open the link for ${i.text}`);
-      a.innerHTML = ACTION_ICON.link;
+      a.append(iconOf(ACTION_ICON.link));
       main.append(a);
     }
     li.append(ring, main);
@@ -9458,16 +9508,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#shopDoneToggle').setAttribute('aria-expanded', String(shopDoneOpen));
     $('#shopDoneBox').hidden = !shopDoneOpen;
     $('#shopClear').hidden = !can;
-    const rowSig = i => [i.id, i.text, i.link];
-    const sig = JSON.stringify([can, open.map(rowSig), done.map(rowSig)]);
+    // Each row is drawn again only when it changed, and Done's rows only while it's unfolded.
+    const rowSig = i => JSON.stringify([can, i.done, i.text, i.link]);
+    const sig = JSON.stringify([shopDoneOpen, open.map(i => [i.id, rowSig(i)]), done.map(i => [i.id, rowSig(i)])]);
     if (view.dataset.sig !== sig) {
       // A row ticked (or gone) takes focus with it: it goes to the row now in its place, else close by.
       const a = document.activeElement;
       const li = view.contains(a) ? a.closest('.shop-row') : null;
       const was = li && { id: li.dataset.id, ring: a.classList.contains('ring'), ul: li.parentNode, at: [...li.parentNode.children].indexOf(li) };
       view.dataset.sig = sig;
-      $('#shopRows').replaceChildren(...open.map(i => shopRow(i, can)));
-      $('#shopDoneRows').replaceChildren(...done.map(i => shopRow(i, can)));
+      const make = i => shopRow(i, can);
+      keyedFill($('#shopRows'), open, i => i.id, rowSig, make);
+      keyedFill($('#shopDoneRows'), shopDoneOpen ? done : [], i => i.id, rowSig, make);
       if (was) {
         const same = view.querySelector(`.shop-row[data-id="${CSS.escape(was.id)}"]`);
         let to = same && same.parentNode === was.ul ? same.querySelector(was.ring ? '.ring' : '.shop-text') : null;
@@ -9699,15 +9751,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   let wishGotOpen = false;  // whether Got it is unfolded
   // From its card on Lists (or from anywhere else, which goes to Lists first). o.focus: false leaves focus be.
   function openWish(o = {}) {
-    if (S.tab !== 'lists') setTab('lists', { focus: false });
-    if (!S.sub) listsScroll = window.scrollY;
-    S.sub = { kind: 'wish' };
     wishGotOpen = false;
-    shopAdded = null;
-    $('#shopInput').value = '';
-    render();
-    window.scrollTo(0, 0);
-    if (o.focus !== false) $('#wishPaneTitle').focus({ preventScroll: true });
+    openSub({ kind: 'wish' }, '#wishPaneTitle', o);
   }
 
   function wishCard(w, can) {
@@ -9721,8 +9766,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     go.disabled = !can;
     go.setAttribute('aria-label', `${w.title}, ${label}${price ? ', ' + price : ''}. Edit the wish`);
     const kind = el('span', 'wish-cat');
-    kind.innerHTML = icon; // (a fixed icon; the words go in as text below)
-    kind.append(el('span', '', label));
+    kind.append(iconOf(icon), el('span', '', label));
     go.append(kind, el('span', 'wish-name', w.title));
     if (price) go.append(el('span', 'wish-price', price));
     const heart = el('button', 'icon-btn wish-heart');
@@ -9731,12 +9775,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     heart.disabled = !can;
     heart.setAttribute('aria-pressed', String(w.hearted));
     heart.setAttribute('aria-label', `Favorite: ${w.title}`);
-    heart.innerHTML = HEART_SVG;
+    heart.append(iconOf(HEART_SVG));
     card.append(go, heart);
     if (w.link) {
       const a = outLink(w.link, 'icon-btn wish-link');
       a.setAttribute('aria-label', `Open the link for ${w.title}`);
-      a.innerHTML = ACTION_ICON.link;
+      a.append(iconOf(ACTION_ICON.link));
       card.append(a);
     }
     return card;
@@ -9771,9 +9815,10 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#wishGotN').textContent = String(got.length);
     $('#wishGotToggle').setAttribute('aria-expanded', String(wishGotOpen));
     $('#wishGotBox').hidden = !wishGotOpen;
-    const cardSig = w => [w.id, w.title, w.category, w.priceCents, w.link, w.hearted];
+    // Each card is drawn again only when it changed, and Got it's cards only while it's unfolded.
+    const cardSig = w => JSON.stringify([can, w.title, w.category, w.priceCents, w.link, w.hearted]);
     const view = $('#wishView');
-    const sig = JSON.stringify([can, want.map(cardSig), got.map(cardSig)]);
+    const sig = JSON.stringify([wishGotOpen, want.map(w => [w.id, cardSig(w)]), got.map(w => [w.id, cardSig(w)])]);
     if (view.dataset.sig === sig) return;
     // A card that moves (got, or gone) takes focus with it: to its own button if it still shows, else the card now in
     // its place, else close by.
@@ -9781,8 +9826,9 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const card = view.contains(a) ? a.closest('.wish-card') : null;
     const was = card && { id: card.dataset.wishCard, heart: a.classList.contains('wish-heart'), box: card.parentNode, at: [...card.parentNode.children].indexOf(card) };
     view.dataset.sig = sig;
-    $('#wishGrid').replaceChildren(...want.map(w => wishCard(w, can)));
-    $('#wishGotBox').replaceChildren(...got.map(w => wishCard(w, can)));
+    const make = w => wishCard(w, can);
+    keyedFill($('#wishGrid'), want, w => w.id, cardSig, make);
+    keyedFill($('#wishGotBox'), wishGotOpen ? got : [], w => w.id, cardSig, make);
     if (!was) return;
     const same = view.querySelector(`.wish-card[data-wish-card="${CSS.escape(was.id)}"]`);
     let to = same && same.parentNode === was.box ? same.querySelector(was.heart ? '.wish-heart' : '.wish-open') : null;
@@ -9908,22 +9954,23 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     return by;
   }
   // A due date always shows its year ("Jan 4, 2027", longDate); an entry's day only when it isn't this year ("Oct 15").
-  const entryDay = day => (!day ? '' : day.slice(0, 4) === S.today.slice(0, 4) ? parseYmd(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : longDate(day));
+  const entryDay = day => (!day ? '' : day.slice(0, 4) === S.today.slice(0, 4) ? monthDay(day) : longDate(day));
   const GOAL_ENTRIES = 5;     // entries a card shows before "Show all"
   let goalShow = 'open';      // the pill picked: 'open' or 'closed'
   const goalAll = new Set();  // goals showing all their entries, for this visit
   // From its card on Lists (or from anywhere else, which goes to Lists first), on the open goals. o.focus: false leaves
   // focus be.
   function openGoals(o = {}) {
-    if (S.tab !== 'lists') setTab('lists', { focus: false });
-    if (!S.sub) listsScroll = window.scrollY;
-    S.sub = { kind: 'goals' };
     goalShow = 'open';
-    shopAdded = null;
-    $('#shopInput').value = '';
-    render();
-    window.scrollTo(0, 0);
-    if (o.focus !== false) $('#goalPaneTitle').focus({ preventScroll: true });
+    openSub({ kind: 'goals' }, '#goalPaneTitle', o);
+  }
+  // The goals as shown: the open ones in the order they were made, the closed ones the one closed last first.
+  function sortedGoals() {
+    const goals = [...S.goals].filter(([, d]) => isPlain(d)).map(([id, d]) => goalOf(id, d));
+    return {
+      opened: goals.filter(g => !g.closedAt).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || idOrder(a, b)),
+      closed: goals.filter(g => g.closedAt).sort((a, b) => b.closedAt - a.closedAt || idOrder(a, b)),
+    };
   }
 
   // How far along, in whole percent (worked out in cents, so 29 of 100 is 29): full only once it's reached.
@@ -10009,14 +10056,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     $('#goalView').hidden = !open;
     if (!onLists) return;
     const ready = S.goalsLoaded && S.goalEntriesLoaded && S.status !== 'unavailable';
-    const goals = ready ? [...S.goals].filter(([, d]) => isPlain(d)).map(([id, d]) => goalOf(id, d)) : [];
-    const opened = goals.filter(g => !g.closedAt).sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || idOrder(a, b));
-    const closed = goals.filter(g => g.closedAt).sort((a, b) => b.closedAt - a.closedAt || idOrder(a, b));
+    const { opened, closed } = ready ? sortedGoals() : { opened: [], closed: [] };
     // Its card on Lists: how many are open and how many closed. The heading over it and the Wish list's card shows
     // when either card does.
     $('#listsGoals').hidden = !ready;
     $('#moreTitle').hidden = $('#moreCards').hidden = $('#listsWish').hidden && $('#listsGoals').hidden;
-    const sum = !goals.length ? 'None yet' : [opened.length ? `${opened.length} open` : '', closed.length ? `${closed.length} closed` : ''].filter(Boolean).join(' · ');
+    const sum = !opened.length && !closed.length ? 'None yet' : [opened.length ? `${opened.length} open` : '', closed.length ? `${closed.length} closed` : ''].filter(Boolean).join(' · ');
     if ($('#listsGoalsSub').textContent !== sum) $('#listsGoalsSub').textContent = sum;
     if (!open) return;
     const can = writable();
@@ -10034,9 +10079,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
         : can ? 'No savings goals yet. Tap New goal to start one.' : 'No savings goals yet.';
     }
     const by = entriesByGoal();
-    const rows = list.map(g => ({ g, entries: by.get(g.id) || [], totals: goalTotals(g.id) }));
+    const rows = list.map(g => { const entries = by.get(g.id) || []; return { g, entries, totals: goalTotals(g.id, entries) }; });
+    // Each card is drawn again only when something on it changed.
+    for (const r of rows) r.sig = JSON.stringify([can, S.today, r.g, r.totals, goalAll.has(r.g.id), r.entries]);
     const view = $('#goalView');
-    const sig = JSON.stringify([can, S.today, rows.map(r => [r.g, r.totals, goalAll.has(r.g.id), r.entries])]);
+    const sig = rows.map(r => r.sig).join('\u0002');
     if (view.dataset.sig === sig) return;
     // The button that had focus keeps it when it's drawn again; if it went (the goal closed, the entry deleted), focus
     // goes to its card's name, else the card now in its place, else the pill picked.
@@ -10046,7 +10093,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const attr = from && GOAL_BTNS.find(k => a.hasAttribute('data-' + k));
     const was = from && { sel: attr ? `[data-${attr}="${CSS.escape(a.getAttribute('data-' + attr))}"]` : null, id: from.dataset.goalCard, at: [...box.children].indexOf(from) };
     view.dataset.sig = sig;
-    box.replaceChildren(...rows.map(r => goalCard(r.g, r.entries, r.totals, can)));
+    keyedFill(box, rows, r => r.g.id, r => r.sig, r => goalCard(r.g, r.entries, r.totals, can));
     if (!was) return;
     const same = box.querySelector(`.goal-card[data-goal-card="${CSS.escape(was.id)}"]`);
     let to = (was.sel && box.querySelector(was.sel)) || (same && same.querySelector('.goal-open'));
@@ -10287,7 +10334,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     b.dataset.kind = d.kind;
     b.disabled = !can;
     b.setAttribute('aria-label', `${d.title}, ${kind}, ${[...new Set([day, count].filter(Boolean))].join(', ')}. ${does}`);
-    b.innerHTML = icon;
+    b.append(iconOf(icon));
     const text = el('span', 'dr-text');
     text.append(el('span', 'dr-title', d.title));
     if (day) text.append(el('span', 'dr-day', day));
@@ -10344,7 +10391,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       b.dataset.row = key + ':' + id;
       b.disabled = !enabled;
       b.setAttribute('aria-label', label);
-      if (icon) b.innerHTML = icon; else b.append(el('i', 'ma-dot'));
+      b.append(icon ? iconOf(icon) : el('i', 'ma-dot'));
       b.append(el('span', 'ma-title', title));
       if (side) b.append(el('span', 'ma-side' + (sideCls ? ' ' + sideCls : ''), side));
       li.append(b);
@@ -10426,10 +10473,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       if ($('#homeDatesN').textContent !== n) $('#homeDatesN').textContent = n;
       fillRows($('#homeDateRows'), JSON.stringify([S.today, top]), top.map(d => dateRow(d, 'homeDate', true, 'Open Calendar')), $('#homeDatesGo'));
     }
-    const goals = home && S.goalsLoaded && S.goalEntriesLoaded
-      ? [...S.goals].filter(([, d]) => isPlain(d)).map(([id, d]) => goalOf(id, d)).filter(g => !g.closedAt)
-        .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || idOrder(a, b))
-      : [];
+    const goals = home && S.goalsLoaded && S.goalEntriesLoaded ? sortedGoals().opened : [];
     $('#homeSavings').hidden = !goals.length;
     if (goals.length) {
       const top = goals.slice(0, HOME_GOALS).map(g => ({ g, totals: goalTotals(g.id) }));
@@ -10941,12 +10985,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     items.forEach((i, n) => box.children[n].setAttribute('aria-pressed', String(!!i.pressed)));
   }
 
-  // Changes that arrive together (opening the app brings ten at once) draw the page once.
+  // Changes that arrive together (opening the app brings ten at once) draw the page once. A change soon after the page
+  // was drawn (a deleted list's items going one after another) waits for the next frame, so a burst draws once a frame
+  // instead of once a change; one on its own draws at once. (The timer covers a page that isn't being drawn just then,
+  // like one in the background.)
   let renderQueued = false;
+  let renderedAt = -1e9;
   function scheduleRender() {
     if (renderQueued) return;
     renderQueued = true;
-    queueMicrotask(() => { renderQueued = false; render(); maybeSwipeTip(); });
+    const go = () => { if (!renderQueued) return; renderQueued = false; render(); maybeSwipeTip(); };
+    if (performance.now() - renderedAt > 100) queueMicrotask(go);
+    else { requestAnimationFrame(go); setTimeout(go, 100); }
   }
   function render() {
     renderTabs();
@@ -10997,6 +11047,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     renderListsSheet();
     renderFoot();
     if (NATIVE) { queueNotes(); queueFileCopy(); openFromNote(); ciProof(); }
+    renderedAt = performance.now();
   }
 
   let headerDay = '';
@@ -11814,16 +11865,19 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   let weekCursor = '';
   let wkDrag = null, wkPress = null, wkSwallow = 0;
   const mondayOf = day => { const d = parseYmd(day); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
-  const shortDay = d => parseYmd(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const shortDay = monthDay;
   function setCalMode(m) {
     S.calMode = m === 'week' ? 'week' : 'month';
     local.set('todo.calMode', S.calMode);
     renderCalMode();
   }
+  let calModeBtns = null; // the Month and Week buttons, found once
   function renderCalMode() {
+    if (!calShown()) return; // (drawn again on the way to the Calendar: see setTab)
     $('#monthView').hidden = S.calMode !== 'month';
     $('#weekView').hidden = S.calMode !== 'week';
-    for (const b of document.querySelectorAll('[data-cal-mode]')) b.setAttribute('aria-pressed', String(b.dataset.calMode === S.calMode));
+    calModeBtns = calModeBtns || [...$('#paneCalendar .cal-mode').querySelectorAll('[data-cal-mode]')];
+    for (const b of calModeBtns) b.setAttribute('aria-pressed', String(b.dataset.calMode === S.calMode));
     if (S.calMode === 'week') renderWeekPlan(); else renderMonth();
   }
   function shiftWeek(n) {
@@ -12905,7 +12959,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     setColor(hero, next ? colorOf(next.list) : 0);
     hero.classList.toggle('is-empty', !next);
     hero.classList.toggle('is-done', !!(next && next.done));
-    if (swapped && !reduced()) {
+    if (swapped && !reduced() && shownTab() === 'tasks') {
       hero.classList.remove('enter');
       void hero.offsetWidth;
       hero.classList.add('enter');
@@ -13228,6 +13282,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
 
   function renderBoard() {
+    if (shownTab() !== 'tasks') return; // the list behind another tab is drawn when Tasks shows again (setTab draws the page)
     if (drag) { boardPending = true; return; } // rows don't move under a finger that is dragging one
     boardPending = false;
     const q = searchQuery();
@@ -15034,7 +15089,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
         S[c] = overlay(c, m);
         const first = !S[c + 'Loaded'];
         S[c + 'Loaded'] = true;
-        scheduleRender();
+        // Once it's in, Recently deleted's own changes (a copy going in for each thing deleted) redraw only it, as for tasks.
+        if (c === 'bin' && !first) renderTrash(); else scheduleRender();
         if (c === 'bin' && first && !binPurged) { binPurged = true; setTimeout(() => purgeBin(false), 6000); } // once a visit
       }, () => { recDown.add(c); scheduleRender(); })), // nice-to-haves: the tasks keep working without them
     ];

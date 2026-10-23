@@ -414,6 +414,24 @@ test('deleting a goal takes its entries along: one row in Recently deleted, and 
   await ctx.close();
 });
 
+test('Show all on one goal draws only that card again; the others stay as they were drawn', async () => {
+  const fx = withExtras(smallFixture());
+  for (let i = 0; i < 7; i++) fx.docs['goalEntries/ge_x' + i] = entry('g_car', 1000 + i, addDays(fx.today, -i - 1));
+  for (let i = 0; i < 4; i++) fx.docs['goals/g_x' + i] = goal('Goal ' + i, 50000, { order: 3 + i });
+  const { ctx, page, errors } = await phone(fx);
+  await openGoals(page);
+  const before = (await cards(page)).map(c => c.id);
+  await page.$$eval('#goalList .goal-card', els => els.forEach(e => { e.__drawn = true; }));
+  await page.click('[data-goal-more="g_car"]');
+  await settle(page);
+  assert.equal((await card(page, 'g_car')).entries.length, 10, 'all its entries');
+  assert.deepEqual(await page.$$eval('#goalList .goal-card', els => els.filter(e => !e.__drawn).map(e => e.dataset.goalCard)), ['g_car']);
+  assert.deepEqual((await cards(page)).map(c => c.id), before, 'in the same order');
+  assert.equal(await focused(page), 'goalMore=g_car', 'focus stays on Show fewer');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('names and notes show exactly as typed: <b>, <img> and emoji are words, never page code', async () => {
   const fx = smallFixture();
   const T = fx.today;

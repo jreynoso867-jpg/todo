@@ -302,6 +302,29 @@ test('Got it moves a wish into the folded Got it group; Not yet brings it back',
   await ctx.close();
 });
 
+test('a heart tapped draws only its own card again (focus stays on it), and Got it\'s cards are made only once it\'s unfolded', async () => {
+  const fx = withExtras(smallFixture());
+  for (let i = 0; i < 12; i++) fx.docs['wishes/w_x' + i] = wish('Wish ' + i, 'other', 5000 + i * 1000);
+  const { ctx, page, errors } = await phone(fx);
+  await openWishes(page);
+  assert.equal(await page.$$eval('#wishGotBox .wish-card', els => els.length), 0, 'folded: nothing made in it');
+  const order = (await cards(page)).map(c => c[0]);
+  await page.$$eval('#wishGrid .wish-card', els => els.forEach(e => { e.__drawn = true; }));
+  await page.focus('[data-wish-heart="w_x3"]');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  assert.equal((await dump(page)).docs['wishes/w_x3'].hearted, true);
+  const again = await page.$$eval('#wishGrid .wish-card', els => els.filter(e => !e.__drawn).map(e => e.dataset.wishCard));
+  assert.deepEqual(again, ['w_x3'], 'only the card tapped is drawn again');
+  assert.deepEqual((await cards(page)).map(c => c[0]), order, 'in the same order');
+  assert.equal(await page.getAttribute('[data-wish-heart="w_x3"]', 'aria-pressed'), 'true');
+  assert.equal(await focused(page), 'wishHeart=w_x3', 'focus stays on its heart');
+  await page.click('#wishGotToggle');
+  assert.deepEqual((await cards(page, '#wishGotBox')).map(c => c[0]), ['w_ramen'], 'unfolded: made then');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('Delete sends a wish to Recently deleted with Undo, and Restore there brings it back exactly as it was', async () => {
   const fx = withExtras(smallFixture());
   const { ctx, page, errors } = await phone(fx);

@@ -91,6 +91,74 @@ const PLACES = [
   ['select several', ['#dockToday', '#selectBtn'], 'html.selecting'],
   ['the list editor', ['#dockLists', '#listsEdit'], '#listsSheet.open'],
 ];
+test('a tab that isn\'t showing takes no room and can\'t be tabbed to or read out', async () => {
+  const { withExtras } = require('./lib.cjs');
+  const { ctx, page, errors } = await phone(withExtras(smallFixture()), { tab: 'tasks' });
+  const cdp = await ctx.newCDPSession(page);
+  for (const [, btn] of TABS) { await page.click(btn); await page.waitForTimeout(250); } // each laid out once
+  for (const [name, btn, pane] of TABS) {
+    await page.click(btn);
+    await page.waitForTimeout(300);
+    const others = TABS.filter(t => t[2] !== pane).map(t => t[2]);
+    const room = await page.$$eval(others.join(','), els => els.map(e => [e.id, e.hidden, e.getAttribute('aria-hidden'), e.getBoundingClientRect().height]));
+    assert.deepEqual(room, others.map(p => [p.slice(1), true, 'true', 0]), `${name}: the others are hidden and take no room`);
+    assert.equal(await page.getAttribute(pane, 'aria-hidden'), null);
+    // Read out: nothing from another tab is in the accessibility tree.
+    const { nodes } = await cdp.send('Accessibility.getFullAXTree');
+    const where = {};
+    for (const n of nodes.filter(x => !x.ignored && x.backendDOMNodeId)) {
+      const { object } = await cdp.send('DOM.resolveNode', { backendNodeId: n.backendDOMNodeId }).catch(() => ({}));
+      if (!object) continue;
+      const r = await cdp.send('Runtime.callFunctionOn', { objectId: object.objectId, returnByValue: true,
+        functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const p = e && e.closest(".pane"); return p ? "#" + p.id : ""; }' });
+      if (r.result.value) where[r.result.value] = (where[r.result.value] || 0) + 1;
+    }
+    assert.deepEqual(Object.keys(where), [pane], `${name}: only its own things can be read out`);
+    // Tabbed to: from the top, once round the page, focus never goes into another tab.
+    await page.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
+    const stops = new Set();
+    for (let i = 0; i < 140; i++) {
+      await page.keyboard.press('Tab');
+      stops.add(await page.evaluate(() => { const p = document.activeElement.closest('.pane'); return p ? '#' + p.id : ''; }));
+    }
+    assert.deepEqual([...stops].filter(Boolean), [pane], `${name}: Tab stays in the tab showing (and the tab bar)`);
+  }
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the tab it opens on shows its frame before the app\'s script has run, the others don\'t, and nothing is written for it', async () => {
+  // Each panel as the page first has it, before the app's script runs (it runs only after all of them are in the page).
+  const early = () => {
+    window.__early = {};
+    new MutationObserver(() => {
+      for (const p of document.querySelectorAll('main .pane')) {
+        if (!(p.id in window.__early)) window.__early[p.id] = [p.hidden, getComputedStyle(p).contentVisibility, document.documentElement.dataset.tab];
+      }
+    }).observe(document, { childList: true, subtree: true });
+  };
+  for (const tab of [null, 'tasks', 'lists', 'calendar']) {
+    const ctx = await phoneContext(browser);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push(String(e)));
+    await page.addInitScript(early);
+    const fx = smallFixture();
+    if (tab) fx.local['todo.tab'] = tab; else delete fx.local['todo.tab'];
+    await seed(page, srv.url, fx);
+    await page.goto(srv.url + '/index.html');
+    await page.waitForSelector('#dock:not([hidden])');
+    const shown = tab || 'home';
+    const want = Object.fromEntries(TABS.map(([name, , pane]) => [pane.slice(1), [true, name === shown ? 'visible' : 'hidden', shown]]));
+    assert.deepEqual(await page.evaluate(() => window.__early), want, `${shown}: only its frame is drawn early`);
+    await page.waitForTimeout(1200);
+    assert.deepEqual(await shownPanels(page), ['pane' + shown[0].toUpperCase() + shown.slice(1)]);
+    assert.equal((await dump(page)).local['todo.tab'], tab || undefined, 'nothing written');
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+});
+
 test('everything the app had is two taps or less from Home', async () => {
   const { ctx, page, errors } = await phone();
   for (const [what, taps, want] of PLACES) {
@@ -261,6 +329,14 @@ test('Home: the day, a greeting, and the three most urgent tasks with a circle t
   assert.equal(await page.inputValue('#taskTitle'), 'Clean Rosa’s Diner');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
+  // Deleted from there, focus stays on Home (never on a row of the Tasks list that isn't showing).
+  await page.click('[data-home-open="t_today_untimed"]');
+  await page.waitForSelector('#taskSheet.open');
+  await page.click('#sheetDelete');
+  await page.waitForTimeout(600);
+  assert.equal(await page.evaluate(() => { const a = document.activeElement; return a === document.body ? 'body' : (a.closest('.pane, #toast, #dock') || {}).id; }), 'paneHome');
+  await page.click('#toastUndo');
+  await page.waitForTimeout(500);
   await page.click('#homeDueMore');
   assert.deepEqual(await shownPanels(page), ['paneTasks']);
   assert.deepEqual(errors, []);
