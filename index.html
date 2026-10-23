@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-C2QYkcAcA5RfMvWt8mXMVaLU/TkKMYREBPHEbDBgGTc=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-ZoQgPfNMrsziTuxnYyUc9Y+6AflAUThm7fvqKytqUYw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9qTDcHuNwcQwrzrKQgpBMwsd9dbvtwIsBQ7uEIEvbNM=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-ZoQgPfNMrsziTuxnYyUc9Y+6AflAUThm7fvqKytqUYw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.9e9fe629'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.1c9d023b'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1708,6 +1708,8 @@ html.selecting .task-body, html.selecting .ring { cursor: pointer; }
 .month-dots { display: flex; align-items: center; justify-content: center; gap: 3px; height: 8px; font-size: calc(11.5px * var(--ts)); font-weight: 800; line-height: 1; color: var(--soft); }
 .month-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 .month-dots .md-date { background: var(--pop-ink); }
+/* Where the look's raspberry is just its accent (or black, in Classic), a date's dot is a small diamond as well. */
+:root:not([data-look="blush"]) .month-dots .md-date { border-radius: 1px; transform: rotate(45deg) scale(.92); }
 .month-dots .md-goal { background: none; box-shadow: inset 0 0 0 1.5px var(--ink); }
 .month-day[aria-pressed="true"] .month-dots { color: inherit; }
 .month-day[aria-pressed="true"] .month-dots i { background: currentColor; }
@@ -2786,6 +2788,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 :root[data-look="blush"] { --sum-bg: linear-gradient(135deg, rgba(255, 218, 196, .55) 0%, rgba(248, 206, 224, .55) 55%, rgba(226, 214, 248, .55) 100%); }
 /* The month reads lighter, with today's number in a filled circle. */
 :root[data-look="blush"] .month-day { font-weight: 600; font-stretch: normal; }
+:root[data-look="blush"] .month-nav h2 { font-weight: 650; font-stretch: normal; }
 :root[data-look="blush"] .month-day.is-today:not([aria-pressed="true"]) { border-color: transparent; }
 :root[data-look="blush"] .month-day.is-today:not([aria-pressed="true"]) > span:first-child {
   display: grid; place-items: center; width: 1.9em; height: 1.9em; margin: -.45em 0 -.2em; border-radius: 50%; background: var(--accent); color: var(--on-accent);
@@ -3419,7 +3422,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   <div class="pane-head">
     <div class="pane-head-text">
       <h1 class="pane-title" id="calTitle" tabindex="-1">Calendar</h1>
-      <p class="pane-sub">Your plans and due dates, by day</p>
+      <p class="pane-sub">Your plans, due dates and the dates to remember</p>
     </div>
   </div>
   <div class="cal-card">
