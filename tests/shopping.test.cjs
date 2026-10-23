@@ -189,6 +189,35 @@ test('ticking moves an item under Done (still there after a reload); Clear done 
   await ctx.close();
 });
 
+test('a quick double tap on an item\'s circle ticks just that item, though the rows below move up under the finger', async () => {
+  const fx = withExtras(smallFixture());
+  for (let i = 0; i < 3; i++) fx.docs['shopItems/si_x' + i] = item('sl_groceries', 'Item ' + i, 3000 + i * 1000);
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  assert.deepEqual(await rows(page), ['Milk', 'Item 0', 'Item 1', 'Item 2']);
+  const box = await (await page.$('[data-shop-tick="si_milk"]')).boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const ticked = async () => Object.entries((await dump(page)).docs).filter(([k, v]) => k.startsWith('shopItems/') && v.done === true && !fx.docs[k].done).map(([k]) => k).sort();
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(150);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(700);
+  assert.deepEqual(await ticked(), ['shopItems/si_milk'], 'only the item tapped');
+  assert.deepEqual(await rows(page), ['Item 0', 'Item 1', 'Item 2']);
+  // A tap a moment later is a tap of its own, and so is the keyboard's.
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(400);
+  assert.deepEqual(await ticked(), ['shopItems/si_milk', 'shopItems/si_x0']);
+  await page.focus('[data-shop-tick="si_x1"]');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(100);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(400);
+  assert.deepEqual(await ticked(), ['shopItems/si_milk', 'shopItems/si_x0', 'shopItems/si_x1', 'shopItems/si_x2'], 'Space on each in turn ticks each');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('an item the phone can\'t keep leaves no ghost behind', async () => {
   const init = () => {
     const put = IDBObjectStore.prototype.put;

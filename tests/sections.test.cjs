@@ -249,6 +249,123 @@ test('a change to a new kind the phone can’t save yet waits on the phone, alre
   await ctx.close();
 });
 
+// The phone's storage, for keys starting with window.__fault.at: busy (the change waits on the phone, see above), or
+// full once window.__fault.full is set (the change is turned down for good).
+const faultyStorage = () => {
+  const put = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (v, k) {
+    const f = window.__fault;
+    if (f && typeof k === 'string' && k.startsWith(f.at)) throw new DOMException('No room', f.full ? 'QuotaExceededError' : 'UnknownError');
+    return put.call(this, v, k);
+  };
+};
+// Waits until every waiting change has been tried (a page coming back into view tries them at once).
+const drained = async page => {
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForFunction(() => localStorage.getItem('todo.outbox') === '[]', null, { timeout: 30000 });
+  await page.waitForTimeout(400);
+};
+
+test('a delete that had to wait keeps the record when its Recently deleted copy is then turned down (a shopping list with its items, a wish)', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx, { init: faultyStorage });
+  const before = (await dump(page)).docs;
+  await page.click('#dockLists');
+  await page.evaluate(() => { window.__fault = { at: 'bin/' }; });
+  await page.click('[data-shop-more="sl_groceries"]');
+  await page.waitForSelector('#shopSheet.open');
+  await page.click('#shopDelete');
+  await page.click('#listsWish');
+  await page.waitForSelector('#wishView:not([hidden])');
+  await page.click('[data-wish-open="w_lamp"]');
+  await page.waitForSelector('#wishSheet.open');
+  await page.click('#wishDelete');
+  await page.waitForFunction(() => /"wishes\/w_lamp"/.test(localStorage.getItem('todo.outbox') || ''), null, { timeout: 8000 });
+  const out = JSON.parse(await page.evaluate(() => localStorage.getItem('todo.outbox'))).map(o => `${o.kind} ${o.path}`);
+  for (const p of ['shopItems/si_milk', 'shopItems/si_eggs', 'shopLists/sl_groceries', 'wishes/w_lamp']) {
+    assert.ok(out.indexOf(`set bin/${p.replace('/', '~')}`) >= 0 && out.indexOf(`set bin/${p.replace('/', '~')}`) < out.indexOf(`delete ${p}`), `the copy waits ahead of the delete: ${p}`);
+  }
+  // Then the storage is full: the copies are turned down for good, so nothing that waited on them is deleted.
+  await page.evaluate(() => { window.__fault.full = true; });
+  await drained(page);
+  const d = (await dump(page)).docs;
+  for (const [k, v] of Object.entries(before)) assert.deepEqual(d[k], v, `kept exactly as it was: ${k}`);
+  for (const k of Object.keys(d)) assert.ok(k in before, `nothing new: ${k}`);
+  assert.match(await page.textContent('#toastMsg'), /Couldn’t keep a copy in Recently deleted, so 4 things weren’t deleted/);
+  await page.click('#wishBack');
+  assert.ok(await page.isVisible('[data-shop-open="sl_groceries"]'), 'the list shows again');
+  await page.click('#listsWish');
+  assert.ok(await page.isVisible('[data-wish-open="w_lamp"]'), 'and so does the wish');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('a restore that had to wait leaves its copy in Recently deleted when putting the record back is then turned down', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx, { init: faultyStorage });
+  const before = (await dump(page)).docs;
+  await page.evaluate(() => { window.__fault = { at: 'wishes/' }; });
+  await page.click('#trashOpen');
+  await page.click('[data-restore-bin="wishes~w_kayak"]');
+  await page.waitForFunction(() => /bin\/wishes~w_kayak/.test(localStorage.getItem('todo.outbox') || ''), null, { timeout: 8000 });
+  await page.evaluate(() => { window.__fault.full = true; });
+  await drained(page);
+  const d = (await dump(page)).docs;
+  assert.deepEqual(d['bin/wishes~w_kayak'], before['bin/wishes~w_kayak'], 'still in Recently deleted, as it was');
+  assert.equal(d['wishes/w_kayak'], undefined);
+  for (const [k, v] of Object.entries(before)) assert.deepEqual(d[k], v, `unchanged: ${k}`);
+  assert.match(await page.textContent('#toastMsg'), /Couldn’t put it back, so it stays in Recently deleted/);
+  assert.ok((await trashRows(page)).some(r => r.title === 'Kayak <i>lessons</i>'), 'its row shows again');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('clearing Recently deleted never waits on the phone, and doesn’t run while changes are waiting', async () => {
+  const fx = withExtras(smallFixture());
+  const old = Date.now() - 8 * 864e5;
+  fx.docs['trash/t_gone'].deletedAt = old;
+  fx.docs['bin/dates~d_party'].deletedAt = old;
+  fx.docs['bin/wishes~w_kayak'].deletedAt = old;
+  // Removing from Recently deleted is busy for now: a clear-out that waited could take a newer copy later.
+  const busyDelete = () => {
+    const del = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (k) {
+      if (window.__busyDel !== false && typeof k === 'string' && /^(bin|trash)\//.test(k)) throw new DOMException('The storage is busy', 'UnknownError');
+      return del.call(this, k);
+    };
+  };
+  let { ctx, page, errors } = await phone(fx, { init: busyDelete });
+  await page.waitForTimeout(7500); // the once-a-visit clear-out runs 6 s after opening
+  assert.ok(!/"(bin|trash)\//.test(await page.evaluate(() => localStorage.getItem('todo.outbox') || '')), 'nothing waits to be cleared');
+  await page.evaluate(() => { window.__busyDel = false; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(2500);
+  let d = (await dump(page)).docs;
+  for (const k of ['trash/t_gone', 'bin/dates~d_party', 'bin/wishes~w_kayak']) assert.deepEqual(d[k], fx.docs[k], `left for the next visit: ${k}`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+
+  // A change still waiting from before (the storage busy for it): no clearing at all, not even Delete all now.
+  const fx2 = withExtras(smallFixture());
+  fx2.docs['bin/dates~d_party'].deletedAt = old;
+  fx2.local['todo.outbox'] = JSON.stringify([{ path: 'tasks/t_anytime', kind: 'update', data: { title: 'Buy mop heads and a bucket' } }]);
+  ({ ctx, page, errors } = await phone(fx2, { init: faultyStorage }));
+  await page.evaluate(() => { window.__fault = { at: 'tasks/t_anytime' }; });
+  await page.waitForTimeout(7500);
+  assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('todo.outbox'))).map(o => o.path), ['tasks/t_anytime'], 'only the change that was waiting');
+  await page.click('#trashOpen');
+  await page.click('#trashPurge');
+  await page.click('#trashPurge');
+  await page.waitForTimeout(600);
+  assert.match(await page.textContent('#toastMsg'), /still saving/);
+  await page.evaluate(() => { window.__fault = null; });
+  await drained(page);
+  d = (await dump(page)).docs;
+  assert.equal(d['tasks/t_anytime'].title, 'Buy mop heads and a bucket', 'the waiting change went in');
+  for (const [k, v] of Object.entries(fx2.docs)) if (k !== 'tasks/t_anytime' && !k.startsWith('settings/')) assert.deepEqual(d[k], v, `nothing cleared: ${k}`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('the iPhone app’s Files safety copy holds the new kinds, even on a phone with nothing else in it', async () => {
   const x = extrasFixture();
   const fx = { today: x.today, docs: x.docs, blobs: {}, local: { 'todo.welcomed': '1', 'todo.swipeTip2': '1' } };
@@ -286,8 +403,8 @@ function recordsBlock(deps) {
 const pad = n => String(n).padStart(2, '0');
 const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const stable = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {}) : x));
-// A stand-in app: S with the given records, a database that keeps what's written (and turns down the paths in `refuse`),
-// and a log of every write in order.
+// A stand-in app: S with the given records, a database that keeps what's written (and turns down the paths in `refuse`:
+// a path for its set, 'delete <path>' for its delete), and a log of every write in order.
 function standIn(records, refuse = new Set()) {
   const store = new Map(Object.entries(JSON.parse(JSON.stringify(records))));
   const log = [];
@@ -301,12 +418,15 @@ function standIn(records, refuse = new Set()) {
     id,
     set: async d => { log.push(['set', `${c}/${id}`]); if (refuse.has(`${c}/${id}`)) throw { code: 'quota_exceeded' }; store.set(`${c}/${id}`, JSON.parse(JSON.stringify(d))); },
     update: async d => { log.push(['update', `${c}/${id}`, d]); store.set(`${c}/${id}`, { ...store.get(`${c}/${id}`), ...d }); },
-    delete: async () => { log.push(['delete', `${c}/${id}`]); store.delete(`${c}/${id}`); },
+    delete: async () => { log.push(['delete', `${c}/${id}`]); if (refuse.has(`delete ${c}/${id}`)) throw { code: 'permission_denied' }; store.delete(`${c}/${id}`); },
+    get: async () => ({ exists: store.has(`${c}/${id}`), data: () => JSON.parse(JSON.stringify(store.get(`${c}/${id}`))) }),
   });
   const db = { collection: c => ({ doc: id => docRef(c, id === undefined ? 'new' + (++n) : id) }) };
   const deps = {
     S, db, REC_COLLS: EXTRA_COLLS, TRASH_DAYS: 7, pad, parseYmd,
     writable: () => S.status === 'ready',
+    nothingWaiting: () => true,
+    deletedAt: e => (e ? Number(e.deletedAt) || 0 : -1),
     write: async (key, op) => { try { await op(); return true; } catch (e) { return false; } },
     runPool: async (jobs, size = 4) => { let i = 0; const worker = async () => { while (i < jobs.length) { const job = jobs[i++]; await job(); } }; await Promise.all(Array.from({ length: Math.min(size, jobs.length) }, worker)); },
     toast: (msg, undo) => toasts.push({ msg, undo }),
@@ -330,7 +450,11 @@ function standIn(records, refuse = new Set()) {
 test('money is whole cents, and only real web links are kept', () => {
   const { R } = standIn({});
   const cases = { '12.10': 1210, '0.20': 20, '35,000': 3500000, '$1,234.5': 123450, '-40': -4000, '−250.50': -25050, '.5': 50, '12.': 1200, '-0': 0,
-    '1.234': null, 'abc': null, '': null, '12.3.4': null, '999999999999': null };
+    '1.234': null, 'abc': null, '': null, '12.3.4': null, '999999999999': null,
+    // A comma is a thousands separator only before exactly three digits; on its own before one or two at the end (a
+    // phone set to a region that writes 12,50) it's the decimal point. Anything else isn't an amount.
+    '12,50': 1250, '1,5': 150, ',5': 50, '-12,50': -1250, '1,234,567.89': 123456789, '12,345': 1234500, '$ 12': 1200,
+    '12 34': null, '1,23,456': null, '12,3456': null, '1.234,56': null, '1,2,3': null, '12,50.5': null, '1,234,56': null };
   for (const [s, want] of Object.entries(cases)) assert.equal(R.parseCents(s), want, `parseCents(${JSON.stringify(s)})`);
   assert.equal(R.parseCents('12.10') + R.parseCents('0.20'), 1230, 'no floating-point drift');
   assert.equal(R.money(3500000), '$35,000.00');
@@ -447,6 +571,72 @@ test('deleting a shopping list or a goal: every copy into Recently deleted first
   for (const k of ['goals/g_car', 'goalEntries/ge_bonus', 'goalEntries/ge_june', 'goalEntries/ge_out']) assert.deepEqual(store.get(k), x.docs[k], `Undo put it back: ${k}`);
   for (const k of ['goals~g_car', 'goalEntries~ge_bonus', 'goalEntries~ge_june', 'goalEntries~ge_out']) assert.ok(!store.has('bin/' + k), `and took its copy out: ${k}`);
   assert.deepEqual(store.get('bin/goals~g_trip'), x.docs['bin/goals~g_trip'], 'what was in Recently deleted before stays');
+});
+
+test('a group whose delete is turned down part way keeps all of it: what went comes back, and none of it stays in Recently deleted', async () => {
+  const x = extrasFixture('2026-10-22');
+  const list = ['shopLists/sl_groceries', 'shopItems/si_milk', 'shopItems/si_eggs'];
+  const goal = ['goals/g_car', 'goalEntries/ge_bonus', 'goalEntries/ge_june', 'goalEntries/ge_out'];
+  const binKeys = paths => paths.map(p => 'bin/' + p.replace('/', '~'));
+  // An item's delete turned down: its list isn't deleted (no item is left without it), and the other item comes back.
+  // The list's own delete turned down after its items went: they come back. The same for a goal and a wish on its own.
+  for (const refused of ['delete shopItems/si_milk', 'delete shopLists/sl_groceries', 'delete goalEntries/ge_june', 'delete goals/g_car', 'delete wishes/w_lamp']) {
+    const { R, store, log } = standIn(x.docs, new Set([refused]));
+    const gone = await R.binMany([['shopLists', 'sl_groceries'], ['goals', 'g_car'], ['wishes', 'w_lamp'], ['dates', 'd_dentist']], 'Deleted');
+    const kept = refused.includes('shop') ? list : refused.includes('wish') ? ['wishes/w_lamp'] : goal;
+    for (const k of kept) assert.deepEqual(store.get(k), x.docs[k], `${refused}: kept as it was: ${k}`);
+    for (const k of binKeys(kept)) assert.ok(!store.has(k), `${refused}: no copy left in Recently deleted: ${k}`);
+    const went = [...list, ...goal, 'wishes/w_lamp', 'dates/d_dentist'].filter(k => !kept.includes(k));
+    assert.deepEqual(gone.map(([c, id]) => `${c}/${id}`).sort(), went.sort(), `${refused}: only what went is reported (and comes back with Undo)`);
+    for (const k of went) assert.ok(!store.has(k) && store.has(binKeys([k])[0]), `${refused}: the rest went as asked: ${k}`);
+    assert.ok(!log.some(([kind, p]) => kind === 'delete' && kept[0] === p && refused !== 'delete ' + p), `${refused}: the list, goal or wish itself isn't deleted once a part of it can't be`);
+  }
+});
+
+test('Restore keeps a record that is already back and newer, and only takes its copy out of Recently deleted', async () => {
+  const x = extrasFixture('2026-10-22');
+  const copy = x.docs['bin/wishes~w_kayak'].doc;
+  // Brought back (and changed) on another device, or loaded from a file, while its copy waited in Recently deleted.
+  const newer = { ...copy, title: 'Kayak lessons, booked', updatedAt: copy.updatedAt + 5000 };
+  let { R, store, log } = standIn({ ...x.docs, 'wishes/w_kayak': newer });
+  assert.equal(await R.restoreEntries(R.binGroupOf('wishes~w_kayak')), true);
+  assert.deepEqual(store.get('wishes/w_kayak'), newer, 'the newer one stays');
+  assert.ok(!log.some(([k, p]) => k === 'set' && p === 'wishes/w_kayak'), 'it isn’t written over');
+  assert.ok(!store.has('bin/wishes~w_kayak'), 'and the copy leaves Recently deleted');
+  // An older one (from an old file, say) is replaced by the copy, as Restore says.
+  const older = { ...copy, title: 'Kayak', updatedAt: copy.updatedAt - 5000 };
+  ({ R, store } = standIn({ ...x.docs, 'wishes/w_kayak': older }));
+  await R.restoreEntries(R.binGroupOf('wishes~w_kayak'));
+  assert.deepEqual(store.get('wishes/w_kayak'), copy);
+  // The page can still show a record it just deleted (the news that it went comes a moment later): put back all the same.
+  const s3 = standIn(x.docs);
+  const gone = await s3.R.binMany([['wishes', 'w_lamp']]);
+  assert.ok(s3.S.wishes.has('w_lamp') && !s3.store.has('wishes/w_lamp'), '(the page hasn’t heard yet)');
+  await s3.R.restoreEntries(gone);
+  assert.deepEqual(s3.store.get('wishes/w_lamp'), x.docs['wishes/w_lamp'], 'back');
+  assert.ok(!s3.store.has('bin/wishes~w_lamp'));
+  // Newer on the page but gone from the database by now: put back too, never lost.
+  const s4 = standIn(x.docs);
+  const gone4 = await s4.R.binMany([['wishes', 'w_lamp']]);
+  s4.S.wishes.set('w_lamp', { ...x.docs['wishes/w_lamp'], title: 'Reading lamp (brass)', updatedAt: Date.now() + 1000 });
+  await s4.R.restoreEntries(gone4);
+  assert.deepEqual(s4.store.get('wishes/w_lamp'), x.docs['wishes/w_lamp'], 'back from its copy');
+  assert.ok(!s4.store.has('bin/wishes~w_lamp'));
+});
+
+test('clearing Recently deleted looks at each entry again just before it goes: one deleted again since stays', async () => {
+  const x = extrasFixture('2026-10-22');
+  const old = Date.now() - 8 * 864e5;
+  for (const k of Object.keys(x.docs)) if (k.startsWith('bin/')) x.docs[k] = { ...x.docs[k], deletedAt: old };
+  const { R, S, store } = standIn(x.docs);
+  const done = R.purgeBin(false);
+  // While the first ones go, the date is put back on another device and deleted again: a fresh copy, kept 7 more days.
+  const fresh = { ...S.bin.get('dates~d_party'), deletedAt: Date.now() };
+  S.bin.set('dates~d_party', fresh);
+  store.set('bin/dates~d_party', fresh);
+  await done;
+  assert.deepEqual(store.get('bin/dates~d_party'), fresh, 'the fresh copy stays');
+  for (const k of Object.keys(x.docs)) if (k.startsWith('bin/') && k !== 'bin/dates~d_party') assert.ok(!store.has(k), `older than 7 days, gone: ${k}`);
 });
 
 test('a group whose copy can’t be kept in Recently deleted isn’t deleted at all', async () => {

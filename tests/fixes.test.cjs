@@ -139,6 +139,43 @@ test('a delete whose Recently deleted copy can\'t be kept leaves the task where 
   await ctx.close();
 });
 
+test('a delete that had to wait keeps the task when its Recently deleted copy is then turned down', async () => {
+  // The storage busy for trash/ keys (the copy waits on the phone, and the delete behind it), then full (turned down).
+  const init = () => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (v, k) {
+      const f = window.__fault;
+      if (f && typeof k === 'string' && k.startsWith('trash/')) throw new DOMException('No room', f.full ? 'QuotaExceededError' : 'UnknownError');
+      return put.call(this, v, k);
+    };
+  };
+  const fx = smallFixture();
+  const { ctx, page, errors } = await phone(fx, { init });
+  const before = (await dump(page)).docs;
+  await page.evaluate(() => { window.__fault = {}; });
+  await page.click('.task[data-id="t_anytime"] .task-body');
+  await page.click('#sheetDelete');
+  // and two more at once, from Select
+  await page.click('#selectBtn');
+  await page.click('.task[data-id="t_wait"] .ring');
+  await page.click('.task[data-id="t_unicode"] .ring');
+  await page.click('[data-sel="delete"]');
+  await page.waitForFunction(() => /"tasks\/t_unicode"/.test(localStorage.getItem('todo.outbox') || ''), null, { timeout: 8000 });
+  const out = JSON.parse(await page.evaluate(() => localStorage.getItem('todo.outbox'))).map(o => `${o.kind} ${o.path}`);
+  for (const id of ['t_anytime', 't_wait', 't_unicode']) assert.ok(out.indexOf(`set trash/${id}`) >= 0 && out.indexOf(`set trash/${id}`) < out.indexOf(`delete tasks/${id}`), `the copy waits ahead of the delete: ${id}`);
+  assert.equal(await page.$('.task[data-id="t_anytime"]'), null, 'gone from the list while it waits');
+  await page.evaluate(() => { window.__fault.full = true; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForFunction(() => localStorage.getItem('todo.outbox') === '[]', null, { timeout: 30000 });
+  await page.waitForTimeout(400);
+  const d = await dump(page);
+  for (const [k, v] of Object.entries(before)) if (!k.startsWith('history/')) assert.deepEqual(d.docs[k], v, `kept exactly as it was: ${k}`);
+  for (const id of ['t_anytime', 't_wait', 't_unicode']) assert.equal(d.docs['trash/' + id], undefined);
+  assert.match(await toastText(page), /Couldn’t keep a copy in Recently deleted, so 3 things weren’t deleted/);
+  assert.ok(await page.$('.task[data-id="t_anytime"]'), 'back on the list');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('a new version of the app takes a safety copy first, even after the day\'s copy', async () => {
   const fx = smallFixture();
   const day = new Date();

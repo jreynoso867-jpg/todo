@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9qTDcHuNwcQwrzrKQgpBMwsd9dbvtwIsBQ7uEIEvbNM=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-ZoQgPfNMrsziTuxnYyUc9Y+6AflAUThm7fvqKytqUYw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CMja3Vmnept+ZAYzrq6vyo88pMY520TCXJa4BcmOO58=' 'sha256-eorJGh8Psy9Qu7zwgOYa0TkxpkN0eFBMisYtrIfCtnw=' 'sha256-DnXQjTyxHhAfOPithw8d9NVFqTjVNJ+/B2/q88nwCks=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.1c9d023b'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.ce39b105'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -5523,9 +5523,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
 
   /* ---------- offline: changes made with no signal wait on this phone, then save ---------- */
   // A change the database can't take right now (no signal in a basement, say) waits here as
-  // { path, kind: 'set' | 'update' | 'merge' | 'delete', data, init }. It's laid over what the database
+  // { path, kind: 'set' | 'update' | 'merge' | 'delete', data, init, after }. It's laid over what the database
   // last said, so the list looks right, and kept in this browser (todo.outbox) so closing the page
-  // doesn't lose it. Once there's a connection the waiting changes go in, oldest first.
+  // doesn't lose it. Once there's a connection the waiting changes go in, oldest first. `after` (a delete only): the
+  // path, or paths, of the changes it depends on, its copy in Recently deleted or the record a restore put back. If one
+  // of those is turned down when it goes in, the delete is left out, so nothing is deleted without its copy.
   const OUTBOX_KEY = 'todo.outbox';
   const OUT_KINDS = ['set', 'update', 'merge', 'delete'];
   let rawDb = null;
@@ -5579,7 +5581,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     let prev = null;
     for (let k = saving.length - 1; k >= 0 && !prev; k--) if (saving[k].path === op.path) prev = saving[k];
     const seen = prev ? { known: prev.known, doc: prev.known ? applied(prev.before, prev) : undefined } : seenDoc(op.path);
-    const n = { path: op.path, kind: op.kind, data: op.data, init: op.init, known: seen.known, before: seen.known ? copyJson(seen.doc) : undefined };
+    const n = { path: op.path, kind: op.kind, data: op.data, init: op.init, after: op.after, known: seen.known, before: seen.known ? copyJson(seen.doc) : undefined };
     saving.push(n);
     storeNotes();
     return n;
@@ -5644,7 +5646,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
         }
         const landed = n.kind === 'delete' ? cur === undefined : n.kind === 'set' ? sameData(cur, n.data) : holds(cur, n.data);
         if (!landed && stillAsBefore(cur, n)) {
-          outbox.splice(at++, 0, { path: n.path, kind: n.kind, data: n.data, init: n.init });
+          outbox.splice(at++, 0, { path: n.path, kind: n.kind, data: n.data, init: n.init, after: n.after });
           saveOutbox();
           cur = applied(cur, n);
         }
@@ -5679,12 +5681,13 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       return ref.set(mergeDeep(op.init || {}, op.data));
     }
   }
-  // Waiting changes to one document fold into one, so the queue stays short however long the signal is gone.
+  // Waiting changes to one document fold into one, so the queue stays short however long the signal is gone. A delete
+  // that waits on a copy doesn't fold away what was waiting before it: if the copy is turned down, that still goes in.
   function enqueue(op) {
     let i = -1;
     for (let k = outbox.length - 1; k >= 0; k--) if (outbox[k].path === op.path && outbox[k] !== inFlight) { i = k; break; }
-    const prev = i >= 0 ? outbox[i] : null;
-    let next = { path: op.path, kind: op.kind, data: op.data, init: op.init };
+    const prev = i >= 0 && !(op.kind === 'delete' && op.after) ? outbox[i] : null;
+    let next = { path: op.path, kind: op.kind, data: op.data, init: op.init, after: op.after };
     if (prev && (op.kind === 'update' || op.kind === 'merge')) {
       if (prev.kind === 'set') next = { path: op.path, kind: 'set', data: mergeDeep(prev.data, op.data) };
       else if (prev.kind === 'delete') next = op.kind === 'merge' ? { path: op.path, kind: 'set', data: mergeDeep(op.init || {}, op.data) } : prev; // an update can't bring back what's waiting to be deleted
@@ -5696,8 +5699,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     relayData();
     scheduleFlush();
   }
-  function perform(op) {
-    if (S.offline || outbox.length || flushing || replaying) {
+  // Nothing waiting to go in, and a connection: the only time Recently deleted is cleared (see purgeTrash).
+  const nothingWaiting = () => !S.offline && !outbox.length && !flushing && !replaying;
+  // now: a change worth making only right now (clearing Recently deleted): it never waits here, it's turned down instead.
+  function perform(op, now = false) {
+    if (!nothingWaiting()) {
+      if (now) return Promise.reject({ code: 'not_now', message: 'Other changes are still saving.' });
       if (S.offline) wasOffline = true;
       enqueue(op);
       return Promise.resolve();
@@ -5705,7 +5712,7 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const note = noteSaving(op);
     return sendChange(op).then(r => { savedNote(note); return r; }, e => {
       savedNote(note);
-      if (!retryable(e)) throw e;
+      if (now || !retryable(e)) throw e;
       wasOffline = true;
       enqueue(op); // no connection right now: it waits here and goes in when it can
     });
@@ -5714,6 +5721,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     clearTimeout(flushTimer);
     if (outbox.length) flushTimer = setTimeout(flush, ms);
   }
+  // Changes turned down while the queue went in (path -> whether a delete left out because of it already says so), and
+  // the deletes left out: of a record whose copy wasn't kept, or of a copy in Recently deleted whose record wasn't put back.
+  const turnedDown = new Map();
+  let notDeleted = 0;
+  let notRestored = 0;
   async function flush() {
     if (flushing || replaying || !rawDb || !outbox.length || S.offline || !writable()) { renderNet(); return; }
     flushing = true;
@@ -5721,15 +5733,23 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     let stalled = false;
     while (outbox.length && !S.offline) {
       const op = outbox[0];
-      inFlight = op;
-      try {
-        await sendChange(op);
-        if (!op.path.startsWith('history/')) sentCount++; // the progress chart's bookkeeping isn't a change you made
-      } catch (e) {
-        if (retryable(e)) { inFlight = null; stalled = true; break; }
-        refusedCount++; // the database said no for good (the task was deleted on another device, say)
+      const waits = op.after ? [].concat(op.after).filter(p => turnedDown.has(p)) : [];
+      if (waits.length) {
+        // What it waited on was turned down, so it stays as it is (and the copy, or the record, too).
+        for (const p of waits) if (!turnedDown.get(p)) { turnedDown.set(p, true); refusedCount--; }
+        if (/^(trash|bin)\//.test(op.path)) notRestored++; else notDeleted++;
+      } else {
+        inFlight = op;
+        try {
+          await sendChange(op);
+          if (!op.path.startsWith('history/')) sentCount++; // the progress chart's bookkeeping isn't a change you made
+        } catch (e) {
+          if (retryable(e)) { inFlight = null; stalled = true; break; }
+          refusedCount++; // the database said no for good (the task was deleted on another device, say)
+          turnedDown.set(op.path, false);
+        }
+        inFlight = null;
       }
-      inFlight = null;
       const i = outbox.indexOf(op);
       if (i >= 0) outbox.splice(i, 1);
       saveOutbox();
@@ -5741,11 +5761,19 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       scheduleFlush(stalled ? flushWait : 600);
     } else {
       flushWait = 2000;
-      if (refusedCount) toast(refusedCount === 1 ? 'One change couldn’t be saved because that task changed somewhere else.' : `${refusedCount} changes couldn’t be saved because those tasks changed somewhere else.`);
+      const kept = [
+        notDeleted ? `Couldn’t keep a copy in Recently deleted, so ${notDeleted === 1 ? 'it wasn’t deleted' : `${notDeleted} things weren’t deleted`}.` : '',
+        notRestored ? `Couldn’t put ${notRestored === 1 ? 'it back, so it stays' : `${notRestored} things back, so they stay`} in Recently deleted.` : '',
+      ].filter(Boolean).join(' ');
+      if (kept) toast(kept, null, 'Undo', 8000);
+      else if (refusedCount) toast(refusedCount === 1 ? 'One change couldn’t be saved because that task changed somewhere else.' : `${refusedCount} changes couldn’t be saved because those tasks changed somewhere else.`);
       else if (wasOffline && sentCount) toast(IS_PHONE ? `Saved ${plural(sentCount, 'waiting change', 'waiting changes')}.` : `Back online. ${plural(sentCount, 'change', 'changes')} saved.`);
       wasOffline = false;
       sentCount = 0;
       refusedCount = 0;
+      notDeleted = 0;
+      notRestored = 0;
+      turnedDown.clear();
     }
     renderNet();
   }
@@ -5777,7 +5805,8 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
       set: data => perform({ path: ref.path, kind: 'set', data: copyJson(data) }),
       update: data => perform({ path: ref.path, kind: 'update', data: copyJson(data) }),
       merge: (data, init) => perform({ path: ref.path, kind: 'merge', data: copyJson(data), init: copyJson(init || {}) }),
-      delete: () => perform({ path: ref.path, kind: 'delete' }),
+      // o.after: what the delete waits on (see the queue above); o.now: only right now, never queued (see perform).
+      delete: (o = {}) => perform({ path: ref.path, kind: 'delete', after: o.after }, o.now === true),
     });
     const wrapColl = c => ({
       path: c.path,
@@ -6135,11 +6164,12 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     keepInHistory(saved);
     const at = Date.now();
     const notKept = [];
-    // A task is only deleted once its copy is in Recently deleted; if that copy can't be kept, the task stays.
+    // A task is only deleted once its copy is in Recently deleted; if that copy can't be kept, the task stays. (A copy
+    // that has to wait on the phone holds back the delete behind it the same way: see flush.)
     runPool(saved.map(([id, data]) => async () => {
       const kept = await write('trash/' + id, () => trashRef(id).set({ task: data, deletedAt: at }), { create: true, quiet: true });
       if (!kept) { notKept.push(id); return; }
-      await write('tasks/' + id, () => taskRef(id).delete());
+      await write('tasks/' + id, () => taskRef(id).delete({ after: 'trash/' + id }));
     })).then(() => {
       if (notKept.length) toast(`Couldn’t keep a copy in Recently deleted, so ${notKept.length === 1 ? 'it wasn’t deleted' : `${notKept.length} tasks weren’t deleted`}. Clear done tasks or remove photos to make room, then try again.`, null, 'Undo', 8000);
     });
@@ -6148,20 +6178,27 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   function restoreMany(saved) {
     if (!writable()) return;
     runPool(saved.map(([id, data]) => () => write('tasks/' + id, () => taskRef(id).set(data))
-      .then(ok => (ok ? write('trash/' + id, () => trashRef(id).delete(), { quiet: true }) : false))));
+      .then(ok => (ok ? write('trash/' + id, () => trashRef(id).delete({ after: 'tasks/' + id }), { quiet: true }) : false))));
   }
   // Older than 7 days (or everything, when asked): gone for good, photos too unless another task uses them.
+  // Only while nothing is waiting to go in, and never queued: a clear-out that waited could remove a newer copy put
+  // there meanwhile (the task put back and deleted again on another device). Each is looked at again just before it goes.
   const TRASH_DAYS = 7;
+  const deletedAt = e => (e ? Number(e.deletedAt) || 0 : -1);
   let trashPurged = false;
   function purgeTrash(all = false) {
-    if (!writable() || !S.trashLoaded) return;
+    if (!writable() || !S.trashLoaded || !nothingWaiting()) return Promise.resolve();
     const cutoff = Date.now() - TRASH_DAYS * 86400000;
     const old = [...S.trash].filter(([, e]) => all || !(Number(e && e.deletedAt) > cutoff));
-    if (!old.length) return;
-    const ids = old.map(([id]) => id);
-    const photos = old.flatMap(([, e]) => cleanPhotos(e && e.task && e.task.photos).map(x => x.id));
-    runPool(ids.map(id => () => write('trash/' + id, () => trashRef(id).delete(), { quiet: !all })), 2)
-      .then(() => { if (photos.length) releasePhotos(photos, [], ids); });
+    if (!old.length) return Promise.resolve();
+    const gone = [];
+    return runPool(old.map(([id, e]) => async () => {
+      if (deletedAt(S.trash.get(id)) !== deletedAt(e)) return; // put back, or deleted again, since: left for next time
+      if (await write('trash/' + id, () => trashRef(id).delete({ now: true }), { quiet: !all })) gone.push([id, e]);
+    }), 2).then(() => {
+      const photos = gone.flatMap(([, e]) => cleanPhotos(e && e.task && e.task.photos).map(x => x.id));
+      if (photos.length) releasePhotos(photos, [], gone.map(([id]) => id));
+    });
   }
   function removeMany(entries, message) {
     if (!entries.length || !writable()) return;
@@ -6235,13 +6272,15 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
   const money = cents => USD.format(finite(cents) / 100);
   const isCents = v => Number.isSafeInteger(v) && Math.abs(v) <= MAX_CENTS;
-  // An amount as someone types it ("35,000", "$12.10", "-40", ".5") in whole cents, worked out from the digits so no
-  // rounding creeps in, or null when it isn't an amount.
+  // An amount as someone types it ("35,000", "$12.10", "-40", ".5", or "12,50" on a phone set to a region that writes
+  // the decimal point as a comma) in whole cents, worked out from the digits so no rounding creeps in, or null when it
+  // isn't an amount. A comma separates thousands only before exactly three digits ("1,234,567.89"); a lone comma before
+  // one or two digits at the end is the decimal point. Anything else ("12 34", "1.234,56") isn't an amount.
   function parseCents(raw) {
-    const s = String(raw == null ? '' : raw).trim().replace(/^[−–]/, '-').replace(/[\s,$]/g, '');
-    const m = /^(-?)(\d*)(?:\.(\d{0,2}))?$/.exec(s);
+    const s = String(raw == null ? '' : raw).trim().replace(/^[−–]/, '-').replace(/^(-?)\$\s*/, '$1');
+    const m = /^(-?)(\d{1,3}(?:,\d{3})+|\d*)(?:\.(\d{0,2}))?$/.exec(s) || /^(-?)(\d*),(\d{1,2})$/.exec(s);
     if (!m || (!m[2] && !m[3])) return null;
-    const cents = Number(m[2] || 0) * 100 + Number((m[3] || '').padEnd(2, '0'));
+    const cents = Number(m[2].replace(/,/g, '') || 0) * 100 + Number((m[3] || '').padEnd(2, '0'));
     if (!isCents(cents)) return null;
     return m[1] && cents ? -cents : cents;
   }
@@ -6393,10 +6432,18 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
         await runPool(kept.map(key => () => write('bin/' + key, () => binRef(key).delete(), { quiet: true })), 4);
         return;
       }
+      // Each delete waits on all of the group's copies (if one of them, waiting on the phone, is turned down later, none
+      // of it is deleted: see flush). The items go first; the list only once they all have.
+      const copies = members.map(([c, cid]) => 'bin/' + binKey(c, cid));
+      const del = ([c, cid]) => write(c + '/' + cid, () => recRef(c, cid).delete({ after: copies }));
       const [head, ...kids] = members;
-      await runPool(kids.map(([c, cid]) => () => write(c + '/' + cid, () => recRef(c, cid).delete())), 4);
-      await write(head[0] + '/' + head[1], () => recRef(head[0], head[1]).delete());
-      gone.push(...members);
+      const stayed = [];
+      await runPool(kids.map(m => async () => { if (!(await del(m))) stayed.push(m); }), 4);
+      if (!stayed.length && await del(head)) { gone.push(...members); return; }
+      // Part of it couldn't be deleted (and that said so), so the list or goal stays with all of it: what went comes
+      // back from its copy, and what stayed has its copy taken out of Recently deleted again.
+      await restoreEntries(kids.filter(m => !stayed.includes(m)));
+      await runPool([head, ...stayed].map(([c, cid]) => () => write('bin/' + binKey(c, cid), () => binRef(binKey(c, cid)).delete(), { quiet: true })), 4);
     }), 2).then(() => {
       if (notKept) toast(`Couldn’t keep a copy in Recently deleted, so ${notKept === 1 ? 'it wasn’t deleted' : `${notKept} weren’t deleted`}. Clear done tasks or remove photos to make room, then try again.`, null, 'Undo', 8000);
       return gone;
@@ -6406,13 +6453,23 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   }
   // Put records back where they were and take their copies out of Recently deleted. Lists and goals go first; an item or
   // entry whose list or goal couldn't come back stays in Recently deleted. entries: [[coll, id, body], ...].
+  // A record that's already back (put back on another device, or loaded from a file) and newer than the copy is kept as
+  // it is; only its copy goes. (The page may still show a record it has just deleted, so that's asked of the database.)
+  async function keptNewer(coll, id, doc) {
+    const live = S[coll].get(id);
+    if (!isPlain(live) || sameData(live, doc) || finite(live.updatedAt) < finite(doc.updatedAt)) return false;
+    try { const snap = await recRef(coll, id).get(); return !!(snap && snap.exists); } catch (e) { return false; }
+  }
   async function restoreEntries(entries) {
     if (!writable() || !entries.length) return false;
     let ok = true;
-    const one = ([coll, id, doc]) => write(coll + '/' + id, () => recRef(coll, id).set(doc), { create: true }).then(back => {
+    const one = async ([coll, id, doc]) => {
+      const key = binKey(coll, id);
+      if (await keptNewer(coll, id, doc)) return write('bin/' + key, () => binRef(key).delete(), { quiet: true });
+      const back = await write(coll + '/' + id, () => recRef(coll, id).set(doc), { create: true });
       if (!back) { ok = false; return false; }
-      return write('bin/' + binKey(coll, id), () => binRef(binKey(coll, id)).delete(), { quiet: true });
-    });
+      return write('bin/' + key, () => binRef(key).delete({ after: coll + '/' + id }), { quiet: true });
+    };
     await runPool(entries.filter(e => !PARENT[e[0]]).map(e => () => one(e)), 4);
     if (!ok) return false;
     await runPool(entries.filter(e => PARENT[e[0]]).map(e => () => one(e)), 4);
@@ -6433,13 +6490,14 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     }
     return [...keys].map(k => S.bin.get(k)).filter(Boolean).map(x => [x.coll, x.id, x.doc]);
   }
-  // Older than 7 days (or everything, when asked): gone for good, the same as deleted tasks.
+  // Older than 7 days (or everything, when asked): gone for good, the same as deleted tasks (and, the same way, only
+  // while nothing is waiting to go in, never queued, and each looked at again just before it goes).
   let binPurged = false;
   function purgeBin(all = false) {
-    if (!writable() || !S.binLoaded) return;
+    if (!writable() || !S.binLoaded || !nothingWaiting()) return Promise.resolve();
     const cutoff = Date.now() - TRASH_DAYS * 86400000;
-    const old = [...S.bin].filter(([, e]) => all || !(Number(e && e.deletedAt) > cutoff)).map(([k]) => k);
-    runPool(old.map(k => () => write('bin/' + k, () => binRef(k).delete(), { quiet: !all })), 2);
+    const old = [...S.bin].filter(([, e]) => all || !(Number(e && e.deletedAt) > cutoff));
+    return runPool(old.map(([k, e]) => () => (deletedAt(S.bin.get(k)) !== deletedAt(e) ? true : write('bin/' + k, () => binRef(k).delete({ now: true }), { quiet: !all }))), 2);
   }
   // What a record is called in Recently deleted.
   function recordTitle(coll, d) {
@@ -14329,6 +14387,11 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
     const tasks = trashEntries().length;
     const n = trashCount();
     if (!n) return;
+    if (!nothingWaiting()) { // (see purgeTrash)
+      disarmPurge();
+      toast(S.offline ? 'You’re offline. Delete these for good when you’re back online.' : 'Some changes are still saving. Try again in a moment.');
+      return;
+    }
     const what = n === tasks ? plural(n, 'task', 'tasks') : plural(n, 'thing', 'things');
     if (!purgeArmed) {
       purgeArmed = true;
@@ -14400,9 +14463,19 @@ html.focusing .toast { bottom: calc(154px + env(safe-area-inset-bottom, 0px)); }
   });
   $('#shopBack').addEventListener('click', () => closeSub());
   $('#shopMenu').addEventListener('click', () => { if (S.sub && S.sub.kind === 'shop') openShopSheet(S.sub.id); });
+  // A ticked item moves to Done at once, so the second tap of a quick double tap would land on the item that moved up
+  // into its place: a tap that soon after the last is let go. (Space on one item after another isn't held up.)
+  let lastTickTap = 0;
   $('#shopView').addEventListener('click', e => {
     const tick = e.target.closest('[data-shop-tick]');
-    if (tick) { tickShopItem(tick.dataset.shopTick); return; }
+    if (tick) {
+      if (e.detail > 0) {
+        if (Date.now() - lastTickTap < 400) return;
+        lastTickTap = Date.now();
+      }
+      tickShopItem(tick.dataset.shopTick);
+      return;
+    }
     const edit = e.target.closest('[data-shop-edit]');
     if (edit) openItemSheet(edit.dataset.shopEdit);
   });
