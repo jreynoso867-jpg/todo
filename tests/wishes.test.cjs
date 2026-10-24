@@ -336,7 +336,7 @@ test('Delete sends a wish to Recently deleted with Undo, and Restore there bring
   await page.click('#wishDelete');
   await page.waitForTimeout(700);
   assert.ok(await page.isHidden('#wishSheet'));
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Reading lamp”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Reading lamp”. It stays in Recently deleted for 7 days.');
   assert.deepEqual((await cards(page)).map(c => c[0]), ['w_coast']);
   let d = (await dump(page)).docs;
   assert.equal(d['wishes/w_lamp'], undefined, 'gone from the list');
@@ -375,6 +375,58 @@ test('Delete sends a wish to Recently deleted with Undo, and Restore there bring
   await ctx.close();
 });
 
+test('Undo after Got it puts the wish back as it was, the other changes made in the sheet with it', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await openWishes(page);
+  await page.click('[data-wish-open="w_coast"]');
+  await page.waitForSelector('#wishSheet.open');
+  await page.fill('#wishName', 'Trip to the mountains');
+  await page.fill('#wishPrice', '120');
+  await page.fill('#wishNote', 'Changed my mind');
+  await page.click('#wishGotBtn');
+  await page.waitForTimeout(500);
+  let d = (await dump(page)).docs;
+  assert.deepEqual([d['wishes/w_coast'].title, d['wishes/w_coast'].priceCents, d['wishes/w_coast'].got], ['Trip to the mountains', 12000, true], 'saved with Got it');
+  await page.click('#toastUndo');
+  await page.waitForTimeout(600);
+  d = (await dump(page)).docs;
+  assert.deepEqual({ ...d['wishes/w_coast'], updatedAt: 0 }, { ...fx.docs['wishes/w_coast'], updatedAt: 0 }, 'all of it as it was');
+  assert.deepEqual((await cards(page)).map(c => c.slice(0, 4)), [['w_coast', 'Travel', 'Trip to the coast', '$35,000.00'], ['w_lamp', 'Shopping', 'Reading lamp', '']]);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('after Undo (a wish deleted, or moved to Got it), focus goes to the wish that came back', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await openWishes(page);
+  const back = async (id, what) => {
+    await page.focus('#toastUndo');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(id => document.activeElement && document.activeElement.dataset.wishOpen === id, id, { timeout: 3000 })
+      .catch(async () => assert.fail(`${what}: focus went to ${await focused(page) || 'the page'}`));
+  };
+  // Deleted from its sheet, then Undo.
+  await page.focus('[data-wish-open="w_lamp"]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#wishSheet.open');
+  await page.focus('#wishDelete');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(600);
+  await back('w_lamp', 'deleted');
+  // Got it, then Undo: the card is back among the wishes (Got it is folded).
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#wishSheet.open');
+  await page.focus('#wishGotBtn');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(600);
+  assert.ok(await page.isHidden('#wishGotBox'));
+  await back('w_lamp', 'got');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('the Wish list: Back, Escape and another tab close it; N adds a wish there; nothing behind its sheet can be reached', async () => {
   const { ctx, page, errors } = await phone();
   const inert = () => page.evaluate(() => ['#shopBar', '#dock', '#newBtn', '#fab', '#app'].map(s => document.querySelector(s).inert));
@@ -383,7 +435,7 @@ test('the Wish list: Back, Escape and another tab close it; N adds a wish there;
   await page.waitForTimeout(200);
   assert.ok(await page.isHidden('#wishView') && await page.isVisible('#listsHome'), 'Escape: back to the cards');
   assert.equal(await focused(page), 'listsWish', 'focus back on its card');
-  assert.equal(await page.textContent('#newBtn'), 'New list', 'and "+ New" is for a list again');
+  assert.equal(await page.textContent('#newBtn'), 'New shopping list', 'and "+ New" is for a list again');
   await openWishes(page);
   await page.click('#wishBack');
   assert.ok(await page.isHidden('#wishView'), 'Back');

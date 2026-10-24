@@ -338,7 +338,7 @@ test('an entry tapped opens it to change or delete; Delete goes to Recently dele
   await page.click('#moneyDelete');
   await settle(page);
   assert.ok(await page.isHidden('#moneySheet'));
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted -$250.50 from “New car”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted -$250.50 from “New car”. It stays in Recently deleted for 7 days.');
   d = (await dump(page)).docs;
   assert.equal(d['goalEntries/ge_out'], undefined);
   const b = d['bin/goalEntries~ge_out'];
@@ -357,6 +357,34 @@ test('an entry tapped opens it to change or delete; Delete goes to Recently dele
   await ctx.close();
 });
 
+test('after Undo (a goal closed, an entry deleted), focus goes to what came back', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await openGoals(page);
+  const undoTo = async (attr, id, what) => {
+    await page.focus('#toastUndo');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(([attr, id]) => document.activeElement && document.activeElement.getAttribute(attr) === id, [attr, id], { timeout: 3000 })
+      .catch(async () => assert.fail(`${what}: focus went to ${await focused(page) || 'the page'}`));
+  };
+  // Close goal (it moves to Closed), then Undo: back on the open goals, focus on its name.
+  await page.focus('[data-goal-close="g_car"]');
+  await page.keyboard.press('Enter');
+  await settle(page);
+  assert.match(await page.textContent('#toastMsg'), /^Closed “New car”/);
+  await undoTo('data-goal-open', 'g_car', 'closed');
+  // An entry deleted from its sheet, then Undo: focus on the entry.
+  await page.focus('[data-goal-entry="ge_june"]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#moneySheet.open');
+  await page.focus('#moneyDelete');
+  await page.keyboard.press('Enter');
+  await settle(page);
+  await undoTo('data-goal-entry', 'ge_june', 'entry deleted');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('deleting a goal takes its entries along: one row in Recently deleted, and Restore brings the goal and every entry back exactly', async () => {
   const fx = withExtras(smallFixture());
   const { ctx, page, errors } = await phone(fx);
@@ -371,7 +399,7 @@ test('deleting a goal takes its entries along: one row in Recently deleted, and 
   };
   await del();
   assert.ok(await page.isHidden('#goalSheet'));
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “New car”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “New car”. It stays in Recently deleted for 7 days.');
   assert.deepEqual(await cards(page), []);
   let d = (await dump(page)).docs;
   for (const k of ['goals/g_car', ...kids]) {
@@ -472,7 +500,7 @@ test('Savings goals: Back, Escape and another tab close it; N adds a goal there;
   await page.waitForTimeout(200);
   assert.ok(await page.isHidden('#goalView') && await page.isVisible('#listsHome'), 'Escape: back to the cards');
   assert.equal(await focused(page), 'listsGoals', 'focus back on its card');
-  assert.equal(await page.textContent('#newBtn'), 'New list', 'and "+ New" is for a list again');
+  assert.equal(await page.textContent('#newBtn'), 'New shopping list', 'and "+ New" is for a list again');
   await openGoals(page);
   await page.click('#goalBack');
   assert.ok(await page.isHidden('#goalView'), 'Back');

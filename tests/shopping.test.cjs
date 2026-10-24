@@ -46,7 +46,7 @@ test('a new shopping list and its items, made by tapping: the right records are 
   await page.click('#dockLists');
   assert.ok(await page.isVisible('#shopTitle'), 'a Shopping lists heading');
   assert.match(await page.textContent('#shopCardsEmpty'), /^No shopping lists yet/);
-  assert.equal(await page.textContent('#newBtn'), 'New list', '"+ New list" on Lists makes a shopping list');
+  assert.equal(await page.textContent('#newBtn'), 'New shopping list', '"+ New shopping list" on Lists makes a shopping list');
   await page.click('#newBtn');
   await page.waitForSelector('#shopSheet.open');
   assert.equal(await focused(page), 'shopNameInput');
@@ -169,7 +169,7 @@ test('ticking moves an item under Done (still there after a reload); Clear done 
   const before = (await dump(page)).docs;
   await page.click('#shopClear');
   await page.waitForTimeout(600);
-  assert.equal(await page.textContent('#toastMsg'), 'Cleared 2 items');
+  assert.equal(await page.textContent('#toastMsg'), 'Cleared 2 items. They stay in Recently deleted for 7 days.');
   d = (await dump(page)).docs;
   for (const id of ['si_milk', 'si_eggs']) {
     assert.equal(d['shopItems/' + id], undefined, `out of the list: ${id}`);
@@ -320,7 +320,7 @@ test('⋮ renames and recolors a list; Delete sends it with its items to Recentl
   await page.waitForTimeout(700);
   assert.ok(await page.isHidden('#shopView'), 'back on the cards');
   assert.ok(await page.isHidden('#shopBar'));
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Groceries”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Groceries”. It stays in Recently deleted for 7 days.');
   assert.deepEqual((await cards(page)).map(c => c.id), ['sl_hardware']);
   d = (await dump(page)).docs;
   for (const k of ['shopLists/sl_groceries', 'shopItems/si_milk', 'shopItems/si_eggs']) {
@@ -348,7 +348,7 @@ test('⋮ renames and recolors a list; Delete sends it with its items to Recentl
   await page.click('[data-shop-more="sl_hardware"]');
   await page.click('#shopDelete');
   await page.waitForTimeout(600);
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Hardware”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Hardware”. It stays in Recently deleted for 7 days.');
   await page.click('#toastUndo');
   await page.waitForTimeout(600);
   d = (await dump(page)).docs;
@@ -391,14 +391,14 @@ test('tapping an item edits it: its words, its link (web links only), its place 
   assert.equal(await page.getAttribute('#shopRows a', 'href'), 'https://example.com/rye');
   assert.equal(await page.$$eval('a[href^="javascript"], [href*="alert("]', els => els.length), 0, 'no script link anywhere');
 
-  // Up and down (one record changes each time), stopping at the ends.
+  // Up and down (one record changes each time, on Save), stopping at the ends.
   await page.click('[data-shop-edit="si_bread"]');
   await page.waitForSelector('#itemSheet.open');
   assert.equal(await page.isDisabled('#itemUp'), false);
   await page.click('#itemUp');
   await page.waitForTimeout(300);
   assert.equal(await page.isDisabled('#itemUp'), true, 'at the top');
-  await page.keyboard.press('Escape');
+  await page.click('#itemSave');
   await page.waitForTimeout(400);
   assert.deepEqual(await rows(page), ['Rye bread', 'Milk', 'Jam', 'Honey javascript:alert(1)']);
   d = (await dump(page)).docs;
@@ -407,7 +407,7 @@ test('tapping an item edits it: its words, its link (web links only), its place 
   await page.click('[data-shop-edit="si_bread"]');
   for (let i = 0; i < 3; i++) { await page.click('#itemDown'); await page.waitForTimeout(250); }
   assert.equal(await page.isDisabled('#itemDown'), true, 'at the bottom');
-  await page.click('#itemCancel');
+  await page.click('#itemSave');
   await page.waitForTimeout(400);
   assert.deepEqual(await rows(page), ['Milk', 'Jam', 'Honey javascript:alert(1)', 'Rye bread']);
 
@@ -416,7 +416,7 @@ test('tapping an item edits it: its words, its link (web links only), its place 
   await page.click('[data-shop-edit="si_jam"]');
   await page.click('#itemDelete');
   await page.waitForTimeout(600);
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Jam”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Jam”. It stays in Recently deleted for 7 days.');
   assert.deepEqual(await rows(page), ['Milk', 'Honey javascript:alert(1)', 'Rye bread']);
   d = (await dump(page)).docs;
   assert.deepEqual(d['bin/shopItems~si_jam'].doc, before['shopItems/si_jam']);
@@ -425,6 +425,159 @@ test('tapping an item edits it: its words, its link (web links only), its place 
   d = (await dump(page)).docs;
   for (const [k, v] of Object.entries(before)) assert.deepEqual(d[k], v, `back as it was: ${k}`);
   assert.deepEqual(await rows(page), ['Milk', 'Jam', 'Honey javascript:alert(1)', 'Rye bread']);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('in an item\'s sheet a move waits for Save, with its words and link; Cancel or Escape leave it where it was', async () => {
+  const fx = withExtras(smallFixture());
+  fx.docs['shopItems/si_bread'] = item('sl_groceries', 'Bread', 3000);
+  fx.docs['shopItems/si_jam'] = item('sl_groceries', 'Jam', 4000);
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  assert.deepEqual(await rows(page), ['Milk', 'Bread', 'Jam']);
+  const place = () => page.textContent('#itemPlace');
+  // Moved, then Cancel (and then Escape): nothing saved, nothing moved.
+  for (const leave of [() => page.click('#itemCancel'), () => page.keyboard.press('Escape')]) {
+    await page.click('[data-shop-edit="si_jam"]');
+    await page.waitForSelector('#itemSheet.open');
+    assert.equal(await place(), 'Place 3 of 3');
+    await page.click('#itemUp');
+    await page.click('#itemUp');
+    assert.equal(await place(), 'Place 1 of 3', 'where it will go, said in the sheet');
+    assert.equal(await page.isDisabled('#itemUp'), true);
+    await page.waitForTimeout(300);
+    assert.deepEqual((await dump(page)).docs['shopItems/si_jam'], fx.docs['shopItems/si_jam'], 'nothing saved yet');
+    assert.deepEqual(await rows(page), ['Milk', 'Bread', 'Jam'], 'nor moved behind the sheet');
+    await leave();
+    await page.waitForTimeout(400);
+    assert.ok(await page.isHidden('#itemSheet'));
+    assert.deepEqual(await rows(page), ['Milk', 'Bread', 'Jam']);
+    assert.deepEqual((await dump(page)).docs['shopItems/si_jam'], fx.docs['shopItems/si_jam'], 'left as it was');
+    assert.equal(await focused(page), 'shopEdit=si_jam', 'focus back on the item');
+  }
+  // Moved and renamed, then Save: one change, both in it; focus on the item in its new place.
+  await page.focus('[data-shop-edit="si_jam"]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#itemSheet.open');
+  await page.click('#itemUp');
+  await page.fill('#itemText', 'Strawberry jam');
+  await page.click('#itemSave');
+  await page.waitForTimeout(500);
+  assert.deepEqual(await rows(page), ['Milk', 'Strawberry jam', 'Bread']);
+  const d = (await dump(page)).docs;
+  const jam = d['shopItems/si_jam'];
+  assert.equal(jam.text, 'Strawberry jam');
+  assert.ok(jam.rank > d['shopItems/si_milk'].rank && jam.rank < d['shopItems/si_bread'].rank, `between Milk and Bread (${jam.rank})`);
+  for (const k of ['shopItems/si_milk', 'shopItems/si_bread']) assert.deepEqual(d[k], fx.docs[k], `not touched: ${k}`);
+  assert.equal(await focused(page), 'shopEdit=si_jam');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('words typed in the add bar wait for their own list: Escape clears them first (and closes on the next press); Back or another tab keeps them for next time', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  await page.focus('#shopInput');
+  await page.keyboard.type('Butter');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  assert.ok(await page.isVisible('#shopView'), 'the list stays open');
+  assert.equal(await page.inputValue('#shopInput'), '', 'the words are cleared');
+  assert.equal(await focused(page), 'shopInput', 'and the cursor stays in the bar');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  assert.ok(await page.isHidden('#shopView'), 'with nothing typed, Escape closes the list');
+  // Half typed, then another tab: the list closes (as before), and its words are there when it opens again.
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.inputValue('#shopInput'), '', 'what Escape cleared stays cleared');
+  await page.fill('#shopInput', 'Half-typed');
+  await page.click('#dockHome');
+  await page.click('#dockLists');
+  assert.ok(await page.isHidden('#shopView'));
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.inputValue('#shopInput'), 'Half-typed');
+  // Each list has its own; Back keeps them too.
+  await page.click('#shopBack');
+  await openList(page, 'sl_hardware');
+  assert.equal(await page.inputValue('#shopInput'), '', 'not another list\'s words');
+  await page.fill('#shopInput', 'Nails');
+  await page.click('#shopBack');
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.inputValue('#shopInput'), 'Half-typed');
+  // Added, the words are gone for good.
+  await page.press('#shopInput', 'Enter');
+  await page.waitForTimeout(400);
+  await page.click('#shopBack');
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.inputValue('#shopInput'), '');
+  await page.click('#shopBack');
+  await openList(page, 'sl_hardware');
+  assert.equal(await page.inputValue('#shopInput'), 'Nails');
+  // Kept on this phone's screen only, never stored.
+  const d = await dump(page);
+  assert.ok(!Object.values(d.local).some(v => String(v).includes('Nails')), 'nothing kept in storage for it');
+  assert.ok(!Object.values(d.docs).some(v => v && v.text === 'Nails'), 'not saved as an item');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('an item added or ticked is said out loud (a status line), and the add bar comes right after the list in Tab order', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  assert.equal(await page.getAttribute('#shopStatus', 'role'), 'status');
+  assert.ok(await page.$eval('#shopStatus', e => e.classList.contains('sr-only')), 'for screen readers only');
+  const said = () => page.waitForFunction(() => document.querySelector('#shopStatus').textContent, null, { timeout: 2000 }).then(h => h.jsonValue());
+  await page.fill('#shopInput', 'Butter');
+  await page.press('#shopInput', 'Enter');
+  assert.equal(await said(), 'Added Butter');
+  await page.focus('[data-shop-tick="si_milk"]');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  assert.equal(await said(), 'Milk moved to Done');
+  await page.click('#shopDoneToggle');
+  await page.click('[data-shop-tick="si_milk"]');
+  await page.waitForTimeout(300);
+  assert.equal(await said(), 'Milk is back on the list');
+  // From the last thing in the list (Clear done), Tab goes to the add bar, then on to the tab bar.
+  await page.click('#shopDoneToggle'); // folded again
+  await page.focus('#shopClear');
+  const order = [];
+  for (let i = 0; i < 3; i++) { await page.keyboard.press('Tab'); order.push(await page.evaluate(() => document.activeElement.id)); }
+  assert.deepEqual(order, ['shopInput', 'shopAdd', 'dockHome']);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('after Undo, focus goes to the item that came back; after Clear done, to the add bar', async () => {
+  const fx = withExtras(smallFixture());
+  fx.docs['shopItems/si_bread'] = item('sl_groceries', 'Bread', 3000);
+  const { ctx, page, errors } = await phone(fx);
+  await openList(page, 'sl_groceries');
+  await page.focus('[data-shop-edit="si_milk"]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#itemSheet.open');
+  await page.focus('#itemDelete');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Milk”. It stays in Recently deleted for 7 days.');
+  await page.focus('#toastUndo');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.activeElement && document.activeElement.dataset.shopEdit === 'si_milk', null, { timeout: 3000 })
+    .catch(async () => assert.fail(`focus went to ${await focused(page) || 'the page'}`));
+  // Clear done, by keyboard: the button goes with what it cleared, so focus goes on to the add bar.
+  await page.focus('#shopClear');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  assert.match(await page.textContent('#toastMsg'), /^Cleared 1 item/);
+  assert.equal(await focused(page), 'shopInput');
+  await page.focus('#toastUndo');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(600);
+  assert.equal(await focused(page), 'shopInput', 'and stays there after Undo');
+  assert.equal(await page.textContent('#shopDoneN'), '1', 'what was cleared is back');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

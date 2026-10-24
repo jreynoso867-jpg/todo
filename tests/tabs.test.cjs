@@ -202,7 +202,7 @@ test('the tab bar and "+ New" can\'t be reached behind a sheet', async () => {
   // Lists has its own "+ New": a new shopping list (the task lists keep their Edit lists button).
   await page.click('#dockLists');
   assert.ok(await page.isHidden('#fab'));
-  assert.equal(await page.textContent('#newBtn'), 'New list');
+  assert.equal(await page.textContent('#newBtn'), 'New shopping list');
   await page.click('#newBtn');
   await page.waitForSelector('#shopSheet.open');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'shopNameInput');
@@ -258,7 +258,9 @@ test('the tab bar\'s words and "+ New" read clearly in every look, mode and acce
   await ctx.close();
 });
 
-test('no sideways scrolling on any tab at 320 points with Extra large text (Classic, Midnight, Blush)', async () => {
+test('no sideways scrolling on any tab (and the week planner) at 320 points with Extra large text (Classic, Midnight, Blush)', async () => {
+  // The week to plan, on Calendar: its rows hold a task's words, its time and its list on one line.
+  const SCREENS = [...TABS.map(([name, btn]) => [name, [btn]]), ['the week planner', ['#dockWeek', '[data-cal-mode="week"]']]];
   for (const look of ['classic', 'midnight', 'blush']) {
     const fx = smallFixture();
     fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
@@ -266,12 +268,14 @@ test('no sideways scrolling on any tab at 320 points with Extra large text (Clas
     const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
     assert.equal(await page.evaluate(() => document.documentElement.dataset.look || 'classic'), look);
     assert.equal(await page.evaluate(() => document.documentElement.dataset.text), 'xl');
-    for (const [name, btn] of TABS) {
-      await page.click(btn);
-      await page.waitForTimeout(250);
+    for (const [name, taps] of SCREENS) {
+      for (const sel of taps) { await page.click(sel); await page.waitForTimeout(250); }
       const r = await page.evaluate(() => {
-        const vw = window.innerWidth;
+        // On a phone the page's own width grows to fit something too wide (and scrollWidth with it), so the screen's
+        // width is what's measured against: 320.
+        const vw = document.documentElement.clientWidth;
         const out = [];
+        if (window.innerWidth > vw) out.push(`the page is ${window.innerWidth - vw}px wider than the screen`);
         const over = document.scrollingElement.scrollWidth - vw;
         if (over > 0) out.push(`page ${over}px too wide`);
         // The tab bar and "+ New" are fixed, so they'd be cut off rather than scroll: check them one by one.
@@ -286,6 +290,66 @@ test('no sideways scrolling on any tab at 320 points with Extra large text (Clas
         return out;
       });
       assert.deepEqual(r, [], `${look}, ${name}`);
+    }
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+});
+
+// What floats over the page at the bottom: the tab bar, "+ New" and a shopping list's add bar.
+const FLOATING = ['#dock', '#fab', '#newBtn', '#shopBar'];
+test('tabbing through every tab and view, no control that takes focus is hidden behind the tab bar, "+ New" or the add bar (390, and 320 with Extra large text)', async () => {
+  const { withExtras } = require('./lib.cjs');
+  const fx = withExtras(smallFixture());
+  // Long enough on every screen to scroll under what floats: a long shopping list, more wishes, goals and dates.
+  for (let i = 0; i < 24; i++) {
+    fx.docs['shopItems/si_n' + i] = { list: 'sl_groceries', text: 'Item number ' + i, link: null, done: false, doneAt: null, rank: 5000 + i * 10, createdAt: 1700000000000 + i, updatedAt: 1700000000000 + i };
+  }
+  for (let i = 0; i < 8; i++) {
+    fx.docs['wishes/w_n' + i] = { title: 'Wish number ' + i, category: 'other', priceCents: 1000 * i, link: null, hearted: false, got: false, gotAt: null, note: '', rank: 9000 + i, createdAt: 1700000000000 + i, updatedAt: 1700000000000 + i };
+    fx.docs['goals/g_n' + i] = { name: 'Goal number ' + i, targetCents: 100000, due: null, closedAt: null, order: 10 + i, createdAt: 1700000000000 + i, updatedAt: 1700000000000 + i };
+  }
+  const SCREENS = [
+    ['Home', ['#dockHome']], ['Tasks', ['#dockToday']], ['Lists', ['#dockLists']],
+    ['a shopping list', ['#dockLists', '[data-shop-open="sl_groceries"]']], ['the Wish list', ['#dockLists', '#listsWish']],
+    ['Savings goals', ['#dockLists', '#listsGoals']], ['Calendar', ['#dockWeek', '[data-cal-mode="month"]']], ['the week planner', ['#dockWeek', '[data-cal-mode="week"]']],
+  ];
+  for (const [viewport, textSize] of [[{ width: 390, height: 844 }, 'default'], [{ width: 320, height: 640 }, 'xl']]) {
+    const f = { ...fx, docs: { ...fx.docs, 'settings/view': { ...fx.docs['settings/view'], textSize }, 'settings/theme': { look: 'blush', appearance: 'light', accent: '' } } };
+    const { ctx, page, errors } = await phone(f, { viewport, tab: 'home' });
+    const size = `${viewport.width}${textSize === 'xl' ? ' XL' : ''}`;
+    for (const [name, taps] of SCREENS) {
+      await page.evaluate(() => { for (const s of ['#shopBack', '#wishBack', '#goalBack']) { const b = document.querySelector(s); if (b && b.offsetParent) b.click(); } });
+      for (const sel of taps) { await page.click(sel); await page.waitForTimeout(250); }
+      await page.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
+      const hidden = [];
+      const seen = new Set();
+      for (let i = 0; i < 220; i++) {
+        await page.keyboard.press('Tab');
+        const r = await page.evaluate(floating => {
+          const a = document.activeElement;
+          if (!a || a === document.body) return null;
+          const er = a.getBoundingClientRect();
+          const key = (a.id || a.getAttribute('aria-label') || a.textContent.trim().slice(0, 40)) + '@' + Math.round(er.top + window.scrollY);
+          if (a.closest(floating.join(','))) return { key, skip: true }; // what floats can't be behind itself
+          const out = [];
+          for (const s of floating) {
+            const o = document.querySelector(s);
+            if (!o || o.hidden || !o.offsetWidth) continue;
+            const b = o.getBoundingClientRect();
+            const w = Math.max(0, Math.min(er.right, b.right) - Math.max(er.left, b.left)), h = Math.max(0, Math.min(er.bottom, b.bottom) - Math.max(er.top, b.top));
+            const part = (w * h) / Math.max(1, er.width * er.height);
+            if (part > 0.5) out.push(`${s} hides ${Math.round(part * 100)}%`);
+          }
+          return { key, label: (a.getAttribute('aria-label') || a.textContent || a.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 50), out };
+        }, FLOATING);
+        if (!r) continue;
+        if (seen.has(r.key)) break; // once round
+        seen.add(r.key);
+        if (!r.skip && r.out.length) hidden.push(`"${r.label}": ${r.out.join(', ')}`);
+      }
+      assert.ok(seen.size > 8, `${size}, ${name}: tabbed through (${seen.size})`);
+      assert.deepEqual(hidden, [], `${size}, ${name}`);
     }
     assert.deepEqual(errors, []);
     await ctx.close();
@@ -341,6 +405,30 @@ test('Home: the day, a greeting, and the three most urgent tasks with a circle t
   assert.deepEqual(await shownPanels(page), ['paneTasks']);
   assert.deepEqual(errors, []);
   await ctx.close();
+});
+
+test('Home: with large text on a small iPhone, a task due shows its words on up to two lines, its day under them', async () => {
+  for (const look of ['classic', 'blush']) {
+    const fx = smallFixture();
+    fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
+    fx.docs['settings/theme'] = { look, appearance: 'light', accent: '' };
+    const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
+    const rows = await page.$$eval('#homeDueRows .home-row', els => els.map(e => {
+      const t = e.querySelector('.hr-title'), w = e.querySelector('.hr-when');
+      const tb = t.getBoundingClientRect(), wb = w.getBoundingClientRect();
+      const line = parseFloat(getComputedStyle(t).lineHeight) || parseFloat(getComputedStyle(t).fontSize) * 1.25;
+      return { title: t.textContent, cut: t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1, lines: Math.round(tb.height / line), under: wb.top >= tb.bottom - 1 };
+    }));
+    assert.equal(rows.length, 3);
+    for (const r of rows) {
+      assert.ok(!r.cut, `${look}: "${r.title}" shows in full`);
+      assert.ok(r.lines <= 2, `${look}: "${r.title}" on ${r.lines} lines`);
+      assert.ok(r.under, `${look}: the day of "${r.title}" goes under its words`);
+    }
+    assert.ok(rows.some(r => r.lines === 2), `${look}: a long one takes its second line (${rows.map(r => r.lines)})`);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
 });
 
 test('Tasks: the list picker is the title, and a summary of what\'s open and done this week', async () => {
@@ -444,6 +532,88 @@ test('Calendar: it opens on the month, Week is kept only when picked there, a da
   assert.deepEqual(await shownPanels(page), ['paneCalendar']);
   assert.ok(await page.isVisible('#monthGrid'));
   assert.equal(await page.getAttribute('[data-cal-mode="month"]', 'aria-pressed'), 'true');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('a day picked on the Calendar (in the month or the week to plan) takes focus to that day in Tasks; today, to the list', async () => {
+  const fx = smallFixture();
+  const T = fx.today;
+  const { ctx, page, errors } = await phone(fx, { tab: 'calendar' });
+  const where = () => page.evaluate(() => { const a = document.activeElement; return a === document.body ? 'body' : a.id || a.className; });
+  const day = addDays(T, 1);
+  // By keyboard: the day's button, then Enter.
+  await page.focus(`#monthGrid [data-day="${day}"]`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  assert.deepEqual(await shownPanels(page), ['paneTasks']);
+  assert.ok(await page.isVisible('#dayBar'));
+  assert.equal(await where(), 'dayTitle', 'focus on the day\'s heading, not lost on the page');
+  assert.equal(await page.getAttribute('#dayTitle', 'tabindex'), '-1');
+  // Today is simply the whole list: focus on its title.
+  await page.click('#dockWeek');
+  await page.focus(`#monthGrid [data-day="${T}"]`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  assert.ok(await page.isHidden('#dayBar'));
+  assert.equal(await where(), 'tasksTitle');
+  // From the week to plan: a day's heading opens that day the same way.
+  await page.click('#dockWeek');
+  await page.click('[data-cal-mode="week"]');
+  await page.focus(`[data-wk-open="${day}"]`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  assert.deepEqual(await shownPanels(page), ['paneTasks']);
+  assert.equal(await where(), 'dayTitle');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('"+ New" says what it makes: a new event on a day from the Calendar, a new shopping list on Lists', async () => {
+  const fx = smallFixture();
+  const T = fx.today;
+  const { ctx, page, errors } = await phone(fx, { tab: 'calendar' });
+  // As the app writes a day: Today, Tomorrow, else "Wed, Oct 21" (with the year when it isn't this one).
+  const label = day => page.evaluate(([day, T]) => {
+    const [y, m, d] = day.split('-').map(Number);
+    const at = new Date(y, m - 1, d);
+    return at.toLocaleDateString('en-US', y === Number(T.slice(0, 4)) ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [day, T]);
+  assert.equal(await page.textContent('#newBtn'), 'New event');
+  await page.click('#newBtn');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.textContent('#sheetTitle'), 'New event · Today');
+  assert.equal(await page.textContent('#sheetSubmit'), 'Add event');
+  // The day changed in the sheet: the title follows.
+  const later = addDays(T, 5);
+  await page.fill('#taskDate', later);
+  await page.dispatchEvent('#taskDate', 'change');
+  assert.equal(await page.textContent('#sheetTitle'), `New event · ${await label(later)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  if (await page.isVisible('#taskSheet')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); } // (a changed sheet asks first)
+  // A day picked: "+ New event" back on the Calendar is for it.
+  await page.click(`#monthGrid [data-day="${addDays(T, 1)}"]`);
+  await page.click('#dockWeek');
+  await page.click('#newBtn');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.textContent('#sheetTitle'), 'New event · Tomorrow');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  // Elsewhere it's a new task, as before.
+  await page.click('#dockToday');
+  await page.click('#fab');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.textContent('#sheetTitle'), 'New task');
+  assert.equal(await page.textContent('#sheetSubmit'), 'Add task');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  // Lists: "+ New" makes a shopping list (the task lists have Edit lists), and says so.
+  await page.click('#dockLists');
+  assert.equal(await page.textContent('#newBtn'), 'New shopping list');
+  await page.click('#newBtn');
+  await page.waitForSelector('#shopSheet.open');
+  assert.equal(await page.textContent('#shopSheetTitle'), 'New shopping list');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

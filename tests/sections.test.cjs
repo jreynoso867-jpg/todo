@@ -121,6 +121,60 @@ test('Recently deleted shows the new kinds by name and kind, and Restore brings 
   await ctx.close();
 });
 
+test('Recently deleted is one tap from Lists and from Settings, and each delete of the new kinds says it waits there', async () => {
+  const fx = withExtras(smallFixture());
+  const { ctx, page, errors } = await phone(fx);
+  await page.click('#dockLists');
+  // At the foot of Lists: how many wait there, one tap away.
+  assert.ok(await page.isVisible('#listsTrash'), 'on the Lists tab');
+  assert.equal(await page.textContent('#listsTrash'), 'Recently deleted · 5');
+  await page.click('#listsTrash');
+  await page.waitForSelector('#trashSheet.open');
+  assert.equal((await trashRows(page)).length, 5);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'listsTrash', 'focus back where it was');
+  // In Settings too: it closes Settings and opens Recently deleted.
+  await page.click('#colorsBtn');
+  await page.waitForSelector('#colorsSheet.open');
+  assert.equal(await page.textContent('#setTrash'), 'Recently deleted · 5');
+  await page.click('#setTrash');
+  await page.waitForSelector('#trashSheet.open');
+  await page.waitForTimeout(400);
+  assert.ok(await page.isHidden('#colorsSheet'), 'Settings closes');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'colorsBtn');
+  // A delete of the new kinds says where it went, as a task's delete does.
+  await page.click('#listsWish');
+  await page.click('[data-wish-open="w_lamp"]');
+  await page.click('#wishDelete');
+  await page.waitForTimeout(500);
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Reading lamp”. It stays in Recently deleted for 7 days.');
+  await page.click('#wishBack');
+  assert.equal(await page.textContent('#listsTrash'), 'Recently deleted · 6');
+  await page.click('[data-shop-open="sl_groceries"]');
+  await page.click('[data-shop-tick="si_milk"]');
+  await page.waitForTimeout(400);
+  await page.click('#shopClear');
+  await page.waitForTimeout(500);
+  assert.equal(await page.textContent('#toastMsg'), 'Cleared 2 items. They stay in Recently deleted for 7 days.');
+  // With nothing in it, neither shows.
+  await page.click('#shopBack');
+  await page.click('#listsTrash');
+  await page.waitForSelector('#trashSheet.open');
+  await page.click('#trashPurge');
+  await page.click('#trashPurge');
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  assert.ok(await page.isHidden('#listsTrash'), 'nothing waiting: no link');
+  await page.click('#colorsBtn');
+  assert.ok(await page.isHidden('#setTrash'));
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('in Recently deleted the new kinds go after 7 days, like tasks, and Delete all now clears both', async () => {
   const fx = withExtras(smallFixture());
   const old = Date.now() - 8 * 864e5;
@@ -552,7 +606,7 @@ test('deleting a shopping list or a goal: every copy into Recently deleted first
   assert.deepEqual(binned, { coll: 'shopItems', id: 'si_eggs', doc: x.docs['shopItems/si_eggs'], group: 'shopLists~sl_groceries', deletedAt: binned.deletedAt });
   assert.equal(store.get('bin/goalEntries~ge_out').group, 'goals~g_car');
   assert.equal(gone.length, 7, 'the list, its 2 items, the goal and its 3 entries');
-  assert.equal(toasts[0].msg, 'Deleted');
+  assert.equal(toasts[0].msg, 'Deleted. They stay in Recently deleted for 7 days.', 'it says where they went');
   assert.equal(typeof toasts[0].undo, 'function');
 
   // Recently deleted brings a whole group back, the list before its items; Undo does the same.

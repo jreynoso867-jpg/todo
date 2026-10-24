@@ -2,7 +2,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { serve, smallFixture, launch, phoneContext, seed, dump, addDays } = require('./lib.cjs');
 
 const APP = path.resolve(process.env.NEW_DIR || path.join(__dirname, '..'));
@@ -437,4 +440,208 @@ test('the passcode keypad says how many digits are in, and a lockout is announce
   assert.match(lock.said, /Try again in about a minute|Try again in \d+ minutes/);
   assert.deepEqual(errors, []);
   await ctx.close();
+});
+
+// In the page: the contrast of an element's words (or of a color given) with what's really under them. See-through fills
+// (the element's own, its card's glass) are laid over the first solid fill under them; under them all, the look's page,
+// at its lightest and at its deepest (--page and --page-tint: Blush's page is a gradient). The lowest of those. Colors
+// are read by painting them, so any way the browser writes one (rgba, color(srgb …), a color-mix) is measured.
+const SEEN = `(() => {
+  const cx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+  const rgba = c => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const over = (top, under) => top.slice(0, 3).map((v, i) => v * top[3] + under[i] * (1 - top[3]));
+  const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const seen = (el, color) => {
+    const root = getComputedStyle(document.documentElement);
+    const layers = [];
+    let base = null;
+    for (let e = el; e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
+      const c = rgba(getComputedStyle(e).backgroundColor);
+      if (c[3] === 0) continue;
+      if (c[3] >= 0.999) { base = [c.slice(0, 3)]; break; }
+      layers.push(c);
+    }
+    if (!base) base = [rgba(root.getPropertyValue('--page')).slice(0, 3), rgba(root.getPropertyValue('--page-tint')).slice(0, 3)];
+    const fg = rgba(color || getComputedStyle(el).color);
+    return Math.min(...base.map(b => { const ground = layers.reduceRight((g, l) => over(l, g), b); return ratio(over(fg, ground), ground); }));
+  };
+  seen.rgba = rgba;
+  return seen;
+})()`;
+// A phone on a fixed day and time (Friday, Oct 16 2026, 10:00), in a look, opened on a tab.
+async function lookPhone(look, mode, tab, o = {}) {
+  const fx = smallFixture('2026-10-16');
+  fx.docs['settings/theme'] = { look, appearance: mode, accent: '' };
+  fx.local['todo.tab'] = tab;
+  const ctx = await phoneContext(browser, { colorScheme: mode });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.clock.install({ time: new Date(2026, 9, 16, o.hour || 10, 0) });
+  await seed(page, (o.srv || srv).url, fx);
+  await page.goto((o.srv || srv).url + '/index.html');
+  await page.waitForSelector('#dock:not([hidden])', { timeout: 20000 });
+  // Colors are read the moment they're set (a look switched, a list color tried): no fading from one to the next.
+  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
+  await page.waitForTimeout(500);
+  return { ctx, page, errors };
+}
+
+test('the red "late" words read clearly where they show: Classic light (Home, Lists, the Calendar) and Blush dark\'s late countdown; other looks keep their red', async () => {
+  const red = page => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--red').trim());
+  const check = async (page, sels) => page.evaluate(([src, sels]) => {
+    const seen = eval(src);
+    return sels.map(s => { const el = document.querySelector(s); return el && el.offsetParent ? [s, Math.round(seen(el) * 100) / 100, getComputedStyle(el).color] : [s, 'missing']; });
+  }, [SEEN, sels]);
+  // Classic, light: the new late labels.
+  let { ctx, page, errors } = await lookPhone('classic', 'light', 'home');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.look || 'classic'), 'classic');
+  const got = [...await check(page, ['#homeDueRows .hr-when.late'])];
+  await page.click('#dockLists');
+  got.push(...await check(page, ['#listsPoSub.late']));
+  await page.click('#dockWeek');
+  got.push(...await check(page, ['#monthAll .ma-side.late']));
+  for (const [s, c] of got) assert.ok(c >= 4.5, `Classic light: ${s} ${c}`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+  // Blush, dark: a late countdown on a task's row.
+  ({ ctx, page, errors } = await lookPhone('blush', 'dark', 'tasks'));
+  const [[, c]] = await check(page, ['#board .cd.late']);
+  assert.ok(c >= 4.5, `Blush dark: the late countdown ${c}`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+  // Elsewhere these stay the look's own red.
+  for (const [look, mode, tab, sels] of [['blush', 'light', 'tasks', ['#board .cd.late']], ['midnight', 'dark', 'home', ['#homeDueRows .hr-when.late']], ['classic', 'dark', 'home', ['#homeDueRows .hr-when.late']]]) {
+    ({ ctx, page, errors } = await lookPhone(look, mode, tab));
+    const want = await page.evaluate(([src, r]) => eval(src).rgba(r).join(), [SEEN, await red(page)]);
+    for (const [s, , color] of await check(page, sels)) assert.equal(await page.evaluate(([src, c]) => eval(src).rgba(c).join(), [SEEN, color]), want, `${look} ${mode}: ${s} in --red`);
+    await ctx.close();
+  }
+});
+
+test('Blush light: the list names on task rows read clearly on the see-through cards', async () => {
+  const { ctx, page, errors } = await lookPhone('blush', 'light', 'tasks');
+  const bad = await page.evaluate(src => {
+    const seen = eval(src);
+    const out = [];
+    const rows = [...document.querySelectorAll('#board .task-meta .list-name')].filter(e => e.offsetParent);
+    // Every list color, on the first row with a list name.
+    const li = rows[0].closest('.task');
+    for (let n = 1; n <= 10; n++) {
+      for (let i = 0; i <= 10; i++) li.classList.toggle('c' + i, i === n);
+      const c = seen(rows[0]);
+      if (!(c >= 4.5)) out.push(`list color ${n}: ${c.toFixed(2)}`);
+    }
+    return out;
+  }, SEEN);
+  assert.deepEqual(bad, []);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('Blush: the kickoff card has a thin raspberry edge, not a heavy black one; other looks keep theirs', async () => {
+  const edge = page => page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('#brief'), '::before');
+    const root = getComputedStyle(document.documentElement);
+    return { width: cs.width, color: cs.backgroundColor, image: cs.backgroundImage, pop: root.getPropertyValue('--pop').trim() };
+  });
+  for (const mode of ['light', 'dark']) {
+    const { ctx, page, errors } = await lookPhone('blush', mode, 'home');
+    assert.ok(await page.isVisible('#brief'));
+    const e = await edge(page);
+    assert.equal(e.width, '4px', mode);
+    assert.equal(e.image, 'none', `${mode}: no gradient`);
+    assert.equal(await page.evaluate(([src, a, b]) => eval(src).rgba(a).join() === eval(src).rgba(b).join(), [SEEN, e.color, e.pop]), true, `${mode}: raspberry (${e.color} vs ${e.pop})`);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+  for (const [look, mode] of [['classic', 'light'], ['midnight', 'dark']]) {
+    const { ctx, page } = await lookPhone(look, mode, 'home');
+    const e = await edge(page);
+    assert.equal(e.width, '5px', look);
+    assert.match(e.image, /gradient/, `${look}: the look's gradient, as before`);
+    await ctx.close();
+  }
+});
+
+// The version before these fixes: Up next in every other look must come out exactly as it did there.
+const PRE_UX_REF = process.env.PRE_UX_REF || 'a5f07f6';
+test('Up next in Blush: a soft card in its list\'s tone, everything on it clear for list colors 1-10 in light and dark; other looks\' Up next unchanged', async () => {
+  for (const mode of ['light', 'dark']) {
+    const { ctx, page, errors } = await lookPhone('blush', mode, 'tasks');
+    const out = await page.evaluate(src => {
+      const seen = eval(src);
+      const hero = document.querySelector('#hero');
+      const root = getComputedStyle(document.documentElement);
+      const bad = [];
+      const looks = [];
+      for (let n = 1; n <= 10; n++) {
+        for (let i = 0; i <= 10; i++) hero.classList.toggle('c' + i, i === n);
+        const cs = getComputedStyle(hero);
+        looks.push([n, seen.rgba(cs.color).join() === seen.rgba(root.getPropertyValue('--head')).join(), seen.rgba(cs.backgroundColor)[3] < 1,
+          seen.rgba(getComputedStyle(document.querySelector('#heroDone')).backgroundColor).join() === seen.rgba(root.getPropertyValue('--accent')).join()]);
+        // Every word showing on the card, on what's under it (its own pill, the card, the page).
+        const walker = document.createTreeWalker(hero, NodeFilter.SHOW_TEXT);
+        for (let t; (t = walker.nextNode());) {
+          const el = t.parentElement;
+          if (!t.textContent.trim() || !el.offsetParent || el.closest('[hidden], svg')) continue;
+          const c = seen(el);
+          if (!(c >= 4.5)) bad.push(`color ${n}: "${t.textContent.trim().slice(0, 30)}" ${c.toFixed(2)}`);
+        }
+        // The list's dot before "Up next": a mark, 3:1.
+        const dot = getComputedStyle(document.querySelector('#heroKicker'), '::before');
+        if (dot.content === 'none' || dot.content === 'normal') bad.push(`color ${n}: no list dot`);
+        else { const c = seen(document.querySelector('#heroKicker'), dot.backgroundColor); if (!(c >= 3)) bad.push(`color ${n}: the dot ${c.toFixed(2)}`); }
+      }
+      return { bad, looks };
+    }, SEEN);
+    assert.deepEqual(out.bad, [], mode);
+    for (const [n, ink, glass, done] of out.looks) {
+      assert.ok(ink, `${mode} color ${n}: its words in the heading ink`);
+      assert.ok(glass, `${mode} color ${n}: a see-through card, like the others`);
+      assert.ok(done, `${mode} color ${n}: Mark done in the look's own pill`);
+    }
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+  // Every other look, mode and list color: Up next as it was before.
+  const take = async where => {
+    const { ctx, page } = await lookPhone('classic', 'light', 'tasks', { srv: where });
+    const snap = await page.evaluate(async () => {
+      const T = window.todoTheme;
+      const hero = document.querySelector('#hero');
+      const out = {};
+      const parts = { '': hero, kicker: '#heroKicker', title: '#heroTitle', when: '#heroWhen', list: '#heroList', cd: '#heroCd', done: '#heroDone', focus: '#heroFocus' };
+      for (const t of T.themes.filter(x => x.id !== 'blush')) {
+        for (const mode of t.modes) {
+          T.set({ look: t.id, appearance: mode, accent: '' });
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          for (let n = 0; n <= 10; n++) {
+            for (let i = 0; i <= 10; i++) hero.classList.toggle('c' + i, i === n);
+            for (const [k, sel] of Object.entries(parts)) {
+              const e = typeof sel === 'string' ? document.querySelector(sel) : sel;
+              const cs = getComputedStyle(e), b = getComputedStyle(e, '::before');
+              out[`${t.id}/${mode}/c${n}/${k}`] = [cs.color, cs.backgroundColor, cs.backgroundImage, cs.borderTopColor, cs.borderTopWidth, cs.boxShadow, cs.display, cs.fontFamily, b.content, b.backgroundColor].join(' | ');
+            }
+          }
+        }
+      }
+      return out;
+    });
+    await ctx.close();
+    return snap;
+  };
+  const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-pre-ux-'));
+  execFileSync('tar', ['-x', '-C', oldDir], { input: execFileSync('git', ['-C', path.resolve(__dirname, '..'), 'archive', PRE_UX_REF], { maxBuffer: 1 << 28 }) });
+  const old = await serve(oldDir);
+  try {
+    const before = await take(old);
+    const now = await take(srv);
+    assert.ok(Object.keys(before).length > 1000, 'every look, mode and color looked at');
+    for (const [k, v] of Object.entries(before)) assert.equal(now[k], v, `unchanged: ${k}`);
+  } finally {
+    await old.close();
+    fs.rmSync(oldDir, { recursive: true, force: true });
+  }
 });

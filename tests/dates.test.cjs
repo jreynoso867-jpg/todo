@@ -348,7 +348,7 @@ test('a date made, changed and deleted by tapping: saved as its record, Every ye
   await page.click('#dateDelete');
   await settle(page);
   assert.ok(await page.isHidden('#dateSheet'));
-  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Alex turns 36”');
+  assert.equal(await page.textContent('#toastMsg'), 'Deleted “Alex turns 36”. It stays in Recently deleted for 7 days.');
   d = (await dump(page)).docs;
   assert.equal(d[key], undefined);
   const b = d['bin/dates~' + id];

@@ -547,6 +547,11 @@ test('every theme reads clearly (WCAG contrast)', async () => {
             check('--pop', g, 3, 'heart/progress on ' + g);
           }
           check('--pop', '--wash', 3, 'heart/progress on a beige chip');
+          // On a see-through card (Blush), a list's color is also words (a list's name on a task's row): it reads on the
+          // solid card and on the page at its deepest.
+          if (k['--card-solid'] && k['--card-solid'] !== k['--card']) {
+            for (let i = 1; i <= 10; i++) for (const g of ['--card-solid', '--page-tint', '--page']) check('--tone-' + i, g, 4.5, `list color ${i} as words on ${g}`);
+          }
         }
       }
     }

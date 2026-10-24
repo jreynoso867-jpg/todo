@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ItnUKUDmIz6BeDmU2inJcJy3UcZp0IxiaUnWgpoK4dk=' 'sha256-GLT+3hM+h5XBIKbsYCKLhRfctTpwlcjzjThO4U5GlkQ=' 'sha256-aBYZCPFBxZ8VD8vIvsx9gSPYSBay9DWnatMdTd/rpyk=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/YKVp3qf7kY3MjhOrcQvU+xYUU/zx0OdZBqTS4oN+Yw=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-llRJtlYQBdICTGAxZXFbLtNsbUiCVN7LXy31zu5a2cY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.6bbaf653'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.3ea64420'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1999,7 +1999,7 @@ button.wk-head { cursor: pointer; }
 .wk-head .wk-sub { font-size: calc(14px * var(--ts)); font-weight: 600; color: var(--soft); }
 .wk-day.is-past .wk-head, .wk-day.is-past .wk-head .wk-sub { color: var(--soft); }
 .wk-day.is-late .wk-head { color: var(--red); }
-.wk-list { list-style: none; margin: 0; padding: 4px; display: grid; gap: 4px; min-height: 48px; border-radius: 14px; background: var(--wash); transition: box-shadow .15s ease; }
+.wk-list { list-style: none; margin: 0; padding: 4px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 48px; border-radius: 14px; background: var(--wash); transition: box-shadow .15s ease; }
 .wk-day.is-target .wk-list { box-shadow: inset 0 0 0 2.5px var(--head); }
 .wk-task {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 11px;
@@ -2055,6 +2055,7 @@ button.wk-head { cursor: pointer; }
 /* moving the list: one file out, one file in */
 .move-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .move-row .btn-small { height: 42px; }
+.move-row .item-place { flex-basis: 100%; margin: 0; }
 .move-status { margin-top: 10px; }
 .move-status.is-error, .gcal-status.is-error { color: var(--red); font-weight: 600; }
 /* the phone app's first run */
@@ -2317,6 +2318,11 @@ html.selecting .task.is-selected .task-inner { background: var(--accent-soft); b
 .task.swiping, .task.settling, .task.snooze-open { content-visibility: visible; }
 
 /* ---------- the floating tab bar, and "+ New" above it ---------- */
+/* A control that takes focus (by Tab, or VoiceOver) is scrolled clear of what floats at the bottom: the tab bar and
+   "+ New" reach 142px up, and a shopping list's add bar as far; the page's own end has room to scroll clear of them. */
+html { scroll-padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
+html.has-bar { scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+.app { padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px)); }
 .dock {
   left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: 540px; margin-inline: auto;
   padding: 0 4px; border: 1px solid var(--card-line); border-radius: 28px; background: var(--raise);
@@ -2476,6 +2482,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   color: var(--head); overflow-wrap: anywhere;
 }
 .pane-title:focus { outline: none; } /* focus lands here when a tab opens, for screen readers; it isn't something to press */
+#dayTitle:focus { outline: none; } /* (the same, for a day picked on the Calendar) */
 .pane-sub { margin: 6px 0 0; font-size: calc(15.5px * var(--ts)); color: var(--soft); }
 .pane-h2 { margin: 30px 0 10px; font-size: calc(19px * var(--tsb)); font-weight: 800; font-stretch: 85%; color: var(--head); }
 .card-empty { margin: 8px 0 4px; font-size: calc(15px * var(--ts)); line-height: 1.4; color: var(--soft); }
@@ -2500,8 +2507,14 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0;
   border: 0; background: none; color: inherit; text-align: left;
 }
-.hr-title { flex: 1; min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A task's words get two lines before they're cut short; with large text its day goes under them, so they have the row. */
+.hr-title {
+  flex: 1; min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 500; line-height: 1.3; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
 .hr-when { flex: none; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); white-space: nowrap; }
+:root:is([data-text="large"], [data-text="xl"]) .hr-body { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 0; }
+:root:is([data-text="large"], [data-text="xl"]) .hr-title { flex: none; max-width: 100%; }
 .hr-when.late { color: var(--red); }
 .card-more { display: block; padding: 4px 0 8px; }
 /* Tasks: the list picker as the title, and a summary card */
@@ -2612,7 +2625,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
 }
 #shopInput:placeholder-shown + .shop-add { background: var(--wash); color: var(--soft); }
 .shop-add .ico { width: 22px; height: 22px; stroke-width: 2.4; }
-.app.has-bar { padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+.app.has-bar { padding-bottom: calc(186px + env(safe-area-inset-bottom, 0px)); }
 /* The Wish list's card (and Savings goals'), under the shopping lists */
 #listsWish .lcard-head .ico { color: var(--pop); }
 /* The Wish list: back (‹) in a round button over the title, like the screenshot; a chip for each kind; a card per wish
@@ -2802,6 +2815,29 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
 :root[data-look="blush"] .scope-tab:not([aria-pressed="true"]) .scope-n { background: var(--card-solid); }
 :root[data-look="blush"] .rp-stop1, :root[data-look="blush"] .rp-stop2 { stop-color: var(--pop); }
 :root[data-look="blush"] .home-new h2 { font-weight: 600; font-stretch: normal; letter-spacing: -.01em; }
+/* The kickoff card's edge: thin and raspberry, not the pill's near-black. */
+:root[data-look="blush"] .brief::before { width: 4px; background: var(--pop); }
+/* A late countdown in dark: its red a little lighter, so it reads on its own red wash. */
+:root[data-look="blush"][data-mode="dark"] .cd.late { color: color-mix(in srgb, var(--red) 60%, #FFFFFF); }
+/* Up next: a soft card tinted with its list's color (instead of a slab of it), the list's dot before "Up next", the
+   words in the heading ink, and Mark done in the look's own near-black pill (cream in dark). */
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) {
+  --hero-bg: color-mix(in srgb, var(--tone) 9%, var(--card));
+  --hero-ink: var(--head);
+  --hero-soft: var(--soft);
+  --hero-wash: color-mix(in srgb, var(--tone) 14%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--card-line));
+  box-shadow: var(--card-shadow);
+}
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-kicker { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); }
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-kicker::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tone); }
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .btn-hero.primary { background: var(--accent); color: var(--on-accent); }
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-cd.is-late { background: color-mix(in oklab, var(--red) 14%, var(--card-solid)); }
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-item .box svg { stroke: var(--on-accent); }
+:root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-item[aria-pressed="true"] > .box { background: var(--accent); border-color: var(--accent); }
+/* Classic, light: the newer "late" words (Home's Tasks due, the orders' card on Lists, the Calendar's month list) in a
+   deeper red, so they read on the light gray cards they sit on. Every other look keeps its own red. */
+:root:not([data-look]):not([data-skin])[data-mode="light"] :is(.hr-when.late, #listsPoSub.late, .ma-side.late) { color: #C8241A; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
@@ -2967,7 +3003,12 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     // Keys only some looks have (Blush). A look without them gets nothing extra, so its colors stay exactly as they
     // were; the stylesheet's :root defaults stand in for these hooks.
     if (v.tint) out['--page-tint'] = tint;
-    if (v.glass) { out['--card'] = v.glass; out['--card-solid'] = card; }
+    if (v.glass) {
+      out['--card'] = v.glass; out['--card-solid'] = card;
+      // A list's color as words (its name on a task's row) sits on the see-through cards, over the page at its deepest
+      // and under a section's own wash: moved toward the ink until it reads on the solid card and on the deepest page.
+      for (let i = 1; i < list.length; i++) out['--tone-' + i] = readable(list[i][1], v.ink, [card, tint, v.page]);
+    }
     if (v.fontHead) out['--font-head'] = v.fontHead;
     if (v.pop) {
       const pop = isHex(accent) ? acc : v.pop, grounds = [v.page, card, tint, out['--wash']];
@@ -3275,7 +3316,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     <button type="button" id="clearSamples">Clear samples</button>
   </div>
 
-  <div class="daybar" id="dayBar" hidden><h2 id="dayTitle"></h2><button type="button" class="link-btn" id="dayClear">Show all tasks</button></div>
+  <div class="daybar" id="dayBar" hidden><h2 id="dayTitle" tabindex="-1"></h2><button type="button" class="link-btn" id="dayClear">Show all tasks</button></div>
 
   <section class="tl" id="timeline" aria-labelledby="tlTitle" hidden>
     <div class="sec-head">
@@ -3352,7 +3393,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
        the app, and hidden until there's something to show. -->
   <h2 class="pane-h2" id="shopTitle" hidden>Shopping lists</h2>
   <div class="lcards" id="shopCards" role="group" aria-labelledby="shopTitle" hidden></div>
-  <p class="card-empty" id="shopCardsEmpty" hidden>No shopping lists yet. Tap New list to start one.</p>
+  <p class="card-empty" id="shopCardsEmpty" hidden>No shopping lists yet. Tap New shopping list to start one.</p>
   <h2 class="pane-h2" id="moreTitle" hidden>Wishes and savings</h2>
   <div class="lcards" id="moreCards" role="group" aria-labelledby="moreTitle" hidden>
     <button type="button" class="lcard lcard-go" id="listsWish" hidden><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg><span class="lcard-name">Wish list</span></span><span class="lcard-sub" id="listsWishSub"></span></button>
@@ -3367,6 +3408,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     <button type="button" class="lcard lcard-go" id="listsPo"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5l8.5-4 8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5l8.5 4 8.5-4M12 11.5v9"/></svg><span class="lcard-name">Purchase orders</span></span><span class="lcard-sub" id="listsPoSub"></span></button>
     <button type="button" class="lcard lcard-go" id="listsClients"><span class="lcard-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5V10l8-6 8 6v10.5z"/><path d="M9.5 20.5v-6h5v6"/></svg><span class="lcard-name">Clients</span></span><span class="lcard-sub" id="listsClientsSub"></span></button>
   </div>
+  <!-- What was deleted here (and anywhere else) waits 7 days in Recently deleted, one tap away. -->
+  <p class="trash-link lists-trash" id="listsTrashLink" hidden><button type="button" class="link-btn" id="listsTrash">Recently deleted</button></p>
   </div>
   <!-- One shopping list, open in place of the cards: a circle to tick each item, the ticked ones folded under Done. -->
   <section class="shop-view" id="shopView" aria-labelledby="shopName" hidden>
@@ -3375,6 +3418,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       <h1 class="pane-title" id="shopName" tabindex="-1"></h1>
       <button type="button" class="icon-btn sub-more" id="shopMenu" aria-label="Rename, recolor or delete this list" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5h.01M12 12h.01M12 18.5h.01" stroke-width="3.4"/></svg></button>
     </div>
+    <p class="sr-only" id="shopStatus" role="status" aria-live="polite"></p>
     <div class="shop-list" id="shopBox">
       <ul class="shop-rows" id="shopRows" aria-label="To get"></ul>
       <p class="card-empty" id="shopEmpty" hidden></p>
@@ -3493,6 +3537,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     </div>
   </div>
 </div>
+<!-- "+ New": what to add where you are (a task on Tasks; a list on Lists; an event on Calendar). It and the add bar below
+     float over the tab bar, and come before it here so Tab reaches them straight after the page. -->
+<button type="button" class="fab new-pill" id="fab" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+<button type="button" class="fab new-pill" id="newBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="newBtnText"></span></button>
+<!-- Adding to the shopping list that's open, over the tab bar. A web link pasted at the end becomes the item's link. -->
+<form class="shop-bar" id="shopBar" autocomplete="off" hidden>
+  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+  <label class="sr-only" for="shopInput" id="shopInputLabel">Add to the list</label>
+  <input id="shopInput" type="text" maxlength="2300" placeholder="Add to the list…" enterkeyhint="done" autocapitalize="sentences">
+  <button type="submit" class="shop-add" id="shopAdd" aria-label="Add"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+</form>
 <!-- The tab bar: four places and Settings. The place showing has aria-current and a filled icon. -->
 <nav class="dock" id="dock" aria-label="Places" hidden>
   <div class="dock-inner">
@@ -3503,16 +3558,6 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     <button type="button" class="dock-btn" id="colorsBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg><span class="dock-label">Settings</span></button>
   </div>
 </nav>
-<!-- "+ New": what to add where you are (a task on Tasks; a list on Lists; an event on Calendar). -->
-<button type="button" class="fab new-pill" id="fab" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New task</button>
-<button type="button" class="fab new-pill" id="newBtn" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="newBtnText"></span></button>
-<!-- Adding to the shopping list that's open, over the tab bar. A web link pasted at the end becomes the item's link. -->
-<form class="shop-bar" id="shopBar" autocomplete="off" hidden>
-  <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
-  <label class="sr-only" for="shopInput" id="shopInputLabel">Add to the list</label>
-  <input id="shopInput" type="text" maxlength="2300" placeholder="Add to the list…" enterkeyhint="done" autocapitalize="sentences">
-  <button type="submit" class="shop-add" id="shopAdd" aria-label="Add"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-</form>
 
 <div class="scrim" id="scrim" hidden></div>
 
@@ -3808,6 +3853,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       <div class="field move-row item-move" role="group" aria-label="Its place in the list">
         <button type="button" class="btn-small quiet" id="itemUp">Move up</button>
         <button type="button" class="btn-small quiet" id="itemDown">Move down</button>
+        <p class="field-note item-place" id="itemPlace" role="status" aria-live="polite"></p>
       </div>
       <button type="submit" class="btn-primary" id="itemSave">Save</button>
       <button type="button" class="btn-danger" id="itemDelete">Delete item</button>
@@ -4013,6 +4059,11 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       <p class="sheet-note">Tasks with a time go on your Google Calendar on their own, and change when you change them. Your phone’s calendar alerts can remind you, with no Claude usage.</p>
       <div class="gcal-row"><button type="button" class="btn-small" id="gcalToggle">Turn on</button><button type="button" class="btn-small quiet" id="gcalRetry" hidden>Try again</button></div>
       <p class="field-note gcal-status" id="gcalStatus" role="status" aria-live="polite"></p>
+    </div>
+    <div id="setTrashSec" hidden>
+      <h3 class="sheet-sub" id="setTrashTitle">Recently deleted</h3>
+      <p class="sheet-note">Whatever you delete waits here for 7 days, so it can be put back.</p>
+      <div class="move-row"><button type="button" class="btn-small quiet" id="setTrash">Recently deleted</button></div>
     </div>
     <h3 class="sheet-sub" id="moveTitle">Your list in one file</h3>
     <p class="sheet-note" id="moveNote">Save everything (tasks, lists, clients, templates, shopping lists, wishes, savings goals, important dates and photos) in one file. Keep it as a backup, or load it on a new phone to bring everything along.</p>
@@ -5865,12 +5916,15 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   let toastUndo = null;
   let toastMs = 0;
   let toastBack = null;
+  let toastFind = '';    // what Undo puts back, as a selector for its button (see focusBack)
   let toastHeld = false; // keyboard or VoiceOver focus on the toast (or a mouse over it) holds it until it's let go
-  function toast(msg, undo, label = 'Undo', ms = 0) {
+  // find: the button of what Undo would put back (a wish's card, an item's row), for focus to go to once it's back.
+  function toast(msg, undo, label = 'Undo', ms = 0, find = '') {
     const el = $('#toast');
     if (!el.contains(document.activeElement)) toastBack = document.activeElement;
     $('#toastMsg').textContent = msg;
     toastUndo = typeof undo === 'function' ? undo : null;
+    toastFind = toastUndo ? find : '';
     $('#toastUndo').textContent = label;
     $('#toastUndo').hidden = !toastUndo;
     el.classList.toggle('has-action', !!toastUndo);
@@ -5898,6 +5952,23 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     $('#toast').classList.remove('show');
     $('#toastUndo').hidden = true;
     toastUndo = null;
+  }
+  // After Undo: if focus has nowhere to go back to (the button it came from went with what was deleted, or is in a sheet
+  // that closed), it goes to what Undo put back once that shows (find: a selector; the first one showing), else to the
+  // title of what's showing. Focus the keyboard or VoiceOver has already taken somewhere else is left there.
+  function focusBack(find) {
+    const lost = () => { const a = document.activeElement; return !a || a === document.body || !a.isConnected || !a.offsetParent || $('#toast').contains(a); };
+    const showing = e => e.offsetParent && !e.closest('[hidden], [inert], [aria-hidden="true"]');
+    let tries = 0;
+    const step = () => {
+      if (!lost()) return;
+      const to = find ? [...document.querySelectorAll(find)].find(showing) : null;
+      if (to) { to.focus({ preventScroll: true }); return; }
+      if (find && ++tries < 30) { setTimeout(step, 50); return; } // (it comes back once the database says so)
+      const h = shownTitle();
+      if (h && showing(h)) h.focus({ preventScroll: true });
+    };
+    setTimeout(step, 0);
   }
 
   /* ---------- task actions ---------- */
@@ -6457,9 +6528,16 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       if (notKept) toast(`Couldn’t keep a copy in Recently deleted, so ${notKept === 1 ? 'it wasn’t deleted' : `${notKept} weren’t deleted`}. Clear done tasks or remove photos to make room, then try again.`, null, 'Undo', 8000);
       return gone;
     });
-    if (message) toast(message, () => done.then(restoreEntries));
+    // It says where it went, as a task's delete does. A single record deleted: once Undo puts it back, focus can go to it
+    // (see focusBack).
+    const where = groups.length === 1 ? 'It stays in Recently deleted for 7 days.' : 'They stay in Recently deleted for 7 days.';
+    if (message) toast(`${message}. ${where}`, () => done.then(restoreEntries), 'Undo', 0, picks.length === 1 ? backSel(...picks[0]) : '');
     return done;
   }
+  // The buttons a record shows as, wherever it shows (the first one showing takes focus).
+  const BACK_ATTRS = { shopLists: ['shop-open'], shopItems: ['shop-edit'], wishes: ['wish-open'], goals: ['goal-open'],
+    goalEntries: ['goal-entry'], dates: ['date-open', 'home-date', 'ma-date'] };
+  const backSel = (coll, id) => (BACK_ATTRS[coll] || []).map(a => `[data-${a}="${String(id).replace(/["\\]/g, '\\$&')}"]`).join(', ');
   // Put records back where they were and take their copies out of Recently deleted. Lists and goals go first; an item or
   // entry whose list or goal couldn't come back stays in Recently deleted. entries: [[coll, id, body], ...].
   // A record that's already back (put back on another device, or loaded from a file) and newer than the copy is kept as
@@ -6692,7 +6770,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     ta.style.height = Math.ceil(ta.scrollHeight + borders) + 'px';
     if (scroller) scroller.scrollTop = top;
   }
-  function openTaskSheet(mode, id) {
+  // o.event: opened as "+ New event" on the Calendar; the sheet is then called that, with its day.
+  function openTaskSheet(mode, id, o = {}) {
     if (!writable()) return;
     const ta = $('#taskTitle');
     const na = $('#taskNote');
@@ -6715,6 +6794,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       $('#taskWaiting').value = '';
     }
     const sh = S.sheet;
+    sh.event = mode !== 'edit' && !!o.event;
     // Photos: uploaded in this sheet (deleted again if it closes unsaved), and removed (deleted once the save goes in).
     sh.uploaded = new Set();
     sh.removed = new Set();
@@ -7064,8 +7144,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (!sh) return;
     const sheet = $('#taskSheet');
     setColor(sheet, colorOf(sh.list));
-    $('#sheetTitle').textContent = sh.mode === 'new' ? (sh.po ? 'New PO' : 'New task') : 'Edit task';
-    $('#sheetSubmit').textContent = sh.uploading ? 'Adding photo…' : sh.mode === 'new' ? 'Add task' : 'Save changes';
+    const event = sh.mode === 'new' && sh.event && !sh.po;
+    $('#sheetTitle').textContent = sh.mode === 'new' ? (sh.po ? 'New PO' : event ? (sh.due ? `New event · ${dateLabel(sh.due)}` : 'New event') : 'New task') : 'Edit task';
+    $('#sheetSubmit').textContent = sh.uploading ? 'Adding photo…' : event ? 'Add event' : sh.mode === 'new' ? 'Add task' : 'Save changes';
     $('#sheetSubmit').disabled = sh.uploading > 0;
     $('#sheetDelete').hidden = sh.mode !== 'edit';
     $('#sheetShare').hidden = sh.mode !== 'edit';
@@ -8527,6 +8608,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const total = entries.length + rows.length;
     $('#trashLink').hidden = !writable() || !total || !!searchQuery() || S.selecting;
     $('#trashOpen').textContent = `Recently deleted · ${total}`;
+    // The same, at the foot of Lists and in Settings.
+    $('#listsTrashLink').hidden = $('#setTrashSec').hidden = !writable() || !total;
+    $('#listsTrash').textContent = $('#setTrash').textContent = `Recently deleted · ${total}`;
     if (!S.trashOpen) return;
     const all = [...entries, ...rows].sort((a, b) => b.at - a.at);
     $('#trashRows').replaceChildren(...all.map(x => {
@@ -8629,10 +8713,13 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     monthCursor = (S.day || S.today).slice(0, 7);
     weekCursor = mondayOf(S.day || S.today);
   }
-  // A day picked in the calendar: Tasks shows just that day (today is simply the whole list).
+  // A day picked in the calendar: Tasks shows just that day (today is simply the whole list), with focus on the day's
+  // heading (or the list's title), so the keyboard and VoiceOver carry on from there instead of the top of the page.
   function openDay(d) {
     S.day = d === S.today ? null : d;
     setTab('tasks', { focus: false });
+    const h = S.day ? $('#dayTitle') : $('#tasksTitle');
+    if (h && h.offsetParent) h.focus({ preventScroll: true });
     const target = S.day ? $('#dayBar') : $('#week');
     if (target && !target.hidden) setTimeout(() => target.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }), 60);
   }
@@ -9101,6 +9188,12 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   const tabScroll = {}; // how far down each tab was, for coming back to it
   // What shows: the tab picked, except that a list that can't load shows Tasks, where Up next says why.
   const shownTab = () => (S.status === 'unavailable' ? 'tasks' : S.tab);
+  // The title of what's showing: the tab's, or that of the view open on Lists.
+  function shownTitle() {
+    const tab = shownTab();
+    if (tab === 'lists' && S.sub) return $(S.sub.kind === 'wish' ? '#wishPaneTitle' : S.sub.kind === 'goals' ? '#goalPaneTitle' : '#shopName');
+    return $(TABS[tab][0] + ' .pane-title');
+  }
   // o.focus: false leaves focus where it is (the caller moves it); o.top: start at the top of the tab.
   function setTab(v, o = {}) {
     const tab = isTab(v) ? v : 'home';
@@ -9130,7 +9223,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   // "+ New" (and the N key) adds what fits the tab: a task (Home and Tasks), a shopping list (Lists; the task lists have
   // their own Edit lists), a wish (the Wish list), a goal (Savings goals), or a task on the day being looked at, else
   // today (Calendar). In an open shopping list it's the add bar instead.
-  const NEW_LABEL = { lists: 'New list', calendar: 'New event' };
+  const NEW_LABEL = { lists: 'New shopping list', calendar: 'New event' };
   const SUB_NEW = { wish: 'New wish', goals: 'New goal' }; // (a shopping list has its add bar)
   function newHere() {
     if (!writable()) return;
@@ -9141,7 +9234,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       else openShopSheet();
       return;
     }
-    openTaskSheet('new');
+    openTaskSheet('new', null, { event: S.tab === 'calendar' }); // (on the Calendar it's called an event, for its day)
   }
   function renderNewBtns() {
     const cur = shownTab();
@@ -9373,6 +9466,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   let listsScroll = 0;     // where the Lists cards were scrolled to, for coming back from a list
   let shopDoneOpen = false; // whether the open list's Done is unfolded
   let shopAdded = null;     // an item just added, to scroll into view once it shows
+  // Words typed in a list's add bar and not added yet, by list: they wait for it when it closes (Back, another tab) and
+  // come back when it opens again. For this visit only, never stored.
+  const shopDrafts = new Map();
   // Opens one view in place of the Lists cards (sub: a shopping list, the Wish list or Savings goals; from anywhere, Lists
   // first), at its top, with focus on its title unless o.focus is false.
   function openSub(sub, title, o = {}) {
@@ -9380,7 +9476,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (!S.sub) listsScroll = window.scrollY;
     S.sub = sub;
     shopAdded = null;
-    $('#shopInput').value = '';
+    $('#shopInput').value = sub.kind === 'shop' ? shopDrafts.get(sub.id) || '' : '';
+    $('#shopStatus').textContent = '';
     render();
     window.scrollTo(0, 0);
     if (o.focus !== false) $(title).focus({ preventScroll: true });
@@ -9545,6 +9642,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const barOn = onLists && !!sub && writable();
     $('#shopBar').hidden = !barOn;
     $('#app').classList.toggle('has-bar', barOn);
+    document.documentElement.classList.toggle('has-bar', barOn); // (focus is kept clear of it: see the CSS)
     if (!onLists) return;
     $('#listsHome').hidden = !!S.sub;
     $('#shopView').hidden = !sub;
@@ -9572,22 +9670,41 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const id = addRecord('shopItems', { list: S.sub.id, text, link });
     if (!id) return; // (its list isn't saved yet) the words stay in the box
     input.value = '';
+    shopDrafts.delete(S.sub.id);
     shopAdded = id;
+    sayShop(`Added ${text}`);
     buzz(8);
+  }
+  // What a tap did in the open list, for VoiceOver (the row moving says nothing by itself). The line is emptied first so
+  // the same words twice are still read out.
+  let sayTimer = 0;
+  function sayShop(msg) {
+    const st = $('#shopStatus');
+    st.textContent = '';
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(() => { st.textContent = msg; }, 60);
   }
   function tickShopItem(id) {
     const d = S.shopItems.get(id);
     if (!d || !writable()) return;
-    editRecord('shopItems', id, { done: d.done !== true });
+    const done = d.done !== true;
+    editRecord('shopItems', id, { done });
+    const text = shopItemView(id, d).text;
+    sayShop(done ? `${text} moved to Done` : `${text} is back on the list`);
     buzz(10);
   }
-  function clearShopDone() {
+  // byKeys: Clear done pressed on a keyboard. The button goes with what it cleared, so focus goes on to the add bar (or,
+  // after a tap, to the list's name, so the phone's keyboard doesn't pop up), where Undo then leaves it too.
+  function clearShopDone(byKeys = false) {
     if (!S.sub || S.sub.kind !== 'shop' || !writable()) return;
     const done = (shopItemsByList().get(S.sub.id) || []).filter(i => i.done);
-    if (done.length) binMany(done.map(i => ['shopItems', i.id]), `Cleared ${plural(done.length, 'item', 'items')}`);
+    if (!done.length) return;
+    const a = document.activeElement;
+    if (!a || a === document.body || $('#shopDone').contains(a)) $(byKeys && !$('#shopBar').hidden ? '#shopInput' : '#shopName').focus({ preventScroll: true });
+    binMany(done.map(i => ['shopItems', i.id]), `Cleared ${plural(done.length, 'item', 'items')}`);
   }
 
-  // The sheet for a shopping list: a new one (+ New list), or ⋮ on one to rename it, recolor it or delete it.
+  // The sheet for a shopping list: a new one (+ New shopping list), or ⋮ on one to rename it, recolor it or delete it.
   let shopEditing = null; // the list being changed, or null for a new one
   let shopPick = 1;       // the color picked
   function openShopSheet(id = null) {
@@ -9644,13 +9761,16 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     binMany([['shopLists', id]], `Deleted “${clean(shopListView(id, raw).name, 60)}”`);
   }
 
-  // The sheet for one item: its words, its link, its place in the list, or delete it.
+  // The sheet for one item: its words, its link, its place in the list, or delete it. Like the words, a new place (Move
+  // up, Move down) is kept only on Save; Cancel leaves the item where it was.
   let itemEditing = null;
+  let itemPlace = -1; // where it goes on Save, in its part of the list (to get, or done)
   function openItemSheet(id) {
     const d = S.shopItems.get(id);
     if (!d || !writable()) return;
     const v = shopItemView(id, d);
     itemEditing = id;
+    itemPlace = itemGroup(id).at;
     S.itemOpen = true;
     $('#itemText').value = v.text;
     $('#itemLink').value = v.link || '';
@@ -9664,9 +9784,16 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   }
   function closeItemSheet() {
     if (!S.itemOpen) return;
+    const id = itemEditing;
     S.itemOpen = false;
     itemEditing = null;
     closeSheet($('#itemSheet'));
+    // The row it was opened from may have been drawn again meanwhile: focus goes to the item's row as it is now.
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.offsetParent) {
+      const row = document.querySelector(`#shopView [data-shop-edit="${CSS.escape(id)}"]`);
+      if (row && row.offsetParent) row.focus({ preventScroll: true });
+    }
   }
   // The item's neighbours on its own part of the list (to get, or done).
   function itemGroup(id) {
@@ -9679,9 +9806,12 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (!S.itemOpen) return;
     if (!S.shopItems.has(itemEditing)) { closeItemSheet(); return; } // deleted meanwhile (another device)
     const { group, at } = itemGroup(itemEditing);
+    if (at < 0) itemPlace = -1; else itemPlace = Math.min(Math.max(itemPlace, 0), group.length - 1);
     const up = $('#itemUp'), down = $('#itemDown');
-    up.disabled = at <= 0;
-    down.disabled = at < 0 || at >= group.length - 1;
+    up.disabled = itemPlace <= 0;
+    down.disabled = itemPlace < 0 || itemPlace >= group.length - 1;
+    const where = group.length > 1 && itemPlace >= 0 ? `Place ${itemPlace + 1} of ${group.length}` : '';
+    if ($('#itemPlace').textContent !== where) $('#itemPlace').textContent = where;
     // At the top (or the bottom) the button pressed turns off: the keyboard goes on to the other one.
     const a = document.activeElement;
     if ((a === up || a === down) && a.disabled) {
@@ -9689,21 +9819,28 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       (other.disabled ? $('#itemText') : other).focus();
     }
   }
-  // One place up (-1) or down (1): the item takes a rank between its new neighbours, so only it changes. If two of them
-  // share a rank (or there's no room left between), the whole part is numbered again.
-  function moveShopItem(id, step) {
-    if (!writable()) return;
+  // Up (-1) or down (1) in the sheet: only where it will go on Save.
+  function stepItemPlace(step) {
+    if (!S.itemOpen) return;
+    const { group } = itemGroup(itemEditing);
+    const to = itemPlace + step;
+    if (itemPlace < 0 || to < 0 || to >= group.length) return;
+    itemPlace = to;
+    renderItemSheet();
+  }
+  // To place `to` in its part of the list, with `fields` changed too (its words and link): the item takes a rank between
+  // its new neighbours, so only it changes. If two of them share a rank (or there's no room left between), the whole
+  // part is numbered again.
+  function placeShopItem(id, to, fields) {
     const { group, at } = itemGroup(id);
-    const to = at + step;
-    if (at < 0 || to < 0 || to >= group.length) return;
-    const a = group[to];
-    const b = group[to + step];
-    const rank = b ? (a.rank + b.rank) / 2 : a.rank + step * 1000;
-    if (rank !== a.rank && (!b || rank !== b.rank)) { editRecord('shopItems', id, { rank }); return; }
-    const order = group.map(i => i.id);
-    order.splice(at, 1);
+    if (at < 0 || to === at || to < 0 || to >= group.length) return editRecord('shopItems', id, fields);
+    const rest = group.filter(i => i.id !== id);
+    const a = rest[to - 1], b = rest[to];
+    const rank = a && b ? (a.rank + b.rank) / 2 : a ? a.rank + 1000 : b.rank - 1000;
+    if ((!a || rank !== a.rank) && (!b || rank !== b.rank)) return editRecord('shopItems', id, { ...fields, rank });
+    const order = rest.map(i => i.id);
     order.splice(to, 0, id);
-    runPool(order.map((x, n) => () => editRecord('shopItems', x, { rank: (n + 1) * 1000 })));
+    return runPool(order.map((x, n) => () => editRecord('shopItems', x, x === id ? { ...fields, rank: (n + 1) * 1000 } : { rank: (n + 1) * 1000 })));
   }
   function saveItemSheet() {
     const id = itemEditing;
@@ -9715,7 +9852,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     $('#itemLinkError').hidden = !typed || !!link;
     if (!text) { $('#itemText').focus(); return; }
     if (typed && !link) { $('#itemLink').focus(); return; }
-    editRecord('shopItems', id, { text, link });
+    placeShopItem(id, itemPlace, { text, link });
     closeItemSheet();
   }
   function deleteShopItem(id) {
@@ -9919,9 +10056,11 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (!isPlain(d)) return;
     const got = d.got !== true;
     const name = clean($('#wishName').value, 60) || wishOf(id, d).title;
+    // Undo puts back the wish as it was before this save, the other changes made in the sheet with it.
+    const was = Object.fromEntries(['title', 'category', 'priceCents', 'link', 'note', 'got', 'gotAt'].map(k => [k, d[k]]));
     if (!saveWishSheet({ got })) return;
     buzz(10);
-    toast(got ? `Moved “${name}” to Got it` : `“${name}” is back on the wish list`, () => editRecord('wishes', id, { got: !got }));
+    toast(got ? `Moved “${name}” to Got it` : `“${name}” is back on the wish list`, () => editRecord('wishes', id, was), 'Undo', 0, backSel('wishes', id));
   }
   function deleteWish(id) {
     const raw = S.wishes.get(id);
@@ -10108,7 +10247,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const was = Number(raw.closedAt) > 0 ? Number(raw.closedAt) : null;
     editRecord('goals', id, { closedAt: on ? Date.now() : null });
     buzz(10);
-    toast(on ? `Closed “${name}”` : `“${name}” is open again`, () => editRecord('goals', id, { closedAt: was }));
+    toast(on ? `Closed “${name}”` : `“${name}” is open again`, () => editRecord('goals', id, { closedAt: was }), 'Undo', 0, backSel('goals', id));
   }
 
   // The sheet for a goal: a new one (+ New goal, or N), or one tapped to change it or delete it (its entries go with it).
@@ -13721,7 +13860,13 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const entries = [...S.tasks].filter(([, t]) => t.sample === true);
     removeMany(entries, `Cleared ${plural(entries.length, 'sample task', 'sample tasks')}`);
   });
-  $('#toastUndo').addEventListener('click', () => { const undo = toastUndo; hideToast(); if (undo) undo(); });
+  $('#toastUndo').addEventListener('click', () => {
+    const undo = toastUndo, find = toastFind;
+    hideToast();
+    if (!undo) return;
+    undo();
+    focusBack(find);
+  });
 
   const board = $('#board');
 
@@ -14418,6 +14563,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   $('#sheetShare').addEventListener('click', shareTask);
   // recently deleted
   $('#trashOpen').addEventListener('click', openTrash);
+  $('#listsTrash').addEventListener('click', openTrash);
+  $('#setTrash').addEventListener('click', () => { closeColorsSheet(); openTrash(); }); // (Settings closes; Escape then goes back to its button)
   $('#trashDone').addEventListener('click', closeTrash);
   $('#trashRows').addEventListener('click', e => {
     const nb = e.target.closest('[data-restore-bin]');
@@ -14535,8 +14682,21 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (edit) openItemSheet(edit.dataset.shopEdit);
   });
   $('#shopDoneToggle').addEventListener('click', () => { shopDoneOpen = !shopDoneOpen; render(); });
-  $('#shopClear').addEventListener('click', clearShopDone);
+  $('#shopClear').addEventListener('click', e => clearShopDone(e.detail === 0));
   $('#shopBar').addEventListener('submit', e => { e.preventDefault(); addShopItem(); });
+  // What's typed waits for its list (see shopDrafts). Escape with words in the bar clears them, and only that; with
+  // nothing typed it closes the list, as anywhere else on it.
+  $('#shopInput').addEventListener('input', e => {
+    if (!S.sub || S.sub.kind !== 'shop') return;
+    if (e.target.value) shopDrafts.set(S.sub.id, e.target.value); else shopDrafts.delete(S.sub.id);
+  });
+  $('#shopInput').addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !e.target.value) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.target.value = '';
+    if (S.sub) shopDrafts.delete(S.sub.id);
+  });
   $('#shopSheetCancel').addEventListener('click', closeShopSheet);
   $('#shopForm').addEventListener('submit', e => { e.preventDefault(); saveShopSheet(); });
   $('#shopNameInput').addEventListener('input', () => { $('#shopNameError').hidden = true; });
@@ -14551,8 +14711,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   $('#itemForm').addEventListener('submit', e => { e.preventDefault(); saveItemSheet(); });
   $('#itemText').addEventListener('input', () => { $('#itemTextError').hidden = true; });
   $('#itemLink').addEventListener('input', () => { $('#itemLinkError').hidden = true; });
-  $('#itemUp').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, -1); });
-  $('#itemDown').addEventListener('click', () => { if (itemEditing) moveShopItem(itemEditing, 1); });
+  $('#itemUp').addEventListener('click', () => stepItemPlace(-1));
+  $('#itemDown').addEventListener('click', () => stepItemPlace(1));
   $('#itemDelete').addEventListener('click', () => { if (itemEditing) deleteShopItem(itemEditing); });
   // the wish list: its card on Lists opens it; a chip shows one kind; a card's heart is kept at once, the card opens its sheet
   $('#listsWish').addEventListener('click', () => openWish());
