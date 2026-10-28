@@ -89,8 +89,9 @@ busy (main thread) with the slowed CPU; on a real phone's CPU, roughly a quarter
 
 What these say:
 
-- **Faster:** the first tasks show up a fifth sooner on a long list; checking off and editing a task are 7–18%
-  quicker on both lists, and opening one 11% quicker on the long list. Two causes, both measured: drawing the page no longer reads the window's width (each read made the
+- **Faster, at the median:** the first tasks show up a fifth sooner on a long list; checking off and editing a task
+  are 7–18% quicker, and opening one 11% quicker on the long list. Runs spread widely, so read changes under about 10%
+  as noise; the two causes are measured directly: drawing the page no longer reads the window's width (each read made the
   browser lay out the whole page mid-draw; `daily.test.cjs` now counts them), and an empty quick add isn't read on
   every redraw.
 - **The same, within the spread between runs:** opening (busy until settled), Home, tab switches in general, search.
