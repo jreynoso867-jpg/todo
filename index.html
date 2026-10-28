@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-pcdDoEXuF+H1ua3Sq/YkNBpUhgZFMFuxY8kOLAjEO3o=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-8yd5g727NwFSKZ7AzOaPD39s8nra+uB0MzNQSPTHTp8=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KcOELPMzqWv1mFBpk8sX9HN5D0yPyf9SbXpcpOWEB6A=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-mR3NpLMGIvr+JZbWwHAchN64YJAQ1/+BEVndzm+hMxQ=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.65cc93f2'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.efefe810'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -7924,33 +7924,41 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (input.placeholder !== text) input.placeholder = text;
     return true;
   }
-  // Measuring the box makes the browser lay out the whole page, so it's only done when the day or the width changes.
+  // Measuring the box makes the browser lay out the whole page, so it's only done when the day or the width changes,
+  // after the page is drawn. The width is kept when it changes: reading it while drawing would lay the page out too.
   let quickFit = '', homeFit = '';
-  let quickFitQueued = false;
+  let quickFitQueued = false, homeFitQueued = false;
+  let viewW = window.innerWidth;
   function renderQuick() {
     const show = writable() && S.tasksLoaded && !S.searchOpen;
     $('#quickForm').hidden = !show;
-    $('#homeQuick').hidden = !(writable() && S.tasksLoaded);
-    renderQuickHint(!$('#homeQuick').hidden, 'home');
-    if (!$('#homeQuick').hidden && shownTab() === 'home' && window.innerWidth + '|' + S.textSize !== homeFit) {
-      const ok = fitPlaceholder($('#homeQuickInput'), ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
-      if (ok) homeFit = window.innerWidth + '|' + S.textSize;
+    const home = writable() && S.tasksLoaded;
+    $('#homeQuick').hidden = !home;
+    if (home && ($('#homeQuickInput').value || !$('#homeQuickHint').hidden)) renderQuickHint(true, 'home');
+    if (home && shownTab() === 'home' && viewW + '|' + S.textSize !== homeFit && !homeFitQueued) {
+      homeFitQueued = true;
+      requestAnimationFrame(() => setTimeout(() => {
+        homeFitQueued = false;
+        if ($('#homeQuick').hidden || shownTab() !== 'home') return;
+        const want = viewW + '|' + S.textSize;
+        if (fitPlaceholder($('#homeQuickInput'), ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…'])) homeFit = want;
+      }, 0));
     }
     renderRcptBtns();
-    const key = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
+    const key = `${S.day || ''}|${viewW}|${S.textSize}`;
     // (measured only while Tasks shows: measuring a tab that isn't showing would lay all of it out)
     if (show && shownTab() === 'tasks' && key !== quickFit && !quickFitQueued) {
       quickFitQueued = true;
       requestAnimationFrame(() => setTimeout(() => {
         quickFitQueued = false;
         if ($('#quickForm').hidden || shownTab() !== 'tasks') return;
-        const want = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
+        const want = `${S.day || ''}|${viewW}|${S.textSize}`;
         const ok = fitPlaceholder($('#quickInput'), S.day ? [`Add a task for ${dayInSentence(S.day)}`, 'Add a task…']
           : ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
         if (ok) quickFit = want;
       }, 0));
     }
-    renderQuickHint(show);
+    if ($('#quickInput').value || !$('#quickHint').hidden) renderQuickHint(show); // (nothing typed and no hint: nothing to read)
   }
   function renderQuickHint(show = !$('#quickForm').hidden, where = 'tasks') {
     const hint = $(QUICK[where].hint);
@@ -13667,7 +13675,6 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
           '<span class="snooze-btn" data-snooze="pick">' + SNOOZE_PICK_SVG + 'Pick date<input type="date" class="snooze-date" tabindex="-1" aria-label="Pick a date"></span>' +
           '<button type="button" class="snooze-btn" data-snooze="nextweek" tabindex="-1">' + SNOOZE_WEEK_SVG + 'Next week</button>' +
           '<button type="button" class="snooze-btn" data-snooze="tomorrow" tabindex="-1">' + SWIPE_LATER_SVG + 'Tomorrow</button>' +
-          '<button type="button" class="snooze-btn" data-snooze="today" tabindex="-1">' + SNOOZE_TODAY_SVG + 'Today</button>' +
         '</span>' +
       '</span>' +
       '<div class="task-inner">' +
@@ -14305,6 +14312,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   }
   function prepSnooze(li, t) {
     const c = snoozeChoices(t);
+    // Today is for a late task only, so it's added the first time one is swiped (not built into every row).
+    if (c.today && !li.querySelector('[data-snooze="today"]')) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'snooze-btn';
+      b.dataset.snooze = 'today';
+      b.tabIndex = -1;
+      b.innerHTML = SNOOZE_TODAY_SVG;
+      b.append('Today');
+      li.querySelector('.swipe-later').append(b);
+    }
     for (const b of li.querySelectorAll('[data-snooze]')) b.hidden = !c[b.dataset.snooze];
     const input = li.querySelector('.snooze-date');
     input.min = S.today;
@@ -14949,7 +14967,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   });
 
   // quick add
-  window.addEventListener('resize', () => { if (!$('#quickForm').hidden) renderQuick(); });
+  window.addEventListener('resize', () => { viewW = window.innerWidth; if (!$('#quickForm').hidden || !$('#homeQuick').hidden) renderQuick(); });
   $('#quickForm').addEventListener('submit', e => { e.preventDefault(); quickSubmit(); });
   $('#quickInput').addEventListener('input', () => renderQuickHint());
   $('#quickInput').addEventListener('keydown', e => {

@@ -490,6 +490,28 @@ test('the weekly review passes over a task done or deleted meanwhile, and Open s
   await ctx.close();
 });
 
+test('speed: drawing the page never reads the window’s width (it would lay the whole page out each time), and rows don’t carry the late-only Today choice until one is swiped', async () => {
+  const docs = {};
+  for (let i = 0; i < 40; i++) docs[`tasks/t${i}`] = task(`Task ${i}`, { due: addDays(T, (i % 5) - 2) });
+  const { ctx, page, errors } = await phone(docs, {});
+  // Count every read of the window's width from here on.
+  await page.evaluate(() => {
+    const d = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    window.__widthReads = 0;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, get() { window.__widthReads++; return d.get ? d.get.call(window) : d.value; } });
+  });
+  await page.evaluate(() => document.querySelector('#board .task:not(.is-done) .ring').click());
+  await page.waitForTimeout(1300);
+  for (const tab of ['#dockHome', '#dockLists', '#dockWeek', '#dockToday']) { await page.evaluate(s => document.querySelector(s).click(), tab); await page.waitForTimeout(300); }
+  assert.equal(await page.evaluate(() => window.__widthReads), 0, 'no width read while checking off or switching tabs');
+  assert.equal(await page.$$eval('#board .task [data-snooze="today"]', els => els.length), 0, 'no Today choice in the rows yet');
+  const late = await page.$eval('.sec[data-sec="overdue"] .task', el => el.dataset.id);
+  await swipe(page, late, -120);
+  assert.equal(await page.$$eval(`.task[data-id="${late}"] [data-snooze="today"]`, els => els.length), 1, 'made when a late task is swiped');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 const sunday = parseYmdLocal(T).getDay() === 0;
 test('dragged to another day in the week planner: postponed the same way', { skip: sunday && 'today is Sunday: no later day this week to drag to' }, async () => {
   const { ctx, page, errors } = await phone({ 'tasks/t_weekly': task('Weekly report', { due: T, repeat: 'weekly' }) }, { local: { 'todo.calMode': 'week' } });
