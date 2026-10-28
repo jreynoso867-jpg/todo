@@ -1,3 +1,54 @@
 tests/node_modules/
 node_modules/
 www/
+
+# This repository is public. Nothing below may ever be committed: it is private, or it holds someone's data.
+# tests/repo.test.cjs checks that each kind stays out.
+
+# A folder for anything private kept next to the code
+private/
+
+# The Claude edition built from this code (tools/build-artifact.cjs carries the owner's own words into it)
+claude-edition/
+
+# Conversation transcripts and session logs
+*transcript*.html
+*transcript*.md
+*transcript*.txt
+*transcript*.pdf
+*.jsonl
+
+# Files the app saves: Save everything, the CSV backup, the iPhone app's safety copies, job reports, calendar events
+To-do everything *.json
+To-do backup *.csv
+To-do safety copy *.json
+*.pdf
+*.ics
+
+# Backups and archives
+*.bundle
+*.zip
+backup/
+backups/
+backup-*/
+
+# Signing credentials and secrets (App Store Connect keys, certificates, profiles)
+*.p8
+AuthKey_*
+*.p12
+*.pfx
+*.cer
+*.pem
+*.key
+*.keystore
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+
+# Xcode output
+*.ipa
+*.xcarchive
+DerivedData/
+xcuserdata/
+.DS_Store
