@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KcOELPMzqWv1mFBpk8sX9HN5D0yPyf9SbXpcpOWEB6A=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-mR3NpLMGIvr+JZbWwHAchN64YJAQ1/+BEVndzm+hMxQ=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DfxTz0zcP8ItyPVHck2hlsbRlszUyUnm8S6lojrWYBs=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-LmlbP53OXsH+Q0zdS7wFszA9TqytT5vz8cr7htOMDYs=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.efefe810'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.b6330907'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -13684,6 +13684,14 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     return li;
   }
 
+  // When a finished task was checked off, for reading back through Done: "Done today at 3:10 PM", "Done yesterday",
+  // "Done Mon, Oct 26". (Rows are redrawn when the day changes, so today's become yesterday's.)
+  function doneWhen(ms) {
+    const d = new Date(ms);
+    const day = ymd(d);
+    if (day === S.today) return `Done today at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    return `Done ${dateLabel(day).replace(/^(Yesterday|Tomorrow)$/, w => w.toLowerCase())}`;
+  }
   // What a row shows that changes with the clock alone: its countdown, and a time today turning late.
   function rowTimeKey(t, sec, now, nowMs) {
     const cd = countdown(t, nowMs);
@@ -13720,6 +13728,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const cd = countdown(t, minuteNow());
     li.classList.toggle('is-late', !!cd && cd.cls === 'late');
     if (cd) meta.append(el('span', 'cd ' + cd.cls, cd.text));
+    if (t.done && t.doneAt) meta.append(el('span', 'done-at', doneWhen(t.doneAt)));
     const at = t.time ? timeRange(t.time, t.end) : '';
     if (t.pinned && !t.done) {
       const s = document.createElement('span');

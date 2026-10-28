@@ -512,6 +512,33 @@ test('speed: drawing the page never reads the window’s width (it would lay the
   await ctx.close();
 });
 
+test('Done says when each task was finished, the newest first: today at its time, yesterday, then the day', async () => {
+  const at = (day, h, m) => { const [y, mo, d] = day.split('-').map(Number); return new Date(y, mo - 1, d, h, m).getTime(); };
+  const old = at(addDays(T, -9), 11, 0);
+  const { ctx, page, errors } = await phone({
+    'tasks/t_open1': task('Still to do', { priority: 3 }),
+    'tasks/t_open2': task('Also to do'),
+    'tasks/t_today': task('Sent the quote', { done: true, doneAt: at(T, 9, 5) }),
+    'tasks/t_yday': task('Called the vendor', { due: addDays(T, -1), done: true, doneAt: at(addDays(T, -1), 16, 30) }),
+    'tasks/t_old': task('Filed the receipts', { due: addDays(T, -9), done: true, doneAt: old }),
+  });
+  await tap(page, '#doneToggle');
+  await page.waitForSelector('#doneList:not([hidden]) .task');
+  const rows = await page.$$eval('#doneList .task', els => els.map(e => [e.dataset.id, (e.querySelector('.done-at') || {}).textContent || '']));
+  const oldDay = await page.evaluate(([ms, today]) => {
+    const d = new Date(ms);
+    return d.toLocaleDateString('en-US', d.getFullYear() === Number(today.slice(0, 4)) ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [old, T]);
+  assert.deepEqual(rows.map(r => r[0]), ['t_today', 't_yday', 't_old'], 'the newest first, as before');
+  assert.match(rows[0][1], /^Done today at 9:05\sAM$/);
+  assert.equal(rows[1][1], 'Done yesterday');
+  assert.equal(rows[2][1], `Done ${oldDay}`);
+  assert.ok(await page.$$eval('#board .task:not(.is-done)', els => els.length) > 0);
+  assert.equal(await page.$$eval('#board .task:not(.is-done) .done-at', els => els.length), 0, 'an open task shows nothing of the kind');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 const sunday = parseYmdLocal(T).getDay() === 0;
 test('dragged to another day in the week planner: postponed the same way', { skip: sunday && 'today is Sunday: no later day this week to drag to' }, async () => {
   const { ctx, page, errors } = await phone({ 'tasks/t_weekly': task('Weekly report', { due: T, repeat: 'weekly' }) }, { local: { 'todo.calMode': 'week' } });
