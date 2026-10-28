@@ -125,6 +125,73 @@ test('a date changed in the task itself moves the schedule there (as before), an
   await ctx.close();
 });
 
+// A finger on a row (the same as in regression.test.cjs): the board reads pointer events.
+async function swipe(page, id, dx) {
+  await page.evaluate(({ id, dx }) => {
+    const inner = document.querySelector(`.task[data-id="${id}"] .task-inner`);
+    const r = inner.getBoundingClientRect();
+    const x0 = r.left + r.width / 2, y = r.top + r.height / 2;
+    const ev = (name, x) => inner.dispatchEvent(new PointerEvent(name, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, button: 0 }));
+    ev('pointerdown', x0);
+    for (let i = 1; i <= 12; i++) ev('pointermove', x0 + (dx * i) / 12);
+    ev('pointerup', x0 + dx);
+  }, { id, dx });
+  await page.waitForTimeout(500);
+}
+
+test('every count of a part of the list agrees (the task on Up next counts too), and a late task swipes back to today', async () => {
+  const { ctx, page, errors } = await phone({
+    'tasks/o1': task('Late one', { due: addDays(T, -2), priority: 3 }), // Up next
+    'tasks/o2': task('Late two', { due: addDays(T, -1) }),
+    'tasks/o3': task('Late three', { due: addDays(T, -1), repeat: 'weekly' }),
+    'tasks/t1': task('Today one'),
+    'tasks/t2': task('Today two', { time: '23:59' }),
+  });
+  assert.equal(await page.getAttribute('#hero', 'data-id'), 'o1');
+  const counts = () => page.evaluate(() => ({
+    badge: document.querySelector('#todayBadge').textContent,
+    view: document.querySelector('[data-scope="overdue"] .scope-n').textContent,
+    section: document.querySelector('.sec[data-sec="overdue"] .count').textContent,
+    rows: document.querySelectorAll('.sec[data-sec="overdue"] .task').length,
+    move: document.querySelector('#moveOverdue').textContent,
+    today: document.querySelector('.sec[data-sec="today"] .count').textContent,
+    todayView: document.querySelector('[data-scope="today"] .scope-n').textContent,
+  }));
+  assert.deepEqual(await counts(), { badge: '3', view: '3', section: '3', rows: 2, move: 'Move all 3 to today', today: '2', todayView: '2' },
+    'the Overdue heading says 3 (2 rows, and the one on Up next), the same as the badge, the view and Move all');
+  // A late task, swiped left: Today is one of the choices, and it keeps a repeating one's schedule.
+  await swipe(page, 'o3', -120);
+  assert.ok(await page.isVisible('.task[data-id="o3"] [data-snooze="today"]'));
+  await page.click('.task[data-id="o3"] [data-snooze="today"]');
+  await page.waitForTimeout(500);
+  const d = await dump(page);
+  assert.equal(d.docs['tasks/o3'].due, T);
+  assert.deepEqual(d.docs['tasks/o3'].postponed, { from: addDays(T, -1), to: T });
+  assert.equal(await page.textContent('#toastMsg'), 'Moved to today');
+  assert.deepEqual(await counts(), { badge: '2', view: '2', section: '2', rows: 1, move: 'Move all 2 to today', today: '3', todayView: '3' });
+  // A task that isn't late doesn't offer it.
+  await swipe(page, 't1', -120);
+  assert.ok(await page.isVisible('.task[data-id="t1"] [data-snooze="tomorrow"]'));
+  assert.ok(await page.isHidden('.task[data-id="t1"] [data-snooze="today"]'));
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('on a small iPhone, a late task’s four choices still leave some of the task showing', async () => {
+  const { ctx, page, errors } = await phone({ 'tasks/o1': task('Up next', { due: addDays(T, -2), priority: 3 }), 'tasks/o2': task('Late two', { due: addDays(T, -1) }) },
+    { viewport: { width: 320, height: 640 } });
+  await swipe(page, 'o2', -120);
+  const r = await page.evaluate(() => {
+    const li = document.querySelector('.task[data-id="o2"]');
+    const shown = [...li.querySelectorAll('.snooze-btn')].filter(b => !b.hidden).map(b => b.dataset.snooze);
+    return { shown, left: Math.round(li.querySelector('.swipe-later').getBoundingClientRect().left - li.getBoundingClientRect().left) };
+  });
+  assert.deepEqual(r.shown, ['pick', 'nextweek', 'tomorrow', 'today']);
+  assert.ok(r.left >= 60, `${r.left}px of the task still shows`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // The agenda's groups as shown: [group, count, [[id or 'date:'+id, when, late]], more].
 const agenda = page => page.$$eval('#homeDueRows .ag-group', gs => gs.map(g => [g.dataset.ag, g.querySelector('.ag-n').textContent,
   [...g.querySelectorAll('.home-row, .date-row')].map(r => (r.classList.contains('date-row') ? ['date:' + r.dataset.homeDate, r.querySelector('.dr-count').textContent, false]
