@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0TvsfjDaSUwhO7oT0D9Ls9CkmvorxG6Hc85jppkoDcU=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-QK0vleQOK8Bif9uHuAXgf+kRcjUKvEOBT+v6ww9uO1k=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-H163J6K/lBgCmWHxr0NbLBwelgnL/uGaHTlvq/ZcqxQ=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-TRmCDWVEsFUTXL/1fnRV7rGHOJsZtnm4dk0/lJhYpiw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.e767b3e9'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.1331f9cd'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -4514,6 +4514,26 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     while (n > 0) { d = addDays(d, 1); const wd = parseYmd(d).getDay(); if (wd !== 0 && wd !== 6) n--; }
     return d;
   }
+  // A repeating task moved by a quick move (Move to today, a snooze, Select, a drag in the week) is only put off: it
+  // keeps the day it was due as postponed: { from, to }, so the next one comes on its usual day. The note counts only
+  // while the task is still on that day: a date changed in the task itself (or by an older copy of the app, which
+  // doesn't know the note) moves the schedule to the new day, as before.
+  function postponedFrom(t) {
+    const p = t && t.postponed;
+    return p && typeof p === 'object' && isYmd(p.from) && isYmd(t.due) && p.to === t.due && cleanRepeat(t.repeat) ? p.from : null;
+  }
+  // What a quick move to `due` writes on a stored task besides the date (nothing for a task that doesn't repeat).
+  function postponeFor(raw, due) {
+    if (!raw || !cleanRepeat(raw.repeat) || !isYmd(raw.due)) return {};
+    const from = postponedFrom(raw) || raw.due;
+    return { postponed: isYmd(due) && due !== from ? { from, to: due } : null };
+  }
+  // How to put a quick move back: the date, the place in a dragged order and, when it was written, the note.
+  function moveBefore(raw, extra) {
+    const before = { due: isYmd(raw.due) ? raw.due : null, rank: Number.isFinite(raw.rank) ? raw.rank : null };
+    if ('postponed' in extra) before.postponed = raw.postponed && typeof raw.postponed === 'object' ? raw.postponed : null;
+    return before;
+  }
   // The first date after today that fits the pattern, counted from the task's own date so a schedule never drifts.
   function nextOccurrence(due, repeat, anchor = null) {
     let s = isYmd(due) ? due : S.today;
@@ -5481,6 +5501,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     end: isYmd(t.due) ? cleanEnd(t.time, t.end) : null,
     repeat: isYmd(t.due) ? cleanRepeat(t.repeat) : null,
     repeatAnchor: Number.isInteger(t.repeatAnchor) ? t.repeatAnchor : null,
+    seriesFrom: postponedFrom(t),
     spawnedId: typeof t.spawnedId === 'string' ? t.spawnedId : null,
     checklist: cleanChecklist(t.checklist),
     photos: cleanPhotos(t.photos),
@@ -5978,6 +5999,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (NATIVE && NATIVE.haptic(kind || (ms > 12 ? 'medium' : 'light'))) return;
     try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not allowed here */ }
   };
+  // The series a repeating task belongs to: a postponed one counts its next date from the day it was due.
+  const seriesOf = t => (t.seriesFrom ? { ...t, due: t.seriesFrom } : t);
+  const nextDueOf = t => { const s = seriesOf(t); return nextOccurrence(s.due, s.repeat, anchorFor(s)); };
   function toggleDone(id) {
     const cur = S.tasks.get(id);
     if (!cur || !writable()) return;
@@ -6007,9 +6031,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     }
     if (done && t.repeat) {
       // Check this one off and create the next one right away, so the schedule keeps going.
-      const nextDue = nextOccurrence(t.due, t.repeat, anchorFor(t));
+      const nextDue = nextDueOf(t);
       const ref = db.collection('tasks').doc();
-      const copy = repeatCopy(t, nextDue);
+      const copy = repeatCopy(seriesOf(t), nextDue);
       write('tasks/' + ref.id, () => ref.set(copy), { create: true });
       write('tasks/' + id, () => taskRef(id).update({ done: true, doneAt: at, spawnedId: ref.id }));
       record();
@@ -6067,7 +6091,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   // The next copy of a repeating task is still exactly what checking it off made (its calendar event and its place in
   // a dragged order aside), so taking it back loses nothing.
   function untouchedCopy(t, next) {
-    const want = repeatCopy(t, next.due);
+    const want = repeatCopy(seriesOf(t), next.due);
     const same = (a, b) => sameData(a === undefined ? null : a, b === undefined ? null : b);
     for (const k of new Set([...Object.keys(want), ...Object.keys(next)])) {
       if (k === 'createdAt' || k === 'gcal' || k === 'rank') continue;
@@ -6077,9 +6101,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   }
   // A repeating task just finished another way (a PO received): its next copy, so the schedule keeps going.
   function spawnNext(t) {
-    const nextDue = nextOccurrence(t.due, t.repeat, anchorFor(t));
+    const nextDue = nextDueOf(t);
     const ref = db.collection('tasks').doc();
-    write('tasks/' + ref.id, () => ref.set(repeatCopy(t, nextDue)), { create: true });
+    write('tasks/' + ref.id, () => ref.set(repeatCopy(seriesOf(t), nextDue)), { create: true });
     return { id: ref.id, nextDue, undo: () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()) };
   }
   // Check off several at once (repeating ones make their next copy). Returns how to take it all back.
@@ -6099,7 +6123,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       n++;
       if (t.repeat) {
         const ref = db.collection('tasks').doc();
-        const copy = repeatCopy(t, nextOccurrence(t.due, t.repeat, anchorFor(t)));
+        const copy = repeatCopy(seriesOf(t), nextDueOf(t));
         jobs.push(() => write('tasks/' + ref.id, () => ref.set(copy), { create: true }));
         jobs.push(() => write('tasks/' + id, () => taskRef(id).update({ done: true, doneAt: at, spawnedId: ref.id })));
         back.push(() => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
@@ -6120,9 +6144,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   function moveMany(ids, due) {
     if (!writable() || !isYmd(due)) return null;
     const changes = ids.map(id => [id, S.tasks.get(id)]).filter(([, t]) => t && t.due !== due)
-      .map(([id, t]) => ({ id, before: { due: isYmd(t.due) ? t.due : null, rank: Number.isFinite(t.rank) ? t.rank : null } }));
+      .map(([id, t]) => { const extra = postponeFor(t, due); return { id, extra, before: moveBefore(t, extra) }; });
     if (!changes.length) return null;
-    runPool(changes.map(c => () => write('tasks/' + c.id, () => taskRef(c.id).update({ due, rank: null }))));
+    runPool(changes.map(c => () => write('tasks/' + c.id, () => taskRef(c.id).update({ due, rank: null, ...c.extra }))));
     return { n: changes.length, undo: () => runPool(changes.map(c => () => write('tasks/' + c.id, () => taskRef(c.id).update(c.before)))) };
   }
   function listMany(ids, list) {
@@ -6170,12 +6194,13 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   function moveTask(id, due, message) {
     const cur = S.tasks.get(id);
     if (!cur || !writable() || !isYmd(due)) return;
-    const before = { due: isYmd(cur.due) ? cur.due : null, rank: Number.isFinite(cur.rank) ? cur.rank : null };
-    if (before.due === due) return;
-    const moved = { ...cur, due, rank: null };
+    if ((isYmd(cur.due) ? cur.due : null) === due) return;
+    const extra = postponeFor(cur, due);
+    const before = moveBefore(cur, extra);
+    const moved = { ...cur, due, rank: null, ...extra };
     S.tasks.set(id, moved); // show it right away; the saved copy follows
     render();
-    write('tasks/' + id, () => taskRef(id).update({ due, rank: null })).then(ok => {
+    write('tasks/' + id, () => taskRef(id).update({ due, rank: null, ...extra })).then(ok => {
       if (!ok && S.tasks.get(id) === moved) { S.tasks.set(id, cur); render(); }
     });
     toast(message || `Moved to ${dayInSentence(due)}`, () => write('tasks/' + id, () => taskRef(id).update(before)));
@@ -7117,6 +7142,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       }
       if ((typeof cur.client === 'string' ? cur.client : null) !== client) changes.client = client;
       if (JSON.stringify(cats) !== JSON.stringify(cleanCats(cur.cats))) changes.cats = cats.length ? cats : null;
+      if (('due' in changes || 'repeat' in changes) && cur.postponed) changes.postponed = null; // a new day or pattern: the schedule starts there
       const nowReceived = received && cur.done !== true && !(was && was.status === 'received');
       let nextUp = null;
       if (nowReceived) {
@@ -10753,8 +10779,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       return !t.done && t.due && t.due < S.today && (all ? !t.sample : inFilter(t));
     });
     if (!entries.length || !writable()) return 0;
-    const before = entries.map(([tid, raw]) => [tid, { due: raw.due, rank: Number.isFinite(raw.rank) ? raw.rank : null }]);
-    runPool(before.map(([tid]) => () => write('tasks/' + tid, () => taskRef(tid).update({ due: S.today, rank: null }))));
+    const moves = entries.map(([tid, raw]) => { const extra = postponeFor(raw, S.today); return { tid, extra, was: moveBefore(raw, extra) }; });
+    const before = moves.map(m => [m.tid, m.was]);
+    runPool(moves.map(m => () => write('tasks/' + m.tid, () => taskRef(m.tid).update({ due: S.today, rank: null, ...m.extra }))));
     toast(`Moved ${plural(before.length, 'task', 'tasks')} to today`,
       () => runPool(before.map(([tid, was]) => () => write('tasks/' + tid, () => taskRef(tid).update(was)))));
     return before.length;
@@ -12162,8 +12189,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   function moveTaskTo(id, due) {
     const raw = S.tasks.get(id);
     if (!raw || !writable()) return;
-    const before = { due: isYmd(raw.due) ? raw.due : null, rank: Number.isFinite(raw.rank) ? raw.rank : null };
-    write('tasks/' + id, () => taskRef(id).update({ due, rank: null }));
+    const extra = postponeFor(raw, due);
+    const before = moveBefore(raw, extra);
+    write('tasks/' + id, () => taskRef(id).update({ due, rank: null, ...extra }));
     buzz(8);
     toast(due ? `Moved to ${dayInSentence(due)}` : 'Moved to No date', () => write('tasks/' + id, () => taskRef(id).update(before)));
   }
