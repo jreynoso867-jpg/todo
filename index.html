@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-VZAUtOXPiNeWACxspaarSSDutGSexDds8x0tiF0S+MY=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-jM3KPQIY5LJVbTkBYZ4qJ4N4QW8gLRyGEnlqZ52apks=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uvF1t310onk0Zj/VlAGB8CViS/p0YEfWi+1uXduDLUY=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-8yd5g727NwFSKZ7AzOaPD39s8nra+uB0MzNQSPTHTp8=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.f9ece7b4'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.8b51f845'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1992,6 +1992,13 @@ a.chip { text-decoration: none; }
 .cal-mode .seg { background: var(--wash); }
 .wk-day { margin-top: 12px; }
 .review-btn { margin-top: 8px; }
+.dupe-group { margin-top: 18px; }
+.dupe-group h3 { margin: 0 0 6px; font-size: calc(17px * var(--tsb)); font-weight: 750; overflow-wrap: anywhere; color: var(--head); }
+.dupe-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--card-line); border-radius: 14px; background: var(--card); }
+.dupe-info { flex: 1; min-width: 0; font-size: calc(14.5px * var(--ts)); line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.dupe-info span { display: block; color: var(--soft); }
+.dupe-row .btn-small { flex: none; min-height: 40px; }
+.dupe-both { margin-top: 4px; }
 .review-btn b { margin-left: 6px; }
 .review-pos { margin-top: 0; }
 .review-card { display: grid; gap: 6px; margin-top: 8px; padding: 18px 16px 12px; border: 1px solid var(--card-line); border-radius: var(--r-card, 20px); background: var(--card); }
@@ -3356,6 +3363,11 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     <p id="tipText"></p>
     <button type="button" id="clearSamples">Clear samples</button>
   </div>
+  <!-- A repeating task listed twice (made on two copies of the app): which copy to keep is for you to say. -->
+  <div class="tip" id="dupeTip" hidden>
+    <p id="dupeText"></p>
+    <button type="button" id="dupeReview">Review</button>
+  </div>
 
   <div class="daybar" id="dayBar" hidden><h2 id="dayTitle" tabindex="-1"></h2><button type="button" class="link-btn" id="dayClear">Show all tasks</button></div>
 
@@ -4198,6 +4210,18 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       <button type="button" class="link-btn review-keep" data-review="keep">Keep it as it is</button>
     </div>
     <p class="review-sum" id="reviewSum" hidden></p>
+  </div>
+</section>
+
+<section class="sheet c0" id="dupeSheet" role="dialog" aria-modal="true" aria-labelledby="dupeTitle" tabindex="-1" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <span></span>
+      <h2 id="dupeTitle">Listed twice</h2>
+      <button type="button" class="link-btn end" id="dupeDone">Done</button>
+    </div>
+    <p class="sheet-note">The same repeating task, more than once: usually because it was checked off on two copies of the app and each made its next one. Keep one, and the others go to Recently deleted, where they can be put back for 7 days.</p>
+    <div id="dupeBody"></div>
   </div>
 </section>
 
@@ -6853,6 +6877,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     closeClients();
     closePoSheet();
     closeReview();
+    closeDupes();
     if (S.selecting && !writable()) exitSelect();
   }
 
@@ -11332,6 +11357,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     renderWeek();
     renderFilters();
     renderTip();
+    renderDupeTip();
     renderBoard();
     renderStats();
     renderPlanBtn();
@@ -11372,6 +11398,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     renderTaskSheet();
     renderListsSheet();
     renderReview();
+    renderDupes();
     renderFoot();
     if (NATIVE) { queueNotes(); queueFileCopy(); openFromNote(); ciProof(); }
     renderedAt = performance.now();
@@ -12441,6 +12468,94 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     b.setAttribute('aria-label', `Review unfinished: ${plural(n, 'task', 'tasks')}, one at a time`);
   }
 
+  /* ---------- a repeating task listed twice: say so, and let a copy be kept ---------- */
+  // Open copies of the same repeating task (its words, list and repeat), from two copies of the app each making the
+  // next one. Nothing changes until a copy is picked: the others then go to Recently deleted (with Undo). Keep both is
+  // remembered on this device, for those copies only.
+  const DUPES_OK = 'todo.dupesOk';
+  const dupesOk = () => { try { const v = JSON.parse(local.get(DUPES_OK) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); } };
+  const groupKey = ids => ids.slice().sort().join('+');
+  function twiceListed() {
+    const by = new Map();
+    for (const [id, raw] of S.tasks) {
+      const k = openSeriesKey(raw);
+      if (!k) continue;
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(id);
+    }
+    const ok = dupesOk();
+    return [...by.values()].filter(ids => ids.length > 1 && !ok.has(groupKey(ids)))
+      .map(ids => ids.map(id => taskView(id, S.tasks.get(id))).sort((a, b) => (a.due || '').localeCompare(b.due || '') || byCreated(a, b)))
+      .sort((a, b) => a[0].title.localeCompare(b[0].title) || byCreated(a[0], b[0])); // by name
+  }
+  function renderDupeTip() {
+    const tip = $('#dupeTip');
+    const groups = writable() && S.tasksLoaded && shownTab() === 'tasks' && !searchQuery() && !S.selecting ? twiceListed() : [];
+    tip.hidden = !groups.length;
+    if (!groups.length) return;
+    const text = groups.length === 1 ? `“${clean(groups[0][0].title, 60) || 'A repeating task'}” is listed ${groups[0].length === 2 ? 'twice' : `${groups[0].length} times`}.`
+      : `${groups.length} repeating tasks are listed more than once.`;
+    if ($('#dupeText').textContent !== text) $('#dupeText').textContent = text;
+  }
+  function openDupes() {
+    if (!writable() || !twiceListed().length) return;
+    S.dupeOpen = true;
+    renderDupes();
+    const sheet = $('#dupeSheet');
+    openSheet(sheet);
+    sheet.scrollTop = 0;
+    sheet.focus({ preventScroll: true });
+  }
+  function closeDupes() {
+    if (!S.dupeOpen) return;
+    S.dupeOpen = false;
+    closeSheet($('#dupeSheet'));
+  }
+  function renderDupes() {
+    if (!S.dupeOpen) return;
+    const groups = twiceListed();
+    const body = $('#dupeBody');
+    const sig = JSON.stringify(groups.map(g => g.map(t => [t.id, t.title, t.due, t.time, t.note, t.checklist.length])));
+    fillRows(body, sig, groups.map(g => {
+      const sec = el('section', 'dupe-group');
+      sec.append(el('h3', '', g[0].title || 'Untitled task'));
+      for (const t of g) {
+        const row = el('div', 'dupe-row');
+        const info = el('p', 'dupe-info', whenText(t));
+        const made = t.createdAt ? `Added ${shortDay(ymd(new Date(t.createdAt)))}` : '';
+        const more = [made, notePreview(t.note).split('\n')[0], t.checklist.length ? plural(t.checklist.length, 'checklist item', 'checklist items') : ''].filter(Boolean).join(' · ');
+        if (more) info.append(el('span', '', more));
+        const keep = el('button', 'btn-small quiet', 'Keep this one');
+        keep.type = 'button';
+        keep.dataset.dupeKeep = t.id;
+        keep.dataset.row = 'keep:' + t.id;
+        keep.setAttribute('aria-label', `Keep this one: ${t.title || 'Untitled task'}, ${whenText(t)}${made ? `, ${made.toLowerCase()}` : ''}`);
+        row.append(info, keep);
+        sec.append(row);
+      }
+      const both = el('button', 'link-btn dupe-both', g.length === 2 ? 'Keep both' : 'Keep them all');
+      both.type = 'button';
+      both.dataset.dupeBoth = groupKey(g.map(t => t.id));
+      both.dataset.row = 'both:' + both.dataset.dupeBoth;
+      sec.append(both);
+      return sec;
+    }), $('#dupeDone'));
+    if (!groups.length) closeDupes();
+  }
+  function keepCopy(id) {
+    const group = twiceListed().find(g => g.some(t => t.id === id));
+    if (!group) return;
+    const others = group.filter(t => t.id !== id).map(t => t.id);
+    deleteMany(others, `Kept one “${clean(group[0].title, 40)}”. ${others.length === 1 ? 'The other is' : 'The others are'} in Recently deleted.`);
+    render();
+  }
+  function keepAllCopies(key) {
+    const ok = dupesOk();
+    ok.add(key);
+    local.set(DUPES_OK, JSON.stringify([...ok].slice(-50)));
+    render();
+  }
+
   /* ---------- Google Calendar: tasks with a time become events, through the viewer's own Google Calendar connector ---------- */
   // The connector's field names come from its own tool descriptions; when it asks for something this page
   // can't fill, syncing pauses with a plain message instead of guessing.
@@ -12831,6 +12946,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     try { await navigator.share({ files: [file], title: filename }); return true; }
     catch (e) { return e && e.name === 'AbortError' ? null : false; }
   }
+  // An open repeating task, by its words, list and repeat (two of these are one task listed twice); null for any other.
+  const openSeriesKey = d => (d && d.done !== true && d.sample !== true && cleanRepeat(d.repeat) && isYmd(d.due)
+    ? `${smartNorm(d.title || '')}|${typeof d.list === 'string' ? d.list : ''}|${cleanRepeat(d.repeat)}` : null);
   // Everything in one file's worth (not the sample tasks), with whatever photos are given (id -> data: URL).
   function exportBody(photos) {
     const keep = d => !(d && d.sample === true);
@@ -12929,8 +13047,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
           (PARENT[c] ? jobs : firsts).push(() => write(c + '/' + id, () => recRef(c, id).set(d), { create: true }));
         }
       }
+      // A repeating task that's already open here isn't added a second time. Ticked off on two copies of the app, each
+      // made its own next one (a different id), so loading one copy's file into the other would list it twice.
+      const series = new Set();
+      for (const raw of S.tasks.values()) if (openSeriesKey(raw)) series.add(openSeriesKey(raw));
+      const sameNames = [];
+      let same = 0;
       for (const [id, d] of entries('tasks')) {
         if (d.sample === true || S.tasks.has(id)) continue;
+        const key = openSeriesKey(d);
+        if (key && series.has(key)) { same++; if (sameNames.length < 3 && !sameNames.includes(clean(d.title, 40))) sameNames.push(clean(d.title, 40)); continue; }
+        if (key) series.add(key);
         const copy = { ...d };
         delete copy.gcal; // calendar events stay with the copy they came from
         if (Array.isArray(copy.photos)) copy.photos = copy.photos.filter(ph => ph && photoMap.has(ph.id)).map(ph => ({ ...ph, id: photoMap.get(ph.id) }));
@@ -12957,7 +13084,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
         ntp ? plural(ntp, 'template', 'templates') : '', ...recCounts(c => added[c]), np ? plural(np, 'photo', 'photos') : ''].filter(Boolean);
       const any = nt || nl || nc || ncat || ntp || REC_COLLS.some(c => added[c]);
       const inSafari = phoneWhere() === 'ios-safari' ? ' This copy is in Safari. The Home Screen icon keeps its own, so load the file there too.' : '';
-      renderMove('done', (any ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + inSafari);
+      const sameNote = same ? ` Left out ${plural(same, 'repeating task', 'repeating tasks')} already on your list: ${sameNames.join(', ')}${same > sameNames.length ? ' and more' : ''}.` : '';
+      renderMove('done', (any ? `Loaded ${parts.join(', ')}.` : 'Everything in that file is already here.') + sameNote + inSafari);
       if (any) toast(`Loaded ${parts.join(', ')}`);
       render();
     } catch (e) {
@@ -15172,6 +15300,14 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   document.querySelector('#paneCalendar .cal-mode').addEventListener('click', e => { const b = e.target.closest('[data-cal-mode]'); if (b) setCalMode(b.dataset.calMode); });
   $('#weekPrev').addEventListener('click', () => shiftWeek(-1));
   $('#reviewBtn').addEventListener('click', openReview);
+  $('#dupeReview').addEventListener('click', openDupes);
+  $('#dupeDone').addEventListener('click', closeDupes);
+  $('#dupeBody').addEventListener('click', e => {
+    const k = e.target.closest('[data-dupe-keep]');
+    if (k) { keepCopy(k.dataset.dupeKeep); return; }
+    const b = e.target.closest('[data-dupe-both]');
+    if (b) keepAllCopies(b.dataset.dupeBoth);
+  });
   $('#reviewClose').addEventListener('click', closeReview);
   $('#reviewSheet').addEventListener('click', e => {
     const b = e.target.closest('[data-review]');
@@ -15330,7 +15466,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       // using the keys.
       const el = e.target;
       const typing = !!(el && el.matches && el.matches('input, textarea, select, [contenteditable]'));
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || S.reviewOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen || S.goalOpen || S.moneyOpen || S.dateOpen) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || S.sheet || report.open || S.listsOpen || S.colorsOpen || S.planOpen || S.trashOpen || S.askOpen || S.poOpen || S.reviewOpen || S.dupeOpen || cb.open || S.shopOpen || S.itemOpen || S.wishOpen || S.goalOpen || S.moneyOpen || S.dateOpen) return;
       if ((e.key === 'n' || e.key === 'N') && writable()) { e.preventDefault(); newHere(); }
       else if (e.key === '/' && !$('#searchBtn').hidden) { e.preventDefault(); if (S.tab !== 'tasks') setTab('tasks', { focus: false }); openSearch(); }
       return;
@@ -15347,6 +15483,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     else if (S.dateOpen) closeDateSheet();
     else if (S.poOpen) closePoSheet();
     else if (S.reviewOpen) closeReview();
+    else if (S.dupeOpen) closeDupes();
     else if (S.listsOpen) closeListsSheet();
     else if (S.colorsOpen) closeColorsSheet();
     else if (S.trashOpen) closeTrash();

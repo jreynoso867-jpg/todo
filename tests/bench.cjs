@@ -1,5 +1,6 @@
-// Performance benchmark: boot, check-off, opening a task, typing in quick add, memory and DOM size,
-// on a small and a 2000-task list, with the CPU slowed 4x to stand in for a phone.
+// Performance benchmark: boot (on Tasks, and on Home), check-off, opening a task, editing and saving one, typing in
+// quick add, searching, switching tabs, memory and DOM size, on a small and a 2000-task list, with the CPU slowed 4x
+// to stand in for a phone.
 // Usage: node tests/bench.cjs <app dir> [label]   (prints JSON)
 'use strict';
 const path = require('node:path');
@@ -71,6 +72,50 @@ async function one(browser, srv, fx) {
   }
   res.openTaskMainThreadMs = round(median(opens));
 
+  // Editing a task: open it, change its words, Save. Main-thread time from the tap on Save until every render is done.
+  const saves = [];
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate(() => document.querySelector('#board .task:not(.is-done) .task-body').click());
+    await page.waitForSelector('#taskSheet.open');
+    await page.fill('#taskTitle', `Edited title ${i}`);
+    const m0 = await metrics(cdp);
+    await page.evaluate(async () => {
+      document.querySelector('#sheetSubmit').click();
+      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+    });
+    const m1 = await metrics(cdp);
+    saves.push((m1.TaskDuration - m0.TaskDuration) * 1000);
+    await page.waitForTimeout(450);
+  }
+  res.editSaveMainThreadMs = round(median(saves));
+
+  // Searching: open search and type six letters, then cancel.
+  const s0 = await metrics(cdp);
+  await page.click('#searchBtn');
+  await page.type('#searchInput', 'task 1', { delay: 0 });
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))));
+  const s1 = await metrics(cdp);
+  res.search6charsMainThreadMs = round((s1.TaskDuration - s0.TaskDuration) * 1000);
+  await page.click('#searchCancel');
+  await page.waitForTimeout(300);
+
+  // Switching tabs: Home, Lists, Calendar, then back to Tasks; the median of each switch.
+  const switches = [];
+  for (const tab of ['#dockHome', '#dockLists', '#dockWeek', '#dockToday', '#dockHome', '#dockToday']) {
+    const m0 = await metrics(cdp);
+    await page.evaluate(async sel => {
+      document.querySelector(sel).click();
+      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+    }, tab);
+    const m1 = await metrics(cdp);
+    switches.push((m1.TaskDuration - m0.TaskDuration) * 1000);
+    await page.waitForTimeout(300);
+  }
+  res.tabSwitchMainThreadMs = round(median(switches));
+  res.tabSwitchSlowestMs = round(Math.max(...switches));
+
   // Typing in quick add: 20 keystrokes.
   const q = await page.$('#quickInput');
   if (q) {
@@ -88,6 +133,21 @@ async function one(browser, srv, fx) {
   res.domNodes = m.Nodes;
   res.taskRowsInDom = await page.evaluate(() => document.querySelectorAll('.task').length);
   await ctx.close();
+
+  // Opening on Home (where the app opens until another tab is picked): main-thread time until it settles.
+  const hctx = await phoneContext(browser);
+  const hpage = await hctx.newPage();
+  await seed(hpage, srv.url, { ...fx, local: { ...fx.local, 'todo.tab': 'home' } });
+  const hcdp = await hctx.newCDPSession(hpage);
+  await hcdp.send('Performance.enable');
+  await hcdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  const h0 = await metrics(hcdp);
+  await hpage.goto(srv.url + '/index.html');
+  await hpage.waitForSelector('#homeDue:not([hidden])', { timeout: 60000 });
+  await hpage.waitForTimeout(1500);
+  const h1 = await metrics(hcdp);
+  res.homeBootMainThreadMs = round((h1.TaskDuration - h0.TaskDuration) * 1000);
+  await hctx.close();
   return res;
 }
 
