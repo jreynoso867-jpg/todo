@@ -1,5 +1,5 @@
 /* Jose's To-Do: opens with no signal. The app's files are kept on the phone, and photos come from the phone's storage. */
-const VERSION = 'todo-3e06e525c0';
+const VERSION = 'todo-70d1364647';
 const SHELL = ["./", "./index.html", "./archivo.woff2", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

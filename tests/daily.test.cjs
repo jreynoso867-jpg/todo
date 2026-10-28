@@ -289,6 +289,48 @@ test('Home’s agenda with nothing due: says so, and still counts the tasks with
   await ctx.close();
 });
 
+test('adding from Home: one tap and the words; smart add reads the day, time, priority and list, and it shows in the agenda', async () => {
+  const { ctx, page, errors } = await phone({ 'tasks/t1': task('Something already here', { due: addDays(T, 2) }) }, { tab: 'home' });
+  assert.ok(await page.isVisible('#homeQuickInput'), 'the box is on Home');
+  await page.click('#homeQuickInput');
+  await page.keyboard.type('Call the bank tomorrow 3pm !!! #home');
+  assert.match(await page.textContent('#homeQuickHint'), /Tomorrow at 3:00 PM · High priority · Home/);
+  assert.match(await page.textContent('#homeQuickHint'), /Saves as “Call the bank”/);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  let d = await dump(page);
+  const added = tasksOf(d).find(t => t.title === 'Call the bank');
+  assert.ok(added, 'saved');
+  assert.deepEqual([added.due, added.time, added.priority, added.list, added.done], [addDays(T, 1), '15:00', 3, 'l_home', false]);
+  assert.equal(await page.textContent('#toastMsg'), 'Task added for tomorrow (Home)');
+  assert.equal(await page.inputValue('#homeQuickInput'), '', 'the box is empty again');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'homeQuickInput', 'ready for the next one');
+  assert.ok(await page.isVisible(`#homeDueRows [data-home-open="${added.id}"]`), 'in the agenda at once');
+  // Just words: today, in no list.
+  await page.keyboard.type('Buy stamps');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  d = await dump(page);
+  const plain = tasksOf(d).find(t => t.title === 'Buy stamps');
+  assert.deepEqual([plain.due, plain.list, plain.priority], [T, null, 0]);
+  assert.equal(await page.textContent('#toastMsg'), 'Task added for today');
+  // Undo takes it back.
+  await page.click('#toastUndo');
+  await page.waitForTimeout(500);
+  assert.equal(tasksOf(await dump(page)).find(t => t.title === 'Buy stamps'), undefined);
+  // Escape clears what was typed; More opens the whole task with it.
+  await page.click('#homeQuickInput');
+  await page.keyboard.type('Something to forget');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.inputValue('#homeQuickInput'), '');
+  await page.keyboard.type('Plan the week friday');
+  await page.click('#homeQuickMore');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.inputValue('#taskTitle'), 'Plan the week friday');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 const sunday = parseYmdLocal(T).getDay() === 0;
 test('dragged to another day in the week planner: postponed the same way', { skip: sunday && 'today is Sunday: no later day this week to drag to' }, async () => {
   const { ctx, page, errors } = await phone({ 'tasks/t_weekly': task('Weekly report', { due: T, repeat: 'weekly' }) }, { local: { 'todo.calMode': 'week' } });

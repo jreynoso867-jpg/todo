@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OV4KlvHtcJoLpJDpAx5SqbfjlAG3/Zixu1XG7xMMVQc=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-PKGBgYsGjzC4pAepD9nTv8QDQbM+R/WN0KZAdqIbTxY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oyHQH59Hny4mpKuYg5SOJWXSR8YR6RWUQ/gdYxbtYBQ=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-dFVDwBQNCID7NsZOfpnOR4V5hJSCj+y2AllgCHSoi8E=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.6d07fb02'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.946235cf'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -1592,11 +1592,11 @@ button:disabled { cursor: default; }
 }
 .quick:focus-within { border-color: var(--ink); }
 .quick > .ico { color: var(--soft); }
-#quickInput {
+#quickInput, .quick-input {
   flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: transparent;
   color: var(--ink); font-size: calc(16px * var(--ts)); outline: none;
 }
-#quickInput::placeholder { color: var(--soft); }
+#quickInput::placeholder, .quick-input::placeholder { color: var(--soft); }
 .quick-more {
   flex: none; height: 38px; padding: 0 13px; border: 0; border-radius: 12px;
   background: var(--wash); color: var(--ink); font-size: calc(14px * var(--ts)); font-weight: 600;
@@ -2514,7 +2514,6 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .hr-sub { font-size: calc(13.5px * var(--ts)); line-height: 1.3; color: var(--soft); overflow-wrap: anywhere; }
-.hr-title .prio-mark { margin-right: 5px; }
 .hr-when { flex: none; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); white-space: nowrap; }
 :root:is([data-text="large"], [data-text="xl"]) .hr-body { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 0; }
 :root:is([data-text="large"], [data-text="xl"]) .hr-text { flex: none; max-width: 100%; }
@@ -3175,6 +3174,14 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     <p id="welcomeText">In the Claude version, open Settings and tap Save everything. Then load that file here. Your tasks stay on this phone and work with no signal.</p>
     <div class="move-row"><button type="button" class="btn-small" id="welcomeLoad">Load a saved file</button><button type="button" class="btn-small quiet" id="welcomeSkip">Start fresh</button></div>
   </section>
+  <!-- Adding from Home: one tap and the words, the same smart add as on Tasks (for today, in no list, unless they say). -->
+  <form class="quick home-quick" id="homeQuick" autocomplete="off" hidden>
+    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <label class="sr-only" for="homeQuickInput">Add a task</label>
+    <input id="homeQuickInput" class="quick-input" type="text" maxlength="500" placeholder="Add a task, like “tomorrow 3pm …”" enterkeyhint="done" autocapitalize="sentences" aria-describedby="homeQuickHint">
+    <button type="button" class="quick-more" id="homeQuickMore">More</button>
+  </form>
+  <p class="quick-hint" id="homeQuickHint" hidden></p>
   <section class="card home-card" id="homeDue" aria-labelledby="homeDueTitle" hidden>
     <div class="card-head">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.4 2.4 4.6-5"/></svg>
@@ -7809,11 +7816,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
 
   /* ---------- quick add: type a task at the top, press Enter; smart add reads the words ---------- */
   const SPARK_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z"/><path d="M18 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>';
-  // The same rules as the task sheet: a new task is for today (or the day picked in the week strip),
-  // in the list being shown, unless the words say otherwise.
-  function quickRead() {
-    const text = $('#quickInput').value;
-    const base = { due: S.day || S.today, time: null, end: null, priority: 0, list: S.filter !== ALL && S.lists.has(S.filter) ? S.filter : null, repeat: null };
+  // Quick add is on Tasks and on Home. The same rules as the task sheet: on Tasks a new task is for today (or the day
+  // picked in the week strip), in the list being shown; on Home it's for today, in no list; unless the words say otherwise.
+  const QUICK = {
+    tasks: { form: '#quickForm', input: '#quickInput', hint: '#quickHint' },
+    home: { form: '#homeQuick', input: '#homeQuickInput', hint: '#homeQuickHint' },
+  };
+  function quickRead(where = 'tasks') {
+    const text = $(QUICK[where].input).value;
+    const home = where === 'home';
+    const base = { due: home ? S.today : S.day || S.today, time: null, end: null, priority: 0,
+      list: !home && S.filter !== ALL && S.lists.has(S.filter) ? S.filter : null, repeat: null };
     const p = readSmart(text, S.today, nowHHMM(), sortedLists());
     const use = smartUse(p, base.due, new Set());
     const v = {};
@@ -7834,11 +7847,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     return true;
   }
   // Measuring the box makes the browser lay out the whole page, so it's only done when the day or the width changes.
-  let quickFit = '';
+  let quickFit = '', homeFit = '';
   let quickFitQueued = false;
   function renderQuick() {
     const show = writable() && S.tasksLoaded && !S.searchOpen;
     $('#quickForm').hidden = !show;
+    $('#homeQuick').hidden = !(writable() && S.tasksLoaded);
+    renderQuickHint(!$('#homeQuick').hidden, 'home');
+    if (!$('#homeQuick').hidden && shownTab() === 'home' && window.innerWidth + '|' + S.textSize !== homeFit) {
+      const ok = fitPlaceholder($('#homeQuickInput'), ['Add a task, like “tomorrow 3pm …”', 'Add a task, like “fri 3pm”', 'Add a task…']);
+      if (ok) homeFit = window.innerWidth + '|' + S.textSize;
+    }
     renderRcptBtns();
     const key = `${S.day || ''}|${window.innerWidth}|${S.textSize}`;
     // (measured only while Tasks shows: measuring a tab that isn't showing would lay all of it out)
@@ -7855,9 +7874,9 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     }
     renderQuickHint(show);
   }
-  function renderQuickHint(show = !$('#quickForm').hidden) {
-    const hint = $('#quickHint');
-    const q = show ? quickRead() : null;
+  function renderQuickHint(show = !$('#quickForm').hidden, where = 'tasks') {
+    const hint = $(QUICK[where].hint);
+    const q = show ? quickRead(where) : null;
     const parts = q && q.typed ? smartParts(q.use, q.v) : [];
     hint.hidden = !parts.length;
     if (!parts.length) { hint.replaceChildren(); return; }
@@ -7872,10 +7891,11 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     hint.innerHTML = SPARK_SVG;
     hint.append(line);
   }
-  function quickSubmit() {
+  function quickSubmit(where = 'tasks') {
     if (!writable()) return;
-    const q = quickRead();
-    if (!q.title) { $('#quickInput').focus(); return; }
+    const home = where === 'home';
+    const q = quickRead(where);
+    if (!q.title) { $(QUICK[where].input).focus(); return; }
     const { v } = q;
     const due = isYmd(v.due) ? v.due : null;
     const list = v.list && S.lists.has(v.list) ? v.list : null;
@@ -7885,13 +7905,18 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     const end = cleanEnd(data.time, v.end);
     if (end) data.end = end;
     // The category being shown goes on it too (as in the full sheet), so it doesn't vanish from view.
-    if (S.catFilter && S.cats.has(S.catFilter)) data.cats = [S.catFilter];
+    if (!home && S.catFilter && S.cats.has(S.catFilter)) data.cats = [S.catFilter];
     const ref = db.collection('tasks').doc();
     write('tasks/' + ref.id, () => ref.set(data), { create: true });
-    $('#quickInput').value = '';
-    renderQuickHint();
-    revealScopeFor(data);
-    toast(`Task added${addedNote(data)}`, () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
+    $(QUICK[where].input).value = '';
+    renderQuickHint(true, where);
+    if (!home) revealScopeFor(data);
+    toast(`Task added${home ? homeAddedNote(data) : addedNote(data)}`, () => write('tasks/' + ref.id, () => taskRef(ref.id).delete()));
+  }
+  // From Home, where it went: its day (or no date) and its list.
+  function homeAddedNote(data) {
+    const day = data.due ? ` for ${dayInSentence(data.due)}` : ' with no date';
+    return data.list ? `${day} (${nameOf(data.list)})` : day;
   }
 
   // Where a new task went, when that isn't what's on screen: another list, another day, or a view that hides it.
@@ -14659,14 +14684,24 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     e.stopPropagation();
     if (e.target.value) { e.target.value = ''; renderQuickHint(); } else e.target.blur();
   });
+  $('#homeQuick').addEventListener('submit', e => { e.preventDefault(); quickSubmit('home'); });
+  $('#homeQuickInput').addEventListener('input', () => renderQuickHint(true, 'home'));
+  $('#homeQuickInput').addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.target.value) { e.target.value = ''; renderQuickHint(true, 'home'); } else e.target.blur();
+  });
   // More: the full task sheet, with what was typed so far.
-  $('#quickMore').addEventListener('click', () => {
-    const input = $('#quickInput');
+  $('#homeQuickMore').addEventListener('click', () => quickMore('#homeQuickInput', 'home'));
+  $('#quickMore').addEventListener('click', () => quickMore('#quickInput', 'tasks'));
+  function quickMore(sel, where) {
+    const input = $(sel);
     const text = input.value;
     openTaskSheet('new');
     if (!S.sheet) return;
     input.value = '';
-    renderQuickHint();
+    renderQuickHint(true, where);
     if (!text.trim()) return;
     const ta = $('#taskTitle');
     ta.value = text;
@@ -14675,7 +14710,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     renderTaskSheet();
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
-  });
+  }
   $('#sheetShare').addEventListener('click', shareTask);
   // recently deleted
   $('#trashOpen').addEventListener('click', openTrash);
