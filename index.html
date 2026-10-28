@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oyHQH59Hny4mpKuYg5SOJWXSR8YR6RWUQ/gdYxbtYBQ=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-dFVDwBQNCID7NsZOfpnOR4V5hJSCj+y2AllgCHSoi8E=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6KH6SOp70xaTeisXGQcLj1Mk4PiyAMqNI8lSmRA5v+E=' 'sha256-eea1bPiKSMSBfLCyOCPy1Xt+zF8HraiE7s/JmcTsIuQ=' 'sha256-WZH5GZ08YqIKa9KxVmOrKzmCVNizEIjiPshxk+pOZQI=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.946235cf'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.96061bad'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2074,7 +2074,7 @@ button.wk-head { cursor: pointer; }
   --card: #F5F5F7; --raise: #FFFFFF; --card-line: #EAEAEE;
   --accent: #000000; --accent-2: #2348F5; --on-accent: #FFFFFF; --accent-ink: #000000; --accent-soft: rgba(0, 0, 0, .07);
   --grad: linear-gradient(135deg, #2348F5 0%, #6B3FE8 100%); --glow: rgba(35, 72, 245, .3); --page-glow: none;
-  --prio-3: #DC2A1D; --prio-2: #A15C00; --prio-1: #1F5FD6; --ok: #0A7A43;
+  --prio-3: #6234D4; --prio-2: #A15C00; --prio-1: #1F5FD6; --ok: #0A7A43; /* High is violet: red only ever means late */
   /* Hooks a look can set (Blush does). These stand-ins keep every other look exactly as it was. A card's corner
      (--r-card) has no stand-in here: each card falls back to its own radius. */
   --font-head: var(--font); --card-solid: var(--card); --page-tint: var(--page); --card-shadow: none;
@@ -2085,21 +2085,21 @@ button.wk-head { cursor: pointer; }
     --card: #141416; --raise: #1C1C1F; --card-line: #26262A;
     --accent: #FFFFFF; --accent-2: #7D98FF; --on-accent: #000000; --accent-ink: #FFFFFF; --accent-soft: rgba(255, 255, 255, .1);
     --grad: linear-gradient(135deg, #2F55FF 0%, #7650F0 100%); --glow: rgba(47, 85, 255, .4);
-    --prio-3: #FF5B4F; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
+    --prio-3: #B9A3FF; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
   }
 }
 :root[data-theme="dark"]:not([data-skin]) {
   --card: #141416; --raise: #1C1C1F; --card-line: #26262A;
   --accent: #FFFFFF; --accent-2: #7D98FF; --on-accent: #000000; --accent-ink: #FFFFFF; --accent-soft: rgba(255, 255, 255, .1);
   --grad: linear-gradient(135deg, #2F55FF 0%, #7650F0 100%); --glow: rgba(47, 85, 255, .4);
-  --prio-3: #FF5B4F; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
+  --prio-3: #B9A3FF; --prio-2: #FFB547; --prio-1: #6AA8FF; --ok: #3DDC97;
 }
 /* the original orange looks */
 :root[data-skin] {
   --card: #FFF4F7; --raise: #FFFFFF; --card-line: #F6DCD3;
   --accent: #F55F00; --accent-2: #E0244B; --on-accent: #FFFFFF; --accent-ink: #B83D00; --accent-soft: rgba(245, 95, 0, .12);
   --grad: linear-gradient(135deg, #F55F00 0%, #E0244B 100%); --glow: rgba(245, 95, 0, .3);
-  --prio-3: #E0244B; --prio-2: #B35200; --prio-1: #8A4B2A;
+  --prio-3: #6C2BB5; --prio-2: #B35200; --prio-1: #8A4B2A;
 }
 :root[data-skin="orange-pink"], :root[data-skin="pink-orange-card"] { --card: #FFFFFF; --card-line: #F1C2BD; }
 :root[data-skin="orange-bg"] {
@@ -2514,6 +2514,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .hr-sub { font-size: calc(13.5px * var(--ts)); line-height: 1.3; color: var(--soft); overflow-wrap: anywhere; }
+.hr-title .prio-mark { margin-right: 6px; font-weight: 800; font-stretch: 90%; letter-spacing: .03em; }
 .hr-when { flex: none; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); white-space: nowrap; }
 :root:is([data-text="large"], [data-text="xl"]) .hr-body { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 0; }
 :root:is([data-text="large"], [data-text="xl"]) .hr-text { flex: none; max-width: 100%; }
@@ -3012,7 +3013,8 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       '--shadow': dark ? '0 16px 40px rgba(0, 0, 0, .6)' : '0 14px 34px rgba(17, 20, 45, .14)',
       '--empty-bg': card, '--empty-fg': v.ink,
       '--solid-0': dark ? mix(v.soft, v.page, 0.5) : v.ink, '--tone-0': v.soft,
-      '--prio-3': v.red, '--prio-2': dark ? '#FFB547' : '#A15C00', '--prio-1': dark ? '#6AA8FF' : '#1F5FD6',
+      // High priority is violet, never the look's red: red only ever means late, so urgent and important look different.
+      '--prio-3': readable(dark ? '#B9A3FF' : '#6234D4', v.ink, [card, v.page, tint]), '--prio-2': dark ? '#FFB547' : '#A15C00', '--prio-1': dark ? '#6AA8FF' : '#1F5FD6',
       '--ok': dark ? '#3DDC97' : '#0A7A43', '--on-red': onFill(v.red),
     };
     for (let i = 1; i < list.length; i++) { out['--solid-' + i] = list[i][0]; out['--tone-' + i] = list[i][1]; }
@@ -9345,9 +9347,17 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     body.dataset.homeOpen = t.id;
     body.dataset.row = 'open:' + t.id;
     body.disabled = !can;
-    body.setAttribute('aria-label', `${title}, ${whenText(t)}`);
+    const P = PRIORITY[t.priority];
+    body.setAttribute('aria-label', `${P ? `${P.name} priority: ` : ''}${title}, ${whenText(t)}`);
     const text = el('span', 'hr-text');
-    text.append(el('span', 'hr-title', title));
+    const words = el('span', 'hr-title');
+    if (P) {
+      const mark = el('span', 'prio-mark prio-' + t.priority, P.mark);
+      mark.setAttribute('aria-hidden', 'true');
+      words.append(mark);
+    }
+    words.append(title);
+    text.append(words);
     if (t.waiting) text.append(el('span', 'hr-sub', waitLine(t)));
     body.append(text);
     if (when.text) body.append(el('span', 'hr-when' + (when.late ? ' late' : ''), when.text));

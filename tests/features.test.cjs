@@ -259,7 +259,7 @@ test('Blush is picked in Settings, saved with the list and comes back; older cop
   await ctx.close();
 });
 
-test('the other looks come out of the engine exactly as before Blush', async () => {
+test('the other looks come out of the engine exactly as before Blush (High priority aside)', async () => {
   const html = execFileSync('git', ['-C', REPO, 'show', `${PRE_BLUSH_REF}:index.html`], { maxBuffer: 1 << 28 }).toString();
   const engine = src => src.match(/<script>\n(\/\* Looks:[\s\S]*?)<\/script>/)[1];
   const take = async src => {
@@ -285,7 +285,9 @@ test('the other looks come out of the engine exactly as before Blush', async () 
   const now = await take(fs.readFileSync(path.join(APP, 'index.html'), 'utf8'));
   assert.deepEqual(now.themes.filter(t => before.themes.some(b => b.id === t.id)), before.themes, 'the same looks, in the same order');
   assert.ok(now.themes.some(t => t.id === 'blush' && t.kind === 'tokens' && t.modes.join() === 'dark,light'), 'Blush is a look with light and dark');
-  for (const [k, v] of Object.entries(before.tokens)) assert.deepEqual(now.tokens[k], v, `colors unchanged: ${k}`);
+  // Every color but High priority's, which is its own color now (never the look's red; see daily.test.cjs).
+  const butHigh = o => { if (!o) return o; const { '--prio-3': high, ...rest } = o; return rest; };
+  for (const [k, v] of Object.entries(before.tokens)) assert.deepEqual(butHigh(now.tokens[k]), butHigh(v), `colors unchanged: ${k}`);
   for (const [k, v] of Object.entries(before.previews)) assert.deepEqual(now.previews[k], v, `preview unchanged: ${k}`);
 });
 

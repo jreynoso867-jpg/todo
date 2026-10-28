@@ -289,6 +289,82 @@ test('Home’s agenda with nothing due: says so, and still counts the tasks with
   await ctx.close();
 });
 
+test('urgent and important look different in every look and mode: red is only for late, High is a color of its own', async () => {
+  const { ctx, page, errors } = await phone({ 'tasks/t1': task('Something', { due: addDays(T, 3) }) });
+  const problems = await page.evaluate(() => {
+    const T = window.todoTheme, out = [];
+    const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+    const hue = h => { const [r, g, b] = rgb(h), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+      if (!d) return null; return 60 * (mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4); };
+    const apart = (a, b) => { const x = hue(a), y = hue(b); if (x === null || y === null) return 0; const d = Math.abs(x - y) % 360; return Math.min(d, 360 - d); };
+    const check = (tag, prio, red, grounds) => {
+      if (apart(prio, red) < 60) out.push(`${tag}: High ${prio} is too close to the late red ${red}`);
+      for (const g of grounds) if (T.contrast(prio, g) < 4.5) out.push(`${tag}: High ${prio} on ${g} is ${T.contrast(prio, g).toFixed(2)}`);
+    };
+    for (const t of T.themes.filter(x => x.kind === 'tokens')) for (const mode of t.modes) {
+      const k = T.tokens(t.id, mode, '');
+      check(`${t.id}/${mode}`, k['--prio-3'], k['--red'], [k['--card-solid'] || k['--card'], k['--page'], k['--page-tint'] || k['--page']]);
+    }
+    // Classic and the original looks set their colors in the stylesheet: read them as the page has them.
+    const root = document.documentElement, keep = ['data-look', 'data-skin', 'data-theme'].map(a => [a, root.getAttribute(a)]);
+    const css = n => getComputedStyle(root).getPropertyValue(n).trim().toUpperCase();
+    const looks = [['classic', null, 'light'], ['classic', null, 'dark'], ...T.themes.filter(x => x.kind === 'skin' && x.id !== 'orange-bg').map(x => [x.id, x.id, 'light'])];
+    for (const [id, skin, mode] of looks) {
+      root.removeAttribute('data-look');
+      if (skin) root.setAttribute('data-skin', skin); else root.removeAttribute('data-skin');
+      root.setAttribute('data-theme', mode);
+      check(`${id}/${mode}`, css('--prio-3'), css('--red'), [css('--card'), css('--page')]);
+    }
+    for (const [a, v] of keep) if (v === null) root.removeAttribute(a); else root.setAttribute(a, v);
+    return out;
+  });
+  assert.deepEqual(problems, []);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('a task that is late and High shows both, each its own way; a High one not due yet shows no red', async () => {
+  for (const look of ['blush', 'classic', 'midnight']) {
+    const { ctx, page, errors } = await phone({
+      'tasks/up': task('First', { due: addDays(T, -3), priority: 3 }), // Up next (High and the oldest)
+      'tasks/both': task('Late and High', { due: addDays(T, -1), priority: 3 }),
+      'tasks/high': task('High, next week', { due: addDays(T, 5), priority: 3 }),
+      'settings/theme': { look, appearance: 'light', accent: '', updatedAt: Date.now() },
+    });
+    const look2 = await page.evaluate(() => {
+      const css = (el, n) => getComputedStyle(el).getPropertyValue(n).trim();
+      const row = id => document.querySelector(`.task[data-id="${id}"]`);
+      const inner = id => row(id).querySelector('.task-inner');
+      const root = document.documentElement;
+      return {
+        prio: css(root, '--prio-3'), red: css(root, '--red'),
+        bothStripe: css(row('both'), '--stripe'), bothBorder: getComputedStyle(inner('both')).borderTopColor, bothMark: getComputedStyle(row('both').querySelector('.prio')).color,
+        highStripe: css(row('high'), '--stripe'), highBorder: getComputedStyle(inner('high')).borderTopColor, highLate: !!row('high').querySelector('.late, .cd.late'),
+        rgb: c => c,
+      };
+    });
+    const toRgb = h => `rgb(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+    assert.equal(look2.bothStripe, look2.prio, `${look}: the High stripe on a late task`);
+    assert.equal(look2.bothBorder, toRgb(look2.red), `${look}: its late border is red`);
+    assert.equal(look2.bothMark, toRgb(look2.prio), `${look}: its !!! is the High color`);
+    assert.equal(look2.highStripe, look2.prio);
+    assert.notEqual(look2.highBorder, toRgb(look2.red), `${look}: a High task not due yet has no red border`);
+    assert.equal(look2.highLate, false);
+    // Home's agenda shows the same mark.
+    await page.click('#dockHome');
+    await page.waitForSelector('#homeDueRows [data-home-open="both"]');
+    const home = await page.evaluate(() => {
+      const m = document.querySelector('#homeDueRows [data-home-open="both"] .prio-mark');
+      return { text: m && m.textContent, color: m && getComputedStyle(m).color, label: document.querySelector('#homeDueRows [data-home-open="both"]').getAttribute('aria-label') };
+    });
+    assert.equal(home.text, '!!!');
+    assert.equal(home.color, toRgb(look2.prio));
+    assert.match(home.label, /^High priority: Late and High, /);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+});
+
 test('adding from Home: one tap and the words; smart add reads the day, time, priority and list, and it shows in the agenda', async () => {
   const { ctx, page, errors } = await phone({ 'tasks/t1': task('Something already here', { due: addDays(T, 2) }) }, { tab: 'home' });
   assert.ok(await page.isVisible('#homeQuickInput'), 'the box is on Home');
