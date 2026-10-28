@@ -407,6 +407,89 @@ test('adding from Home: one tap and the words; smart add reads the day, time, pr
   await ctx.close();
 });
 
+test('the weekly review: each late task, each waiting on someone and each with no date, one at a time, settled with a tap', async () => {
+  const docs = {
+    'tasks/l_old': task('Weekly order', { due: addDays(T, -5), repeat: 'weekly' }),
+    'tasks/l_vip': task('Sign the quote', { due: addDays(T, -1), priority: 3 }),
+    'tasks/w_1': task('Gloves from the supplier', { due: addDays(T, 2), waiting: { on: 'Home Depot', since: addDays(T, -3) } }),
+    'tasks/n_1': task('Tidy the van', { due: null }),
+    'tasks/f_1': task('Planned already', { due: addDays(T, 3) }),
+    'tasks/d_1': task('Done already', { due: addDays(T, -2), done: true, doneAt: Date.now() - 1e5 }),
+  };
+  const { ctx, page, errors } = await phone(docs, { local: { 'todo.calMode': 'week' } });
+  const before = await dump(page);
+  await page.click('#dockWeek');
+  await page.waitForSelector('#weekView:not([hidden])');
+  assert.equal(await page.textContent('#reviewBtn'), 'Review unfinished4');
+  await page.click('#reviewBtn');
+  await page.waitForSelector('#reviewSheet.open');
+  const card = () => page.evaluate(() => ({ pos: document.querySelector('#reviewPos').textContent, kind: document.querySelector('#reviewKind').textContent,
+    task: document.querySelector('#reviewTask').textContent, when: document.querySelector('#reviewWhen').textContent }));
+  let c = await card();
+  assert.deepEqual([c.pos, c.kind, c.task], ['1 of 4', 'Overdue', 'Weekly order'], 'the oldest late one first');
+  assert.match(c.when, /^Was due .*, repeats weekly · Work$/);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.review), 'done', 'ready to answer');
+  await page.click('[data-review="today"]'); // to today: a repeating task keeps its schedule
+  c = await card();
+  assert.deepEqual([c.pos, c.kind, c.task], ['2 of 4', 'Overdue', 'Sign the quote']);
+  await page.click('[data-review="done"]');
+  c = await card();
+  assert.deepEqual([c.pos, c.kind, c.task], ['3 of 4', 'Waiting on someone', 'Gloves from the supplier']);
+  assert.match(c.when, /^Waiting on Home Depot · /);
+  await page.click('[data-review="keep"]');
+  c = await card();
+  assert.deepEqual([c.pos, c.kind, c.task], ['4 of 4', 'No date', 'Tidy the van']);
+  await page.fill('#reviewDate', addDays(T, 4));
+  await page.dispatchEvent('#reviewDate', 'change');
+  await page.waitForTimeout(400);
+  assert.equal(await page.textContent('#reviewPos'), 'All reviewed.');
+  assert.equal(await page.textContent('#reviewSum'), '1 done, 2 moved, 1 kept as it was.');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'reviewClose');
+  await page.waitForTimeout(800);
+  const d = await dump(page);
+  assert.equal(d.docs['tasks/l_old'].due, T);
+  assert.deepEqual(d.docs['tasks/l_old'].postponed, { from: addDays(T, -5), to: T });
+  assert.equal(d.docs['tasks/l_vip'].done, true);
+  assert.deepEqual(d.docs['tasks/w_1'], before.docs['tasks/w_1'], 'kept exactly as it was');
+  assert.equal(d.docs['tasks/n_1'].due, addDays(T, 4));
+  for (const id of ['f_1', 'd_1']) assert.deepEqual(d.docs['tasks/' + id], before.docs['tasks/' + id], `not part of it: ${id}`);
+  await page.click('#reviewClose');
+  await page.waitForTimeout(400);
+  assert.equal(await page.textContent('#reviewBtn'), 'Review unfinished1', 'what’s left: the one waiting');
+  // Escape closes it; one done meanwhile is passed over.
+  await page.click('#reviewBtn');
+  await page.waitForSelector('#reviewSheet.open');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  assert.ok(await page.isHidden('#reviewSheet'));
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('the weekly review passes over a task done or deleted meanwhile, and Open shows the task', async () => {
+  const { ctx, page, errors } = await phone({
+    'tasks/a': task('First late', { due: addDays(T, -3) }),
+    'tasks/b': task('Second late', { due: addDays(T, -2) }),
+    'tasks/c': task('Third late', { due: addDays(T, -1) }),
+  }, { local: { 'todo.calMode': 'week' } });
+  await page.click('#dockWeek');
+  await page.click('#reviewBtn');
+  await page.waitForSelector('#reviewSheet.open');
+  // Meanwhile (another device, say) the second one is done.
+  await page.evaluate(async () => {
+    const db = await window.claude.use('db');
+    const ref = db.doc('tasks/b'); const snap = await ref.get(); await ref.set({ ...snap.data(), done: true, doneAt: Date.now() });
+  });
+  await page.waitForTimeout(400);
+  await page.click('[data-review="keep"]');
+  assert.equal(await page.textContent('#reviewTask'), 'Third late', 'the done one is passed over');
+  await page.click('[data-review="open"]');
+  await page.waitForSelector('#taskSheet.open');
+  assert.equal(await page.inputValue('#taskTitle'), 'Third late');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 const sunday = parseYmdLocal(T).getDay() === 0;
 test('dragged to another day in the week planner: postponed the same way', { skip: sunday && 'today is Sunday: no later day this week to drag to' }, async () => {
   const { ctx, page, errors } = await phone({ 'tasks/t_weekly': task('Weekly report', { due: T, repeat: 'weekly' }) }, { local: { 'todo.calMode': 'week' } });
