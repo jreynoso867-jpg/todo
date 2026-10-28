@@ -5,6 +5,7 @@ A to-do list that runs on your phone and works with no signal.
 - Your tasks and photos stay on your own device. This site only serves the app; nothing you type is sent anywhere.
 - Put it on your home screen: on iPhone, tap Share, then Add to Home Screen. On Android, tap ⋮, then Add to Home screen.
 - Keep a backup now and then: Settings, then Save everything.
+- The passcode lock (Settings) keeps people from opening your list in the app. It isn't encryption: the list is kept on the phone as it is, protected by the phone's own passcode, and a Save everything file can be read by anyone who has it, so keep those files private.
 
 ## New in 2.0
 

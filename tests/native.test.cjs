@@ -353,6 +353,7 @@ test('no Files copy while the passcode lock is on', async () => {
   assert.equal(await page.evaluate(() => [...window.__cap.files.keys()].filter(k => k.startsWith('DOCUMENTS/')).length), 0);
   await page.click('#colorsBtn');
   assert.match(await page.textContent('#lockNote'), /no safety copies in Files/);
+  assert.match(await page.textContent('#lockNote'), /The passcode isn’t encryption/);
   await ctx.close();
 });
 

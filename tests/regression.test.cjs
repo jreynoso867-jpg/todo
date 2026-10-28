@@ -245,6 +245,8 @@ test('the passcode lock turns on, asks on opening, and turns off', async () => {
   const { ctx, page } = await phone();
   const keys = async code => { for (const k of code) await page.click(`.pl-key[data-k="${k}"]`); await page.waitForTimeout(250); };
   await page.click('#colorsBtn');
+  // It says plainly what it isn't: the list itself stays as it is on the phone, and a saved file can be read by anyone.
+  assert.match(await page.textContent('#lockNote'), /The passcode isn’t encryption: .*kept on this phone as it is.*anyone with a Save everything file can read it/);
   await page.click('#lockOn');
   await keys('135792');
   await keys('135792');

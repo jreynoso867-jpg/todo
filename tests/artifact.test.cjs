@@ -46,9 +46,9 @@ runtime = runtime.replace(caps[0], `
 const ADDED_OK = /^(settings\/theme|settings\/prefs)$/;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP4z8DwnwEI0BkAg+gB/x3B7PQAAAAASUVORK5CYII=', 'base64');
 
-let srv, browser;
-test.before(async () => { srv = await serve(ROOT); browser = await launch(); });
-test.after(async () => { await browser.close(); await srv.close(); fs.rmSync(ROOT, { recursive: true, force: true }); });
+let srv, web, browser; // web: the website (the phone app's page), on its own origin
+test.before(async () => { srv = await serve(ROOT); web = await serve(REPO); browser = await launch(); });
+test.after(async () => { await browser.close(); await srv.close(); await web.close(); fs.rmSync(ROOT, { recursive: true, force: true }); });
 
 async function open(fx, o = {}) {
   const ctx = await phoneContext(browser, o);
@@ -115,6 +115,51 @@ test('opened in Claude: the list loads, nothing in it changes, and the Claude-on
     if (EXTRA_COLLS.includes(c)) assert.deepEqual(saved.collections[c][k.slice(c.length + 1)], v, `in the file: ${k}`);
   }
   assert.equal(saved.collections.bin, undefined, 'Recently deleted stays out of the file');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('moving the list: Save everything in Claude, then Load a saved file on the phone brings every record and photo', async () => {
+  const fx = withExtras(smallFixture()); // every kind of record, a photo, and Recently deleted for tasks and the newer kinds
+  const c = await open(fx);
+  await c.page.click('#colorsBtn');
+  await c.page.waitForTimeout(300);
+  await c.page.click('#exportAll');
+  await c.page.waitForFunction(() => window.__saves.length > 0, null, { timeout: 15000 });
+  const saved = await c.page.evaluate(() => window.__saves[0]);
+  assert.deepEqual(c.errors, []);
+  await c.ctx.close();
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'todo-move-')), saved.filename);
+  fs.writeFileSync(file, saved.data);
+
+  // The phone app (the website and the iPhone app run the same page), with nothing in it yet.
+  const ctx = await phoneContext(browser);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.goto(web.url + '/index.html');
+  await page.waitForSelector('#welcome:not([hidden])', { timeout: 20000 });
+  await page.setInputFiles('#importInput', file);
+  await page.waitForFunction(() => /Loaded/.test(document.querySelector('#moveStatus').textContent), null, { timeout: 20000 });
+  await page.waitForTimeout(1000); // the streak days are saved one after another, after the message
+  const got = await dump(page);
+  for (const [k, v] of Object.entries(fx.docs)) {
+    const coll = k.slice(0, k.indexOf('/'));
+    if (coll === 'tasks' && v.sample) assert.equal(got.docs[k], undefined, 'the sample task stays behind');
+    else if (coll === 'tasks') {
+      const { gcal, photos = [], ...rest } = v; // a calendar event stays with the copy it was made from
+      const { photos: came = [], ...rest2 } = got.docs[k] || {};
+      assert.deepEqual(rest2, rest, `came over unchanged: ${k}`);
+      assert.equal(came.length, photos.length, `with its photos: ${k}`);
+      photos.forEach((ph, i) => {
+        assert.deepEqual({ ...came[i], id: ph.id }, ph, `the photo's details: ${k}`);
+        assert.deepEqual(got.blobs[came[i].id], { type: 'image/png', bytes: [...PNG] }, `the photo itself, byte for byte: ${k}`);
+      });
+    } else if (['lists', 'categories', 'clients', 'templates', ...EXTRA_COLLS].includes(coll)) assert.deepEqual(got.docs[k], v, `came over unchanged: ${k}`);
+    else if (coll === 'history') assert.deepEqual(got.docs[k] && got.docs[k].items, v.items, `history: ${k}`);
+    else if (coll === 'trash' || coll === 'bin') assert.equal(got.docs[k], undefined, `Recently deleted stays behind: ${k}`);
+  }
+  for (const [day, v] of Object.entries(fx.docs['settings/streak'].days)) assert.equal(got.docs['settings/streak'].days[day], v, `the streak: ${day}`);
   assert.deepEqual(errors, []);
   await ctx.close();
 });
