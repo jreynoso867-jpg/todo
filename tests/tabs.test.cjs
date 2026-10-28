@@ -356,7 +356,7 @@ test('tabbing through every tab and view, no control that takes focus is hidden 
   }
 });
 
-test('Home: the day, a greeting, and the three most urgent tasks with a circle to tick', async () => {
+test('Home: the day, a greeting, and the agenda (late, today, the next 7 days, waiting on) with a circle to tick', async () => {
   const fx = smallFixture();
   const { ctx, page, errors } = await phone(fx);
   assert.match(await page.textContent('#briefTitle'), /^Good (morning|afternoon|evening), Jose$/);
@@ -367,21 +367,24 @@ test('Home: the day, a greeting, and the three most urgent tasks with a circle t
   const rows = () => page.$$eval('#homeDueRows .home-row', els => els.map(e => [e.querySelector('[data-home-done]').dataset.homeDone,
     e.querySelector('.hr-when') ? e.querySelector('.hr-when').textContent : '', !!e.querySelector('.hr-when.late')]));
   const r = await rows();
-  assert.deepEqual(r.map(x => x[0]), ['t_overdue', 't_today_timed', 't_today_untimed'], 'late first, then today');
-  const [y, m, dd] = addDays(fx.today, -2).split('-').map(Number);
-  const lateDay = new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); // like "Oct 20"
-  assert.deepEqual(r.map(x => x[1]), [lateDay, '3:00 PM', 'Today']);
+  assert.deepEqual(r.map(x => x[0]), ['t_overdue', 't_today_timed', 't_today_untimed', 't_tomorrow', 't_walk_next', 't_gcal', 't_wait'],
+    'late, today, the next 7 days, then waiting on');
+  const day = n => { const [y, m, dd] = addDays(fx.today, n).split('-').map(Number); return new Date(y, m - 1, dd); };
+  const lateDay = day(-2).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); // like "Oct 20"
+  const wd = n => day(n).toLocaleDateString('en-US', { weekday: 'short' });
+  assert.deepEqual(r.map(x => x[1]), [lateDay, '3:00 PM', '', 'Tomorrow 9:30 AM', 'Tomorrow', `${wd(2)} 11 AM`, `Follow up ${wd(3)}`]);
   assert.equal(r[0][2], true, 'the late one in red');
-  // The date sits at the right of each row.
-  const right = await page.$$eval('#homeDueRows .home-row', els => els.map(e => Math.round(e.getBoundingClientRect().right - e.querySelector('.hr-when').getBoundingClientRect().right)));
-  assert.ok(right.every(x => x <= 1), `dates right-aligned (${right})`);
-  assert.equal(await page.textContent('#homeDueMore'), 'and 6 more');
+  // The day sits at the right of each row (a late one has its Today button after it).
+  const right = await page.$$eval('#homeDueRows .home-row', els => els.filter(e => e.querySelector('.hr-when') && !e.querySelector('.ag-today'))
+    .map(e => Math.round(e.getBoundingClientRect().right - e.querySelector('.hr-when').getBoundingClientRect().right)));
+  assert.ok(right.length >= 5 && right.every(x => x <= 1), `days right-aligned (${right})`);
+  assert.equal(await page.textContent('#homeDueMore'), '1 more task with no date');
   // Ticking a circle checks the task off (with Undo), and the next one moves up.
   await page.click('[data-home-done="t_overdue"]');
   await page.waitForTimeout(500);
   assert.equal((await dump(page)).docs['tasks/t_overdue'].done, true);
   assert.equal(await page.textContent('#toastMsg'), 'Marked done');
-  assert.deepEqual((await rows()).map(x => x[0]), ['t_today_timed', 't_today_untimed', 't_tomorrow']);
+  assert.deepEqual((await rows()).map(x => x[0]), ['t_today_timed', 't_today_untimed', 't_tomorrow', 't_walk_next', 't_gcal', 't_wait']);
   assert.equal(await page.textContent('#homeDueN'), '8 open');
   assert.equal(await page.evaluate(() => document.activeElement.closest('#homeDue') !== null), true, 'focus stays in the card');
   await page.click('#toastUndo');
@@ -407,7 +410,7 @@ test('Home: the day, a greeting, and the three most urgent tasks with a circle t
   await ctx.close();
 });
 
-test('Home: with large text on a small iPhone, a task due shows its words on up to two lines, its day under them', async () => {
+test('Home: with large text on a small iPhone, a task in the agenda shows its words on up to two lines, its day under them', async () => {
   for (const look of ['classic', 'blush']) {
     const fx = smallFixture();
     fx.docs['settings/view'] = { ...fx.docs['settings/view'], textSize: 'xl' };
@@ -415,11 +418,12 @@ test('Home: with large text on a small iPhone, a task due shows its words on up 
     const { ctx, page, errors } = await phone(fx, { viewport: { width: 320, height: 640 } });
     const rows = await page.$$eval('#homeDueRows .home-row', els => els.map(e => {
       const t = e.querySelector('.hr-title'), w = e.querySelector('.hr-when');
-      const tb = t.getBoundingClientRect(), wb = w.getBoundingClientRect();
+      const tb = t.getBoundingClientRect();
       const line = parseFloat(getComputedStyle(t).lineHeight) || parseFloat(getComputedStyle(t).fontSize) * 1.25;
-      return { title: t.textContent, cut: t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1, lines: Math.round(tb.height / line), under: wb.top >= tb.bottom - 1 };
+      return { title: t.textContent, cut: t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1, lines: Math.round(tb.height / line),
+        under: !w || w.getBoundingClientRect().top >= e.querySelector('.hr-text').getBoundingClientRect().bottom - 1 };
     }));
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 7);
     for (const r of rows) {
       assert.ok(!r.cut, `${look}: "${r.title}" shows in full`);
       assert.ok(r.lines <= 2, `${look}: "${r.title}" on ${r.lines} lines`);

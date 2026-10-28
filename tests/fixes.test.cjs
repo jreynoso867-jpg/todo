@@ -497,7 +497,7 @@ test('the red "late" words read clearly where they show: Classic light (Home, Li
   // Classic, light: the new late labels.
   let { ctx, page, errors } = await lookPhone('classic', 'light', 'home');
   assert.equal(await page.evaluate(() => document.documentElement.dataset.look || 'classic'), 'classic');
-  const got = [...await check(page, ['#homeDueRows .hr-when.late'])];
+  const got = [...await check(page, ['#homeDueRows .hr-when.late', '#homeDueRows .ag-title.late'])];
   await page.click('#dockLists');
   got.push(...await check(page, ['#listsPoSub.late']));
   await page.click('#dockWeek');
@@ -512,7 +512,7 @@ test('the red "late" words read clearly where they show: Classic light (Home, Li
   assert.deepEqual(errors, []);
   await ctx.close();
   // Elsewhere these stay the look's own red.
-  for (const [look, mode, tab, sels] of [['blush', 'light', 'tasks', ['#board .cd.late']], ['midnight', 'dark', 'home', ['#homeDueRows .hr-when.late']], ['classic', 'dark', 'home', ['#homeDueRows .hr-when.late']]]) {
+  for (const [look, mode, tab, sels] of [['blush', 'light', 'tasks', ['#board .cd.late']], ['midnight', 'dark', 'home', ['#homeDueRows .hr-when.late', '#homeDueRows .ag-title.late']], ['classic', 'dark', 'home', ['#homeDueRows .hr-when.late', '#homeDueRows .ag-title.late']]]) {
     ({ ctx, page, errors } = await lookPhone(look, mode, tab));
     const want = await page.evaluate(([src, r]) => eval(src).rgba(r).join(), [SEEN, await red(page)]);
     for (const [s, , color] of await check(page, sels)) assert.equal(await page.evaluate(([src, c]) => eval(src).rgba(c).join(), [SEEN, color]), want, `${look} ${mode}: ${s} in --red`);

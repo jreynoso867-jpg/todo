@@ -186,7 +186,7 @@ test('opened in Claude: the tabs work the same (with no phone welcome), and noth
   assert.deepEqual(await shownPanels(), ['paneTasks']);
   await page.click('#dockHome');
   assert.deepEqual(await shownPanels(), ['paneHome']);
-  assert.equal(await page.$$eval('#homeDueRows .home-row', els => els.length), 3);
+  assert.equal(await page.$$eval('#homeDueRows .home-row', els => els.length), 7, 'the agenda: late, today, the next 7 days, waiting on');
   assert.ok(await page.isHidden('#welcome'), 'the welcome is for the phone app only');
   await page.click('#dockLists');
   assert.deepEqual(await shownPanels(), ['paneLists']);

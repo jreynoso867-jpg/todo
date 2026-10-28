@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-H163J6K/lBgCmWHxr0NbLBwelgnL/uGaHTlvq/ZcqxQ=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-TRmCDWVEsFUTXL/1fnRV7rGHOJsZtnm4dk0/lJhYpiw=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TAubDd9eyJKWMVvgwXcqt2sSK/kNchXqAzo3WEWsCko=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-4MvyteJB31zLpeOY7FGvMaKqS1AHT+qRnoR+Ov9weOc=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.1331f9cd'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.380b4c29'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -2508,15 +2508,32 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   border: 0; background: none; color: inherit; text-align: left;
 }
 /* A task's words get two lines before they're cut short; with large text its day goes under them, so they have the row. */
+.hr-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .hr-title {
-  flex: 1; min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 500; line-height: 1.3; overflow-wrap: anywhere;
+  min-width: 0; font-size: calc(16px * var(--ts)); font-weight: 500; line-height: 1.3; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
+.hr-sub { font-size: calc(13.5px * var(--ts)); line-height: 1.3; color: var(--soft); overflow-wrap: anywhere; }
+.hr-title .prio-mark { margin-right: 5px; }
 .hr-when { flex: none; font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--soft); white-space: nowrap; }
 :root:is([data-text="large"], [data-text="xl"]) .hr-body { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 0; }
-:root:is([data-text="large"], [data-text="xl"]) .hr-title { flex: none; max-width: 100%; }
+:root:is([data-text="large"], [data-text="xl"]) .hr-text { flex: none; max-width: 100%; }
 .hr-when.late { color: var(--red); }
 .card-more { display: block; padding: 4px 0 8px; }
+/* The agenda: a group for each part of the day, each with a small heading and its count */
+.agenda { display: grid; gap: 4px; }
+.ag-head { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-top: 4px; }
+.ag-title { margin: 0; font-size: calc(12.5px * var(--ts)); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--soft); }
+.ag-title.late { color: var(--red); }
+.ag-n { font-size: calc(13px * var(--ts)); font-weight: 700; color: var(--soft); }
+.ag-act { margin: 0 -2px 0 auto; padding: 8px 2px; }
+.ag-today { flex: none; min-height: 36px; margin-left: 8px; padding: 0 12px; }
+/* With large text, a late row's Today button goes under its words, so the words keep the row's width. */
+:root:is([data-text="large"], [data-text="xl"]) .home-row:has(.ag-today) { flex-wrap: wrap; }
+:root:is([data-text="large"], [data-text="xl"]) .home-row:has(.ag-today) .hr-body { flex-basis: calc(100% - 35px); }
+:root:is([data-text="large"], [data-text="xl"]) .ag-today { margin: 0 0 8px 35px; }
+.ag-more { display: block; padding: 2px 0 6px; }
+.agenda .date-row { padding-left: 0; }
 /* Tasks: the list picker as the title, and a summary card */
 .list-pick { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; vertical-align: top; }
 .list-pick .pane-title { min-width: 0; font-size: calc(30px * var(--tsb)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2837,7 +2854,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
 :root[data-look="blush"] .hero:not(.c0):not(.is-empty) .hero-item[aria-pressed="true"] > .box { background: var(--accent); border-color: var(--accent); }
 /* Classic, light: the newer "late" words (Home's Tasks due, the orders' card on Lists, the Calendar's month list) in a
    deeper red, so they read on the light gray cards they sit on. Every other look keeps its own red. */
-:root:not([data-look]):not([data-skin])[data-mode="light"] :is(.hr-when.late, #listsPoSub.late, .ma-side.late) { color: #C8241A; }
+:root:not([data-look]):not([data-skin])[data-mode="light"] :is(.hr-when.late, .ag-title.late, #listsPoSub.late, .ma-side.late) { color: #C8241A; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; }
@@ -3161,12 +3178,13 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   <section class="card home-card" id="homeDue" aria-labelledby="homeDueTitle" hidden>
     <div class="card-head">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.4 2.4 4.6-5"/></svg>
-      <h2 id="homeDueTitle">Tasks due</h2>
+      <h2 id="homeDueTitle">Agenda</h2>
       <span class="card-n" id="homeDueN"></span>
       <button type="button" class="icon-btn card-go" id="homeDueGo" aria-label="Open Tasks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
-    <ul class="home-rows" id="homeDueRows"></ul>
-    <p class="card-empty" id="homeDueEmpty" hidden>Nothing waiting. Enjoy the day.</p>
+    <!-- Late, today, the next 7 days and waiting on someone: tasks and important dates together, a few of each. -->
+    <div class="agenda" id="homeDueRows"></div>
+    <p class="card-empty" id="homeDueEmpty" hidden>Nothing due. Enjoy the day.</p>
     <button type="button" class="link-btn card-more" id="homeDueMore" hidden></button>
   </section>
   <!-- Once, until it's dismissed: the Wish list, introduced. -->
@@ -9271,64 +9289,128 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     if (label && $('#newBtnText').textContent !== label) $('#newBtnText').textContent = label;
   }
 
-  // Home's "Tasks due": the open tasks, most urgent first (late, today, the days ahead, then the ones with no date),
-  // three of them with a circle to tick, and how many more.
-  const DUE_RANK = { overdue: 0, today: 1, tomorrow: 2, later: 2, anytime: 3 };
-  function dueShort(t) {
-    if (!t.due) return { text: '', late: false };
-    if (t.due < S.today) return { text: shortDay(t.due), late: true };
-    if (t.due === S.today) return { text: t.time ? timeLabel(t.time) : 'Today', late: !!t.time && minuteNow() >= dueTimes(t).end };
-    if (t.due === addDays(S.today, 1)) return { text: 'Tomorrow', late: false };
-    return { text: shortDay(t.due), late: false };
+  // Home's agenda: what's late, today (tasks and important dates, by time), the next 7 days (by day) and what's waiting
+  // on someone, each task with a circle to tick, and a late one moves to today with one tap. Each group shows its first
+  // few and says how many more there are, and the tasks with no date are counted at the end, so nothing is out of sight.
+  const AGENDA_MAX = { overdue: 5, today: 8, next: 6, waiting: 3 };
+  const AGENDA_MORE = { overdue: 'overdue', today: 'today', next: 'this week', waiting: 'waiting' };
+  const AGENDA_SCOPE = { overdue: 'overdue', today: 'today', next: 'upcoming', waiting: 'upcoming' };
+  const nearDay = day => (day === addDays(S.today, 1) ? 'Tomorrow' : day <= addDays(S.today, 6)
+    ? parseYmd(day).toLocaleDateString('en-US', { weekday: 'short' }) : shortDay(day));
+  function agendaWhen(t, group) {
+    if (group === 'overdue') return { text: shortDay(t.due), late: true };
+    if (group === 'today') return { text: t.time ? timeLabel(t.time) : '', late: !!t.time && minuteNow() >= dueTimes(t).end };
+    if (group === 'next') return { text: nearDay(t.due) + (t.time ? ' ' + timeLabel(t.time).replace(':00 ', ' ') : ''), late: false };
+    return { text: t.due ? `Follow up ${nearDay(t.due).replace('Tomorrow', 'tomorrow')}` : '', late: false };
   }
-  function homeRow(t, can) {
+  // Who a task is waiting on, and for how long ("Follow up with" once the day to follow up has come).
+  const waitLine = t => `${t.due && t.due <= S.today ? 'Follow up with' : 'Waiting on'} ${t.waiting.on}${t.waiting.since ? ` · ${waitedText(t.waiting.since)}` : ''}`;
+  function homeRow(t, can, when, o = {}) {
     const title = t.title || 'Untitled task';
-    const when = dueShort(t);
     const li = el('li', 'home-row c' + colorOf(t.list));
     const ring = el('button', 'ring');
     ring.type = 'button';
     ring.dataset.homeDone = t.id;
+    ring.dataset.row = 'done:' + t.id;
     ring.disabled = !can;
     ring.append(iconOf(CHECK_SVG));
     ring.setAttribute('aria-label', `Mark as done: ${title}`);
     const body = el('button', 'hr-body');
     body.type = 'button';
     body.dataset.homeOpen = t.id;
+    body.dataset.row = 'open:' + t.id;
     body.disabled = !can;
     body.setAttribute('aria-label', `${title}, ${whenText(t)}`);
-    body.append(el('span', 'hr-title', title));
+    const text = el('span', 'hr-text');
+    text.append(el('span', 'hr-title', title));
+    if (t.waiting) text.append(el('span', 'hr-sub', waitLine(t)));
+    body.append(text);
     if (when.text) body.append(el('span', 'hr-when' + (when.late ? ' late' : ''), when.text));
     li.append(ring, body);
+    if (o.today && can) {
+      const b = el('button', 'btn-small quiet ag-today', 'Today');
+      b.type = 'button';
+      b.dataset.homeToday = t.id;
+      b.dataset.row = 'today:' + t.id;
+      b.setAttribute('aria-label', `Move to today: ${title}`);
+      li.append(b);
+    }
     return li;
+  }
+  function agendaGroup(key, label, rows, total, act) {
+    const sec = el('section', 'ag-group');
+    sec.dataset.ag = key;
+    const head = el('div', 'ag-head');
+    head.append(el('h3', 'ag-title' + (key === 'overdue' ? ' late' : ''), label), el('span', 'ag-n', String(total)));
+    if (act) head.append(act);
+    const ul = el('ul', 'home-rows');
+    ul.append(...rows);
+    sec.append(head, ul);
+    if (total > rows.length) {
+      const more = el('button', 'link-btn ag-more', `${total - rows.length} more ${AGENDA_MORE[key]}`);
+      more.type = 'button';
+      more.dataset.agMore = key;
+      more.dataset.row = 'more:' + key;
+      sec.append(more);
+    }
+    return sec;
   }
   function renderHomeDue() {
     const box = $('#homeDue');
     const show = shownTab() === 'home' && S.tasksLoaded && (S.status === 'ready' || S.status === 'readonly');
     box.hidden = !show;
     if (!show) return;
-    const open = [];
+    const weekEnd = addDays(S.today, 7);
+    const g = { overdue: [], today: [], next: [], waiting: [] };
+    let open = 0, noDate = 0;
     for (const [id, raw] of S.tasks) {
       const t = taskView(id, raw);
       if (t.done || t.sample) continue;
-      const rank = DUE_RANK[sectionOf(t)];
-      if (rank !== undefined) open.push({ rank, t });
+      const sec = sectionOf(t);
+      if (sec === 'waiting') { g.waiting.push({ t, day: t.due || '9999-99-99' }); continue; }
+      open++;
+      if (sec === 'overdue') g.overdue.push({ t, day: t.due });
+      else if (sec === 'today') g.today.push({ t, day: t.due });
+      else if (sec === 'anytime') noDate++;
+      else if (t.due <= weekEnd) g.next.push({ t, day: t.due });
     }
-    open.sort((a, b) => a.rank - b.rank || (a.t.due || '').localeCompare(b.t.due || '') || byTime(a.t, b.t) || b.t.priority - a.t.priority || byCreated(a.t, b.t));
-    const top = open.slice(0, 3).map(x => x.t);
+    for (const d of datesAhead().up) { // soonest first
+      if (d.next > weekEnd) break;
+      g[d.next === S.today ? 'today' : 'next'].push({ d, day: d.next });
+    }
+    const byPrio = (a, b) => b.t.priority - a.t.priority;
+    g.overdue.sort((a, b) => byPrio(a, b) || a.day.localeCompare(b.day) || byTime(a.t, b.t) || byCreated(a.t, b.t));
+    const dayOrder = (a, b) => a.day.localeCompare(b.day) || (a.d ? 0 : 1) - (b.d ? 0 : 1) // a date before the day's tasks
+      || (a.d ? a.d.title.localeCompare(b.d.title) : byTime(a.t, b.t) || byPrio(a, b) || byCreated(a.t, b.t));
+    g.today.sort(dayOrder);
+    g.next.sort(dayOrder);
+    g.waiting.sort((a, b) => a.day.localeCompare(b.day) || byCreated(a.t, b.t));
     const can = writable();
-    $('#homeDueN').textContent = `${open.length} open`;
-    const rows = $('#homeDueRows');
-    const sig = JSON.stringify([can, S.today, top.map(t => [t.id, t.title, t.due, t.time, colorOf(t.list), dueShort(t)])]);
-    if (rows.dataset.sig !== sig) {
-      const had = rows.contains(document.activeElement); // a ticked row goes: focus stays in the card
-      rows.dataset.sig = sig;
-      rows.replaceChildren(...top.map(t => homeRow(t, can)));
-      if (had) (rows.querySelector('.ring:not(:disabled)') || $('#homeDueGo')).focus({ preventScroll: true });
-    }
-    $('#homeDueEmpty').hidden = open.length > 0;
-    const more = open.length - top.length;
-    $('#homeDueMore').hidden = more <= 0;
-    if (more > 0) $('#homeDueMore').textContent = `and ${more} more`;
+    $('#homeDueN').textContent = `${open} open`;
+    const parts = [['overdue', 'Overdue'], ['today', 'Today'], ['next', 'Next 7 days'], ['waiting', 'Waiting on']].filter(([k]) => g[k].length);
+    const shown = parts.map(([k, label]) => [k, label, g[k].slice(0, AGENDA_MAX[k]).map(x => (x.d ? { d: x.d } : { t: x.t, when: agendaWhen(x.t, k) })), g[k].length]);
+    const late = g.overdue.length;
+    const sig = JSON.stringify([can, S.today, late, shown.map(([k, , items, n]) => [k, n, items.map(x => (x.d ? ['d', x.d] : [x.t.id, x.t.title, x.t.priority, x.t.due, x.t.time, x.t.waiting, colorOf(x.t.list), x.when]))])]);
+    fillRows($('#homeDueRows'), sig, shown.map(([k, label, items, n]) => {
+      let act = null;
+      if (k === 'overdue' && late > 1 && can) {
+        act = el('button', 'link-btn ag-act', `Move all ${late} to today`);
+        act.type = 'button';
+        act.dataset.agAct = 'overdue';
+        act.dataset.row = 'act:overdue';
+      }
+      const rows = items.map(x => (x.d ? dateRow(x.d, 'homeDate', true, 'Open Calendar') : homeRow(x.t, can, x.when, { today: k === 'overdue' })));
+      return agendaGroup(k, label, rows, n, act);
+    }), $('#homeDueGo'));
+    $('#homeDueEmpty').hidden = parts.length > 0;
+    $('#homeDueMore').hidden = !noDate;
+    if (noDate) $('#homeDueMore').textContent = `${plural(noDate, 'more task', 'more tasks')} with no date`;
+  }
+  // From the agenda's "N more": Tasks, showing just that part.
+  function showTasksIn(scope) {
+    S.scope = scope;
+    local.set('todo.scope', scope);
+    setTab('tasks', { top: true });
   }
 
   // The summary at the top of Tasks, for the list being shown: what's open, when it's due (today, the rest of the
@@ -14662,9 +14744,16 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   $('#homeDue').addEventListener('click', e => {
     const done = e.target.closest('[data-home-done]');
     if (done) { checkOff(done.dataset.homeDone); return; }
+    const today = e.target.closest('[data-home-today]');
+    if (today) { moveTask(today.dataset.homeToday, S.today, 'Moved to today'); return; }
     const open = e.target.closest('[data-home-open]');
     if (open) { openTaskSheet('edit', open.dataset.homeOpen); return; }
-    if (e.target.closest('#homeDueGo, #homeDueMore')) setTab('tasks');
+    if (e.target.closest('[data-home-date]')) { openDates(); return; }
+    if (e.target.closest('[data-ag-act]')) { moveOverdueToToday(true); return; }
+    const more = e.target.closest('[data-ag-more]');
+    if (more) { showTasksIn(AGENDA_SCOPE[more.dataset.agMore]); return; }
+    if (e.target.closest('#homeDueMore')) { showTasksIn('all'); return; }
+    if (e.target.closest('#homeDueGo')) setTab('tasks');
   });
   // Coming up opens the Calendar at its dates; Savings, the open goals; New for you, the Wish list (or goes for good).
   $('#homeDates').addEventListener('click', e => { if (e.target.closest('[data-home-date], #homeDatesGo')) openDates(); });
