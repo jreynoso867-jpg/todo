@@ -50,6 +50,48 @@ test('quick add keeps the category being viewed, so the task stays in sight', as
   await ctx.close();
 });
 
+test('a list’s name typed without the # puts the task in that list, and leaves the title only as a tag', async () => {
+  const { ctx, page, errors } = await phone();
+  await page.fill('#quickInput', 'Buy shampoo home');
+  const hint = await page.textContent('#quickHint');
+  assert.match(hint, /^Home/, 'the line under the box says where it goes');
+  assert.ok(hint.includes('Saves as “Buy shampoo”'), hint);
+  await page.press('#quickInput', 'Enter');
+  await page.waitForTimeout(300);
+  for (const t of ['Go to Pearl tomorrow', 'Send Pearl the invoice', 'Jars: degrease the fryer', 'Homework for Sam',
+    'Mop floors #home jars']) await quickAdd(page, t);
+  const d = await dump(page);
+  const saved = title => {
+    const t = Object.entries(d.docs).find(([k, v]) => k.startsWith('tasks/') && v && v.title === title);
+    assert.ok(t, `saved as “${title}”`);
+    return t[1];
+  };
+  assert.equal(saved('Buy shampoo').list, 'l_home', 'at the end, a tag: out of the title');
+  const pearl = saved('Go to Pearl');
+  assert.equal(pearl.list, 'l_pearl', 'part of the sentence: the list, and the words stay');
+  assert.equal(pearl.due, addDays(ymd(new Date()), 1));
+  assert.equal(saved('Send Pearl the invoice').list, 'l_pearl', 'in the middle: the list, and the words stay');
+  assert.equal(saved('Degrease the fryer').list, 'l_jars', '“Jars:” at the start, a tag');
+  assert.equal(saved('Homework for Sam').list, null, 'only whole words');
+  assert.equal(saved('Mop floors jars').list, 'l_home', 'a #name still wins');
+
+  // In the task sheet the list's chip lights up, and a list picked by hand puts the word back in the title.
+  await page.click('#quickMore');
+  await page.waitForSelector('#taskSheet.open');
+  await page.fill('#taskTitle', 'Pay water bill home');
+  assert.equal(await page.getAttribute('[data-sheet-list="l_home"]', 'aria-pressed'), 'true');
+  assert.equal(await page.textContent('#smartText'), 'Home');
+  assert.equal(await page.textContent('#smartTitle'), 'Saves as “Pay water bill”');
+  await page.click('[data-sheet-list="l_jars"]');
+  assert.ok(await page.isHidden('#smart'), 'nothing read from the words any more');
+  await page.click('#sheetSubmit');
+  await page.waitForTimeout(400);
+  const bill = Object.values((await dump(page)).docs).find(v => v && v.title === 'Pay water bill home');
+  assert.ok(bill && bill.list === 'l_jars', 'saved as typed, in the list picked by hand');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 test('a monthly task on the 31st comes back on the 31st after February', async () => {
   const { ctx, page } = await phone();
   const tick = async id => { await page.click(`.task[data-id="${id}"] .ring`); await page.waitForTimeout(1300); };

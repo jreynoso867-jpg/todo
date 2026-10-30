@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/YKVp3qf7kY3MjhOrcQvU+xYUU/zx0OdZBqTS4oN+Yw=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-llRJtlYQBdICTGAxZXFbLtNsbUiCVN7LXy31zu5a2cY=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-b3C6gAEuocwOwqy1XMj8iFFeueVF+sIgxKC6AU42UBs=' 'sha256-5RY9tP/MGkj2wqn2W45vIkUwDz7tQ0PALBpwn8in1Xg=' 'sha256-mfgzhU4IOa8jM3iFxjoBiRyTMtk6pz2b4ADHHOmCUec=' 'sha256-ilQDFh9JO/v58v/68vdaz6sG0/eyDW/DZvogvgGwrJo='; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -371,7 +371,7 @@ img { max-width: 100%; }
   // categories, clients, templates, the history and settings; photos stay where they are) is copied into this
   // phone's storage, next to the photos. Settings can put any copy back. A daily copy is only made when something
   // changed since the last one, and only the newest few of each kind are kept.
-  const APP_VERSION = '2.3ea64420'; // set by tools/release.cjs from the page itself, so every release takes a copy first
+  const APP_VERSION = '2.84971e8c'; // set by tools/release.cjs from the page itself, so every release takes a copy first
   const KEEP = { daily: 5, upgrade: 3, restore: 3, manual: 3 };
   const dayOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + '.' + s.length; };
@@ -4524,14 +4524,19 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   /* ---------- smart add: the date, time, priority, list and repeat read out of what you type ---------- */
   // Words it reads: today, tonight, tomorrow (and tmrw), monday or this/next friday, next week,
   // this weekend, in 3 days, oct 15, 15 oct, on 10/15, on the 1st, 3pm, at 3:30, noon, 15:00, tomorrow morning,
-  // !!! / !! / ! or p1-p3 or asap or urgent, #listname, every day, every weekday, every monday,
-  // every other week, every month, every year.
+  // !!! / !! / ! or p1-p3 or asap or urgent, #listname or a list's whole name, every day, every weekday,
+  // every monday, every other week, every month, every year.
   const SMART_KEYS = ['due', 'time', 'end', 'priority', 'list', 'repeat'];
   const WEEKDAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const WEEKDAY_SHORT = { sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6 };
   const MONTH_SHORT = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   const NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   const DAY_PARTS = { morning: '09:00', afternoon: '14:00', evening: '18:00', night: '20:00' };
+  // Right before a list's name at the end, these make the name part of the sentence, so it stays in the title:
+  // "Go to work", "Pick up Kids", "Work from home", "Buy a new home".
+  const LIST_NAME_STAYS = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'his', 'her', 'their', 'its', 'this', 'that',
+    'to', 'at', 'from', 'for', 'with', 'of', 'in', 'on', 'into', 'onto', 'by', 'about', 'up', 'off', 'out', 'over', 'near',
+    'and', 'or', 'new', 'old', 'own', 'whole', 'every', 'each', 'some', 'any', 'all']);
   const RX = {
     lead: '(?:due\\s+(?:on\\s+|by\\s+)?|on\\s+|by\\s+|for\\s+|before\\s+|until\\s+|till\\s+)',   // "on", "by", "due"... in front of a date
     tomorrow: 'tomorrow|tomorow|tommorow|tommorrow|tomorrw|tmrw|tmrow|tmr|tmw|2morrow|2morow',
@@ -4543,6 +4548,23 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
     end: '(?=[\\s,.;:!?]*$)',   // nothing after it but spaces and punctuation
   };
   const smartNorm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  // Lowercase with no accents, letter for letter with what was typed, so a place found in it is the same place there.
+  const foldSame = s => Array.from(String(s), c => {
+    const f = c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return f.length === c.length ? f : c;
+  }).join('');
+  // A list's whole name as words: "personal", or "Home Depot" as "home depot", "home-depot" or "homedepot".
+  // Names under three letters (Me, HQ) and numbers only count with a #.
+  const listRxCache = new Map();
+  function listNameRx(name) {
+    if (!listRxCache.has(name)) {
+      const parts = foldSame(name).match(/[a-z0-9]+/g) || [];
+      const joined = parts.join('');
+      listRxCache.set(name, joined.length < 3 || /^\d+$/.test(joined) ? null
+        : new RegExp(`(^|[^a-z0-9#])(${parts.join("[\\s'’._&-]{0,3}")})(?![a-z0-9])`, 'g'));
+    }
+    return listRxCache.get(name);
+  }
   const weekdayIndex = w => {
     const k = w.toLowerCase().replace(/\.$/, '');
     const i = WEEKDAY_NAMES.indexOf(k);
@@ -4645,6 +4667,41 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
       const a = m.index + m[1].length;
       return [a, a + 1 + typed.length];
     });
+    // A list's whole name without the #: wherever it is, it picks the list (looked for once the other words are read).
+    // It leaves the title only where it reads as a tag: at the end ("Buy shampoo personal", "Buy shampoo (personal)")
+    // or set off at the start ("Personal: buy shampoo", "Work - send the invoice"). "Go to work", "Call work" and
+    // "Ask work about Friday" keep their words.
+    const listSpots = rest => {
+      const found = [];
+      if (out.list != null) return found;
+      const low = foldSame(rest);
+      for (const l of lists) {
+        const re = listNameRx(l.name);
+        if (re) for (const m of low.matchAll(re)) {
+          const a = m.index + m[1].length;
+          const b = a + m[2].length;
+          if (isFree(a, b)) found.push({ id: l.id, a, b });
+        }
+      }
+      return found.sort((x, y) => x.a - y.a || y.b - x.b); // two starting together: the longer, "Home Depot" over "Home"
+    };
+    // At the end, a name is a tag unless it finishes the sentence: after a word like "to" or "my" (LIST_NAME_STAYS),
+    // or with only one word typed before it ("Call work"). Set off by a comma, a dash or a bracket, it's a tag.
+    const tagAtEnd = (rest, s) => {
+      const lead = rest.slice(0, s.a);
+      const words = lead.match(/[^\s,.;:!?()[\]|\/–—-]+/g);
+      if (!words) return false;
+      if (/[,;:([|\/–—-]\s*$/.test(lead)) return true;
+      return (src.slice(0, s.a).match(/\S+/g) || []).length >= 2 && !LIST_NAME_STAYS.has(foldSame(words[words.length - 1]));
+    };
+    const pickList = (s, tag) => {
+      let { a, b } = s;
+      const open = tag && /[([]\s*$/.exec(src.slice(0, a));
+      const close = tag && /^\s*[)\]]/.exec(src.slice(b));
+      if (open && close) { a = open.index; b += close[0].length; } // "(personal)" goes as a whole
+      out.list = s.id;
+      spans.push({ a, b, key: 'list', keep: !tag });
+    };
 
     // priority
     scan('priority', /(^|\s)(!{1,3})(?=\s|$)/g, m => once('priority', m[2].length) && [m.index + m[1].length, m.index + m[0].length]);
@@ -4759,8 +4816,15 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
         once('repeat', { everyday: 'daily', annually: 'yearly' }[m[1].toLowerCase()] || m[1].toLowerCase()), rest);
       scan('due', R(`\\b(\\d{1,2})/(\\d{1,2})${RX.end}`, 'g'), m => once('due', upcoming(today, Number(m[1]), Number(m[2]), 0)), rest);
       scan('time', R(`${RX.at}(\\d{1,2})${RX.end}`), m => once('time', toHHMM(m[1], 0, '')), rest);
+      const tail = masked();
+      const last = listSpots(tail).find(s => /^[\s,.;:!?)\]]*$/.test(tail.slice(s.b)));
+      if (last) pickList(last, tagAtEnd(tail, last));
       more = spans.length > before;
     }
+    // A list's name anywhere else: the first one, a tag only when set off at the start.
+    const left = masked();
+    const first = listSpots(left)[0];
+    if (first) pickList(first, !left.slice(0, first.a).trim() && /^\s*:|^\s+[-–—]\s/.test(left.slice(first.b)));
 
     // How long it takes, once there's a start time: "for 2 hours", "for 90 min", "for an hour", "for 1.5 hrs".
     scan('end', /\bfor\s+(an?|one|two|three|four|five|six|half\s+an?|\d{1,3}(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi, m => {
@@ -4788,7 +4852,7 @@ html[data-tab="lists"] #paneLists[hidden], html[data-tab="calendar"] #paneCalend
   // The title without the words that were used. Falls back to the words as typed if nothing would be left.
   function smartTitle(p, keys) {
     const typed = clean(p.src, 500);
-    const used = p.spans.filter(s => keys.has(s.key)).sort((x, y) => x.a - y.a);
+    const used = p.spans.filter(s => keys.has(s.key) && !s.keep).sort((x, y) => x.a - y.a); // a kept list name stays
     if (!used.length) return typed;
     let t = '';
     let pos = 0;
